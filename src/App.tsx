@@ -10,10 +10,10 @@ function App() {
   const { theme } = useAppStore();
 
   return (
-    <div className={theme === 'dark' ? 'dark' : ''}>
+    <div>
       <Layout />
       <Toaster 
-        theme={theme}
+        theme={theme === 'dark' ? 'dark' : 'light'}
         position="top-right"
         richColors
       />

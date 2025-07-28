@@ -7,7 +7,6 @@ import {
   Menu,
   Plus,
   Trash2,
-  ChevronDown,
   MoreHorizontal,
   Pin,
   Palette
@@ -15,12 +14,12 @@ import {
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import Popconfirm from './Popconfirm';
-import { useTheme, THEMES } from '../hooks/useTheme';
+
 
 const Layout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme } = useAppStore();
   const {
     sidebarOpen,
     toggleSidebar,
@@ -34,6 +33,16 @@ const Layout: React.FC = () => {
   const currentSessionId = location.pathname.startsWith('/chat/') 
     ? location.pathname.split('/chat/')[1] 
     : null;
+
+  // 监听主题变化
+  useEffect(() => {
+    console.log('📱 Layout 组件主题状态变化:', {
+      theme,
+      documentDataTheme: document.documentElement.getAttribute('data-theme'),
+      documentHasDarkClass: document.documentElement.classList.contains('dark'),
+      timestamp: new Date().toISOString()
+    });
+  }, [theme]);
 
 
   // 监听窗口大小变化，在移动端和桌面端切换时调整侧边栏状态
@@ -286,32 +295,17 @@ const Layout: React.FC = () => {
                 设置
               </Link>
               
-              <div className="dropdown dropdown-top dropdown-end">
-                <button
-                  tabIndex={0}
-                  className="btn btn-ghost btn-sm"
-                >
-                  <Palette className="h-4 w-4" />
-                  主题
-                  <ChevronDown className="h-3 w-3" />
-                </button>
-                <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-48 max-h-60 overflow-y-auto">
-                   {THEMES.map((themeOption) => (
-                     <li key={themeOption.name}>
-                       <button
-                         onClick={() => setTheme(themeOption.name)}
-                         className={cn(
-                           "text-sm justify-start gap-2",
-                           theme === themeOption.name && "bg-base-300"
-                         )}
-                       >
-                         <span className="text-base">{themeOption.emoji}</span>
-                         {themeOption.label}
-                       </button>
-                     </li>
-                   ))}
-                 </ul>
-              </div>
+              <button
+                onClick={() => {
+                  const newTheme = theme === 'light' ? 'dark' : 'light';
+                  setTheme(newTheme);
+                }}
+                className="btn btn-ghost btn-sm"
+                title={theme === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+              >
+                <Palette className="h-4 w-4" />
+                {theme === 'light' ? '亮色主题' : '深色主题'}
+              </button>
             </div>
           </div>
         </div>
@@ -332,6 +326,8 @@ const Layout: React.FC = () => {
               
 
             </div>
+            
+
             
             {/* 会话标题 - 居中显示 */}
             {location.pathname.startsWith('/chat') && currentSessionId && (() => {

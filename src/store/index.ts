@@ -95,7 +95,7 @@ interface AppState {
   tempSessionId: string | null; // 临时会话ID
   
   // UI状态
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | 'cupcake' | 'bumblebee' | 'emerald' | 'corporate' | 'synthwave' | 'retro' | 'cyberpunk' | 'valentine' | 'halloween' | 'garden' | 'forest' | 'aqua' | 'lofi' | 'pastel' | 'fantasy' | 'wireframe' | 'black' | 'luxury' | 'dracula' | 'cmyk' | 'autumn' | 'business' | 'acid' | 'lemonade' | 'night' | 'coffee' | 'winter' | 'dim' | 'nord' | 'sunset' | 'caramellatte' | 'abyss' | 'silk';
   sidebarOpen: boolean;
   
   // Actions
@@ -134,7 +134,7 @@ interface AppState {
   setCurrentUserProfile: (profile: UserProfile | null) => void;
   
   // UI相关
-  setTheme: (theme: 'light' | 'dark') => void;
+  setTheme: (theme: 'light' | 'dark' | 'cupcake' | 'bumblebee' | 'emerald' | 'corporate' | 'synthwave' | 'retro' | 'cyberpunk' | 'valentine' | 'halloween' | 'garden' | 'forest' | 'aqua' | 'lofi' | 'pastel' | 'fantasy' | 'wireframe' | 'black' | 'luxury' | 'dracula' | 'cmyk' | 'autumn' | 'business' | 'acid' | 'lemonade' | 'night' | 'coffee' | 'winter' | 'dim' | 'nord' | 'sunset' | 'caramellatte' | 'abyss' | 'silk') => void;
   toggleSidebar: () => void;
   
   // 数据导入导出
@@ -440,17 +440,42 @@ export const useAppStore = create<AppState>()(
       
       // UI相关actions
       setTheme: (theme) => {
+        console.log('🔧 store.setTheme 开始执行:', {
+          oldTheme: get().theme,
+          newTheme: theme,
+          timestamp: new Date().toISOString()
+        });
+        
         set({ theme });
+        console.log('🔧 store 状态已更新:', { theme: get().theme });
+        
         // 更新 HTML 元素的 data-theme 属性以支持 DaisyUI 主题切换
         if (typeof document !== 'undefined') {
+          const oldDataTheme = document.documentElement.getAttribute('data-theme');
           document.documentElement.setAttribute('data-theme', theme);
+          const newDataTheme = document.documentElement.getAttribute('data-theme');
+          console.log('🔧 data-theme 属性更新:', {
+            old: oldDataTheme,
+            new: newDataTheme,
+            success: newDataTheme === theme
+          });
+          
           // 同时保持原有的 class 切换以兼容其他样式
+          const hadDarkClass = document.documentElement.classList.contains('dark');
           if (theme === 'dark') {
             document.documentElement.classList.add('dark');
           } else {
             document.documentElement.classList.remove('dark');
           }
+          const hasDarkClass = document.documentElement.classList.contains('dark');
+          console.log('🔧 dark 类切换:', {
+            before: hadDarkClass,
+            after: hasDarkClass,
+            shouldHaveDark: theme === 'dark'
+          });
         }
+        
+        console.log('🔧 store.setTheme 执行完成');
       },
       
       toggleSidebar: () => {

@@ -15,3 +15,9 @@
 .chat-container .chat-bubble em {
   opacity: .4;
 }
+
+/* 隐藏 TRAE SOLO 徽章 */
+#trae-badge-plugin,
+.trae-badge {
+  display: none !important;
+}
