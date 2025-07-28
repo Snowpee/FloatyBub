@@ -13,11 +13,10 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
-// 生成随机头像URL
-const generateRandomAvatar = (): string => {
-  const avatarStyles = 'dylan';
-  const randomSeed = Math.random().toString(36).substring(7);
-  return `https://api.dicebear.com/9.x/${avatarStyles}/svg?seed=${randomSeed}`;
+import { generateAvatar, generateRandomLocalAvatar } from '../utils/avatarUtils';
+// 生成随机头像
+const generateRandomAvatar = () => {
+  return generateRandomLocalAvatar();
 };
 
 const UserProfilesPage: React.FC = () => {

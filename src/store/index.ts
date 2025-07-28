@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// 导入默认头像
+import avatar01 from '../assets/avatar/avatar-01.png';
+import avatar02 from '../assets/avatar/avatar-02.png';
+import avatar03 from '../assets/avatar/avatar-03.png';
+
 // LLM模型配置接口
 export interface LLMConfig {
   id: string;
@@ -149,6 +154,7 @@ const defaultRoles: AIRole[] = [
     description: '通用AI助手，可以帮助您解答问题和完成各种任务',
     systemPrompt: '你是一个有用的AI助手，请用友好、专业的语气回答用户的问题。',
     openingMessage: '你好！我是你的AI助手，很高兴为你服务。有什么我可以帮助你的吗？',
+    avatar: avatar01,
     createdAt: new Date(),
     updatedAt: new Date()
   },
@@ -158,6 +164,7 @@ const defaultRoles: AIRole[] = [
     description: '专业的编程助手，擅长代码编写、调试和技术问题解答',
     systemPrompt: '你是一个专业的编程专家，擅长多种编程语言和技术栈。请提供准确、实用的编程建议和代码示例。',
     openingMessage: '你好！我是编程专家，专注于帮助你解决各种编程问题。无论是代码调试、架构设计还是技术选型，我都很乐意为你提供专业建议。',
+    avatar: avatar02,
     createdAt: new Date(),
     updatedAt: new Date()
   },
@@ -167,6 +174,7 @@ const defaultRoles: AIRole[] = [
     description: '富有创意的写作助手，擅长文案创作和内容策划',
     systemPrompt: '你是一个富有创意的写作专家，擅长各种文体的创作。请用生动、有趣的语言帮助用户完成写作任务。',
     openingMessage: '嗨！我是你的创意写手伙伴，擅长各种文体创作。无论你需要写文案、故事、诗歌还是其他创意内容，我都能为你提供灵感和帮助！',
+    avatar: avatar03,
     createdAt: new Date(),
     updatedAt: new Date()
   }

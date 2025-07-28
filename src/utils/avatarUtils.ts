@@ -1,5 +1,34 @@
 // 头像工具函数
 
+// 导入本地头像文件
+import avatar01 from '../assets/avatar/avatar-01.png';
+import avatar02 from '../assets/avatar/avatar-02.png';
+import avatar03 from '../assets/avatar/avatar-03.png';
+import avatar20 from '../assets/avatar/avatar-20.png';
+import avatar21 from '../assets/avatar/avatar-21.png';
+import avatar22 from '../assets/avatar/avatar-22.png';
+import avatar23 from '../assets/avatar/avatar-23.png';
+import avatar24 from '../assets/avatar/avatar-24.png';
+import avatar25 from '../assets/avatar/avatar-25.png';
+import avatar26 from '../assets/avatar/avatar-26.png';
+import avatar27 from '../assets/avatar/avatar-27.png';
+import avatar28 from '../assets/avatar/avatar-28.png';
+import avatar29 from '../assets/avatar/avatar-29.png';
+import avatar30 from '../assets/avatar/avatar-30.png';
+
+// 本地头像数组
+const localAvatars = [
+  avatar01, avatar02, avatar03, avatar20, avatar21, avatar22,
+  avatar23, avatar24, avatar25, avatar26, avatar27, avatar28,
+  avatar29, avatar30
+];
+
+// 生成随机本地头像
+export const generateRandomLocalAvatar = (): string => {
+  const randomIndex = Math.floor(Math.random() * localAvatars.length);
+  return localAvatars[randomIndex];
+};
+
 // 生成随机背景颜色
 const generateRandomColor = (seed: string): string => {
   // 使用角色名作为种子生成一致的颜色
@@ -88,6 +117,13 @@ export const isValidImageUrl = (url: string): boolean => {
   
   // 检查是否为base64图片
   if (url.startsWith('data:image/')) {
+    return true;
+  }
+  
+  // 检查是否为Vite导入的图片资源（以/src/assets开头或包含常见图片扩展名）
+  const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+  const hasImageExtension = imageExtensions.some(ext => url.toLowerCase().includes(ext));
+  if (url.startsWith('/src/assets') || hasImageExtension) {
     return true;
   }
   

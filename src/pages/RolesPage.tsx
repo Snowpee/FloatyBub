@@ -11,7 +11,8 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Avatar from '../components/Avatar';
-import AvatarUpload from '../components/AvatarUpload';
+import RoleAvatarUpload from '../components/RoleAvatarUpload';
+import { generateAvatar, generateRandomLocalAvatar } from '../utils/avatarUtils';
 
 const RolesPage: React.FC = () => {
   const {
@@ -62,12 +63,17 @@ const RolesPage: React.FC = () => {
   };
 
   const handleAdd = () => {
+    // 生成随机头像
+    const generateRandomAvatar = () => {
+      return generateRandomLocalAvatar();
+    };
+    
     setFormData({
       name: '',
       description: '',
       systemPrompt: '',
       openingMessage: '',
-      avatar: undefined,
+      avatar: generateRandomAvatar(),
       globalPromptId: ''
     });
     setEditingId(null);
@@ -187,22 +193,22 @@ const RolesPage: React.FC = () => {
                   </div>
                 </div>
                 
-                {!isDefault && (
-                  <div className="flex space-x-1">
-                    <button
-                      onClick={() => handleEdit(role)}
-                      className="btn btn-ghost btn-sm"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
+                <div className="flex space-x-1">
+                  <button
+                    onClick={() => handleEdit(role)}
+                    className="btn btn-ghost btn-sm"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  {!isDefault && (
                     <button
                       onClick={() => handleDelete(role.id)}
                       className="btn btn-ghost btn-sm text-error"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* 角色描述 */}
@@ -297,7 +303,7 @@ const RolesPage: React.FC = () => {
                 <label className="label">
                   <span className="label-text">角色头像</span>
                 </label>
-                <AvatarUpload
+                <RoleAvatarUpload
                   name={formData.name || '新角色'}
                   currentAvatar={formData.avatar}
                   onAvatarChange={(avatar) => setFormData({ ...formData, avatar })}

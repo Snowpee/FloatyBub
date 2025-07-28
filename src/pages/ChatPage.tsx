@@ -513,7 +513,11 @@ const ChatPage: React.FC = () => {
                     : ''
                 )}
               >
-                <MarkdownRenderer content={msg.content} />
+                <MarkdownRenderer content={replaceTemplateVariables(
+                  msg.content,
+                  currentUserProfile?.name || '用户',
+                  currentRole?.name || 'AI助手'
+                )} />
                 {msg.isStreaming && (
                   <Loader2 className="h-4 w-4 animate-spin mt-2" />
                 )}
