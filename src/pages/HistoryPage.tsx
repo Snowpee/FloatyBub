@@ -10,7 +10,8 @@ import {
   Bot,
   Download,
   Filter,
-  ChevronDown
+  ChevronDown,
+  Eye
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -23,7 +24,8 @@ const HistoryPage: React.FC = () => {
     aiRoles,
     llmConfigs,
     deleteChatSession,
-    setCurrentSession
+    setCurrentSession,
+    showSession
   } = useAppStore();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -81,6 +83,14 @@ const HistoryPage: React.FC = () => {
   const confirmDeleteSession = () => {
     deleteChatSession(confirmDialog.sessionId);
     toast.success('会话已删除');
+  };
+
+  const handleShowSession = (sessionId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    showSession(sessionId);
+    toast.success('会话已重新加载到侧边栏');
   };
 
   const handleExportSession = (sessionId: string, e: React.MouseEvent) => {
@@ -333,6 +343,15 @@ const HistoryPage: React.FC = () => {
 
                   {/* 操作按钮 */}
                   <div className="flex items-center space-x-2 ml-4">
+                    {session.isHidden && (
+                      <button
+                        onClick={(e) => handleShowSession(session.id, e)}
+                        className="btn btn-ghost btn-sm btn-square text-success hover:bg-success/10"
+                        title="重新加载到侧边栏"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => handleExportSession(session.id, e)}
                       className="btn btn-ghost btn-sm btn-square text-info hover:bg-info/10"

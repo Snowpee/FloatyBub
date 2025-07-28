@@ -10,7 +10,8 @@ import {
   MoreHorizontal,
   Pin,
   Palette,
-  Volume2
+  Volume2,
+  EyeOff
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -27,7 +28,8 @@ const Layout: React.FC = () => {
     createChatSession,
     chatSessions,
     setCurrentSession,
-    deleteChatSession
+    deleteChatSession,
+    hideSession
   } = useAppStore();
   
   // 从URL中获取当前会话ID
@@ -66,8 +68,9 @@ const Layout: React.FC = () => {
 
   // 移除navigation数组，不再需要
 
-  // 显示最近的会话
+  // 显示最近的会话（只显示未隐藏的会话）
   const recentSessions = chatSessions
+    .filter(session => !session.isHidden)
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 20);
 
@@ -131,11 +134,11 @@ const Layout: React.FC = () => {
     <div className="min-h-screen bg-base-200 flex">
       {/* 侧边栏 */}
       <div className={cn(
-        'w-64 bg-base-100 border-r border-base-300 transform transition-transform duration-200 ease-in-out flex-shrink-0',
-        // 移动端：固定定位，根据状态显示/隐藏
-        'fixed lg:relative z-40 lg:z-auto h-full lg:h-screen',
-        // 移动端的显示控制
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        'w-64 bg-base-100 border-r border-base-300 transition-all duration-200 ease-in-out flex-shrink-0',
+        // 移动端：固定定位
+        'fixed lg:fixed z-40 h-full lg:h-screen',
+        // 显示控制：移动端和桌面端都根据sidebarOpen状态控制
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
         <div className="flex flex-col h-full">
           {/* Logo */}
@@ -143,12 +146,6 @@ const Layout: React.FC = () => {
             <a href="/" className="flex items-center">
               <h1 className="text-xl font-bold text-base-content">Floaty Bub</h1>
             </a>
-            <button
-              onClick={toggleSidebar}
-              className="lg:hidden btn btn-ghost btn-sm"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
           </div>
 
           {/* 新建聊天按钮 */}
@@ -239,9 +236,23 @@ const Layout: React.FC = () => {
                             </button>
                           </li>
                           <li>
+                            <button
+                               onClick={() => {
+                                 hideSession(session.id);
+                                 toast.success('会话已移除');
+                                 // 关闭dropdown
+                                 (document.activeElement as HTMLElement)?.blur();
+                               }}
+                               className="text-sm"
+                             >
+                               <EyeOff className="h-4 w-4" />
+                               移除对话
+                             </button>
+                          </li>
+                          <li>
                             <Popconfirm
                               title="确认删除？"
-                              description={`删除会话 "${session.title}" 后无法恢复`}
+                              description={`删除会话后无法恢复`}
                               onConfirm={() => {
                                 deleteSession(session.id);
                               }}
@@ -269,7 +280,7 @@ const Layout: React.FC = () => {
                               getPopupContainer={() => linkRef?.current!}
                             >
                               <button className="text-sm text-error w-full text-left flex items-center">
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4 mr-2" />
                                 删除
                               </button>
                             </Popconfirm>
@@ -324,7 +335,11 @@ const Layout: React.FC = () => {
       </div>
 
       {/* 主内容区域 */}
-      <div className="flex flex-col flex-1 min-h-screen transition-all duration-200 ease-in-out h-screen">
+      <div className={cn(
+        "flex flex-col flex-1 min-h-screen transition-all duration-200 ease-in-out h-screen",
+        // 在桌面端根据侧边栏状态调整左边距
+        sidebarOpen ? "lg:ml-64" : "lg:ml-0"
+      )}>
         {/* 顶部栏 */}
         <header className="bg-base-100 bg-opacity-90 border-b border-base-300 backdrop-blur">
           <div className="flex items-center justify-between h-16 px-4">

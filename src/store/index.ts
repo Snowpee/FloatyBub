@@ -59,6 +59,10 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   isStreaming?: boolean;
+  roleId?: string; // 对于assistant消息，存储AI角色ID；对于user消息，可以为空
+  userProfileId?: string; // 对于user消息，存储用户资料ID；对于assistant消息，可以为空
+  versions?: string[]; // 消息的多个版本内容
+  currentVersionIndex?: number; // 当前显示的版本索引
 }
 
 // 聊天会话接口
@@ -70,6 +74,7 @@ export interface ChatSession {
   messages: ChatMessage[];
   createdAt: Date;
   updatedAt: Date;
+  isHidden?: boolean; // 是否从侧边栏隐藏
 }
 
 // 应用状态接口
@@ -123,9 +128,16 @@ interface AppState {
   deleteTempSession: () => void;
   updateChatSession: (id: string, session: Partial<ChatSession>) => void;
   deleteChatSession: (id: string) => void;
+  hideSession: (id: string) => void;
+  showSession: (id: string) => void;
   setCurrentSession: (id: string) => void;
   addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'> & { id?: string }) => void;
   updateMessage: (sessionId: string, messageId: string, content: string, isStreaming?: boolean) => void;
+  regenerateMessage: (sessionId: string, messageId: string) => Promise<void>;
+  addMessageVersion: (sessionId: string, messageId: string, newContent: string) => void;
+  addMessageVersionWithOriginal: (sessionId: string, messageId: string, originalContent: string, newContent: string) => void;
+  switchMessageVersion: (sessionId: string, messageId: string, versionIndex: number) => void;
+  deleteMessage: (sessionId: string, messageId: string) => void;
   
   // 用户资料相关
   addUserProfile: (profile: Omit<UserProfile, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -393,14 +405,36 @@ export const useAppStore = create<AppState>()(
         }));
       },
       
+      hideSession: (id) => {
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === id ? { ...s, isHidden: true, updatedAt: new Date() } : s
+          )
+        }));
+      },
+      
+      showSession: (id) => {
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === id ? { ...s, isHidden: false, updatedAt: new Date() } : s
+          )
+        }));
+      },
+      
       setCurrentSession: (id) => {
         set({ currentSessionId: id });
       },
       
       addMessage: (sessionId, message) => {
+        const state = get();
+        const session = state.chatSessions.find(s => s.id === sessionId);
+        
         const newMessage: ChatMessage = {
           ...message,
-          id: message.id || generateId()
+          id: message.id || generateId(),
+          timestamp: new Date(),
+          roleId: session?.roleId, // 所有消息都保存会话的roleId
+          userProfileId: message.role === 'user' ? state.currentUserProfile?.id : undefined
         };
         
         // 如果是临时会话的第一条用户消息，将其转为正式会话
@@ -431,6 +465,88 @@ export const useAppStore = create<AppState>()(
                       isStreaming: isStreaming !== undefined ? isStreaming : m.isStreaming 
                     } : m
                   ),
+                  updatedAt: new Date()
+                }
+              : s
+          )
+        }));
+      },
+
+      regenerateMessage: async (sessionId, messageId) => {
+        // 这个函数将在ChatPage中调用，因为需要访问LLM API
+        // 这里只是一个占位符，实际实现在ChatPage中
+        throw new Error('regenerateMessage should be implemented in ChatPage');
+      },
+
+      addMessageVersion: (sessionId, messageId, newContent) => {
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === sessionId 
+              ? {
+                  ...s,
+                  messages: s.messages.map(m => 
+                    m.id === messageId ? {
+                      ...m,
+                      versions: m.versions ? [...m.versions, newContent] : [m.content, newContent],
+                      currentVersionIndex: m.versions ? m.versions.length : 1,
+                      content: newContent
+                    } : m
+                  ),
+                  updatedAt: new Date()
+                }
+              : s
+          )
+        }));
+      },
+
+      addMessageVersionWithOriginal: (sessionId, messageId, originalContent, newContent) => {
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === sessionId 
+              ? {
+                  ...s,
+                  messages: s.messages.map(m => 
+                    m.id === messageId ? {
+                      ...m,
+                      versions: m.versions ? [...m.versions, newContent] : [originalContent, newContent],
+                      currentVersionIndex: m.versions ? m.versions.length : 1,
+                      content: newContent
+                    } : m
+                  ),
+                  updatedAt: new Date()
+                }
+              : s
+          )
+        }));
+      },
+
+      switchMessageVersion: (sessionId, messageId, versionIndex) => {
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === sessionId 
+              ? {
+                  ...s,
+                  messages: s.messages.map(m => 
+                    m.id === messageId && m.versions ? {
+                      ...m,
+                      currentVersionIndex: versionIndex,
+                      content: m.versions[versionIndex] || m.content
+                    } : m
+                  ),
+                  updatedAt: new Date()
+                }
+              : s
+          )
+        }));
+      },
+
+      deleteMessage: (sessionId, messageId) => {
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === sessionId 
+              ? {
+                  ...s,
+                  messages: s.messages.filter(m => m.id !== messageId),
                   updatedAt: new Date()
                 }
               : s
@@ -579,7 +695,23 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'ai-chat-storage',
-      version: 1,
+      version: 2, // 增加版本号以触发迁移
+      migrate: (persistedState: any, version: number) => {
+        // 数据迁移：为现有消息补充roleId信息
+        if (version < 2 && persistedState?.chatSessions) {
+          persistedState.chatSessions = persistedState.chatSessions.map((session: any) => ({
+            ...session,
+            messages: (session.messages || []).map((message: any) => ({
+              ...message,
+              // 如果消息没有roleId，使用会话的roleId
+              roleId: message.roleId || session.roleId,
+              // 确保timestamp是Date对象
+              timestamp: message.timestamp ? new Date(message.timestamp) : new Date()
+            }))
+          }));
+        }
+        return persistedState;
+      },
       partialize: (state) => ({
         llmConfigs: state.llmConfigs,
         currentModelId: state.currentModelId,

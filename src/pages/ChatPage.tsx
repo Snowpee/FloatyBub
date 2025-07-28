@@ -8,13 +8,20 @@ import {
   Loader2,
   Square,
   Cpu,
-  Plus
+  Plus,
+  RefreshCw,
+  Edit3,
+  Trash2,
+  Volume2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import RoleSelector from '../components/RoleSelector';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import Avatar from '../components/Avatar';
+import Popconfirm from '../components/Popconfirm';
 import { replaceTemplateVariables } from '../utils/templateUtils';
 
 const ChatPage: React.FC = () => {
@@ -22,6 +29,8 @@ const ChatPage: React.FC = () => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -30,6 +39,7 @@ const ChatPage: React.FC = () => {
     currentSessionId,
     chatSessions,
     aiRoles,
+    userProfiles,
     llmConfigs,
     currentRoleId,
     currentModelId,
@@ -42,6 +52,10 @@ const ChatPage: React.FC = () => {
     deleteTempSession,
     addMessage,
     updateMessage,
+    addMessageVersion,
+    addMessageVersionWithOriginal,
+    switchMessageVersion,
+    deleteMessage,
     setCurrentRole,
     setCurrentModel
   } = useAppStore();
@@ -446,6 +460,250 @@ const ChatPage: React.FC = () => {
     toast.info('已停止生成');
   };
 
+  // 重新生成消息
+  const handleRegenerateMessage = async (messageId: string) => {
+    if (!currentSession || !currentModel || !currentRole || isLoading) {
+      return;
+    }
+
+    const messageIndex = currentSession.messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1 || currentSession.messages[messageIndex].role !== 'assistant') {
+      return;
+    }
+
+    // 检查是否是最新的AI消息
+    const lastAssistantMessageIndex = currentSession.messages.map((m, i) => ({ message: m, index: i }))
+      .filter(({ message }) => message.role === 'assistant')
+      .pop()?.index;
+    
+    if (messageIndex !== lastAssistantMessageIndex) {
+      toast.error('只能重新生成最新的AI回复');
+      return;
+    }
+
+    setIsLoading(true);
+    setIsGenerating(true);
+
+    try {
+      // 获取该消息之前的所有消息作为上下文
+      const contextMessages = currentSession.messages.slice(0, messageIndex);
+      
+      // 获取最后一条用户消息
+      const lastUserMessage = contextMessages.filter(m => m.role === 'user').pop();
+      if (!lastUserMessage) {
+        toast.error('找不到对应的用户消息');
+        return;
+      }
+
+      // 构建完整的系统提示词
+      const systemPrompt = buildSystemPrompt(currentRole, globalPrompts, currentUserProfile);
+      
+      // 构建消息历史
+      const messages = [];
+      
+      // 只有当系统提示词不为空时才添加 system 消息
+      if (systemPrompt) {
+        messages.push({
+          role: 'system',
+          content: systemPrompt
+        });
+      }
+      
+      // 添加历史消息（不包括要重新生成的消息）
+      messages.push(...contextMessages.map(m => ({
+        role: m.role,
+        content: m.content
+      })));
+
+      // 保存原始内容
+      const originalContent = currentSession.messages[messageIndex].content;
+      
+      // 调用AI API生成新内容
+      let newContent = '';
+      await callAIAPIForRegeneration(messages, (content) => {
+        newContent = content;
+        // 实时更新消息内容
+        updateMessage(currentSession.id, messageId, content, true);
+      });
+
+      // 完成生成后，添加为新版本（传入原始内容）
+      addMessageVersionWithOriginal(currentSession.id, messageId, originalContent, newContent);
+      updateMessage(currentSession.id, messageId, newContent, false);
+      
+      toast.success('重新生成完成');
+    } catch (error) {
+      console.error('重新生成失败:', error);
+      toast.error('重新生成失败，请重试');
+    } finally {
+      setIsLoading(false);
+      setIsGenerating(false);
+    }
+  };
+
+  // 为重新生成调用AI API的函数
+  const callAIAPIForRegeneration = async (messages: any[], onContent: (content: string) => void) => {
+    if (!currentModel) {
+      throw new Error('模型未配置');
+    }
+
+    // 根据不同的provider调用相应的API
+    let apiUrl = '';
+    let headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    let body: any = {};
+
+    switch (currentModel.provider) {
+      case 'openai':
+        apiUrl = currentModel.baseUrl || 'https://api.openai.com';
+        if (!apiUrl.endsWith('/v1/chat/completions')) {
+          apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+        }
+        headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
+        body = {
+          model: currentModel.model,
+          messages,
+          temperature: currentModel.temperature,
+          max_tokens: currentModel.maxTokens,
+          stream: true
+        };
+        break;
+
+      case 'claude':
+        apiUrl = currentModel.baseUrl || 'https://api.anthropic.com';
+        if (!apiUrl.endsWith('/v1/messages')) {
+          apiUrl = apiUrl.replace(/\/$/, '') + '/v1/messages';
+        }
+        headers['x-api-key'] = currentModel.apiKey;
+        headers['anthropic-version'] = '2023-06-01';
+        const systemMessage = messages.find(m => m.role === 'system');
+        body = {
+          model: currentModel.model,
+          messages: messages.filter(m => m.role !== 'system'),
+          max_tokens: currentModel.maxTokens,
+          temperature: currentModel.temperature,
+          stream: true
+        };
+        if (systemMessage) {
+          body.system = systemMessage.content;
+        }
+        break;
+
+      case 'gemini':
+        apiUrl = currentModel.baseUrl || 'https://generativelanguage.googleapis.com';
+        if (!apiUrl.includes('/v1beta/models/')) {
+          apiUrl = apiUrl.replace(/\/$/, '') + `/v1beta/models/${currentModel.model}:streamGenerateContent?key=${currentModel.apiKey}`;
+        }
+        const systemMsg = messages.find(m => m.role === 'system');
+        body = {
+          contents: messages.filter(m => m.role !== 'system').map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+          })),
+          generationConfig: {
+            temperature: currentModel.temperature,
+            maxOutputTokens: currentModel.maxTokens
+          }
+        };
+        if (systemMsg) {
+          body.systemInstruction = {
+            parts: [{ text: systemMsg.content }]
+          };
+        }
+        break;
+
+      default:
+        // 自定义provider，使用OpenAI兼容格式
+        apiUrl = currentModel.baseUrl || '';
+        if (!apiUrl.endsWith('/v1/chat/completions')) {
+          apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+        }
+        headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
+        body = {
+          model: currentModel.model,
+          messages,
+          temperature: currentModel.temperature,
+          max_tokens: currentModel.maxTokens,
+          stream: true
+        };
+    }
+
+    // 如果配置了代理URL，使用代理
+    if (currentModel.proxyUrl) {
+      apiUrl = currentModel.proxyUrl;
+    }
+
+    // 清理之前的请求并创建新的 AbortController
+    cleanupRequest();
+    abortControllerRef.current = new AbortController();
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: abortControllerRef.current.signal
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API请求失败: ${response.status} ${errorText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('无法读取响应流');
+    }
+
+    const decoder = new TextDecoder();
+    let currentContent = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              let content = '';
+
+              // 根据不同provider解析响应
+              if (currentModel.provider === 'openai' || currentModel.provider === 'custom') {
+                content = parsed.choices?.[0]?.delta?.content || '';
+              } else if (currentModel.provider === 'claude') {
+                if (parsed.type === 'content_block_delta') {
+                  content = parsed.delta?.text || '';
+                }
+              } else if (currentModel.provider === 'gemini') {
+                content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              }
+
+              if (content) {
+                currentContent += content;
+                onContent(currentContent);
+              }
+            } catch (e) {
+              // 忽略JSON解析错误
+              console.warn('解析流数据失败:', e);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    // 请求完成后清理 AbortController
+    abortControllerRef.current = null;
+  };
+
   // 处理键盘事件
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -479,48 +737,218 @@ const ChatPage: React.FC = () => {
             <div
               key={msg.id}
               className={cn(
-                'chat',
+                'mb-2 chat',
                 msg.role === 'user' ? 'chat-end' : 'chat-start'
               )}
             >
               <div className="chat-image avatar">
                 {msg.role === 'assistant' ? (
-                  <Avatar
-                    name={currentRole?.name || 'AI助手'}
-                    avatar={currentRole?.avatar}
-                    size="md"
-                  />
+                  (() => {
+                    // 根据消息的roleId获取对应的AI角色，添加多重fallback
+                    let messageRole = null;
+                    if (msg.roleId) {
+                      messageRole = aiRoles.find(r => r.id === msg.roleId);
+                    }
+                    // 如果没有找到，尝试使用会话的roleId
+                    if (!messageRole && currentSession?.roleId) {
+                      messageRole = aiRoles.find(r => r.id === currentSession.roleId);
+                    }
+                    // 最后fallback到当前角色
+                    if (!messageRole) {
+                      messageRole = currentRole;
+                    }
+                    return (
+                      <Avatar
+                        name={messageRole?.name || 'AI助手'}
+                        avatar={messageRole?.avatar}
+                        size="md"
+                      />
+                    );
+                  })()
                 ) : (
-                  currentUserProfile ? (
-                    <Avatar
-                      name={currentUserProfile.name}
-                      avatar={currentUserProfile.avatar}
-                      size="md"
-                    />
-                  ) : (
-                    <div 
-                      className="w-8 h-8 rounded-full bg-base-300 flex items-center justify-items-center content-center text-center">
-                      <User className="h-4 w-4 text-accent" />
-                    </div>
-                  )
+                  (() => {
+                    // 根据消息的userProfileId获取对应的用户资料
+                    const messageUserProfile = msg.userProfileId ? userProfiles.find(p => p.id === msg.userProfileId) : currentUserProfile;
+                    return messageUserProfile ? (
+                      <Avatar
+                        name={messageUserProfile.name}
+                        avatar={messageUserProfile.avatar}
+                        size="md"
+                      />
+                    ) : (
+                      <div 
+                        className="w-8 h-8 rounded-full bg-base-300 flex items-center justify-items-center content-center text-center">
+                        <User className="h-4 w-4 text-accent" />
+                      </div>
+                    );
+                  })()
                 )}              </div>
               
-              <div
-                className={cn(
-                  'chat-bubble max-w-xs lg:max-w-md xl:max-w-lg',
-                  msg.role === 'user'
-                    ? 'chat-bubble-accent'
-                    : ''
-                )}
-              >
-                <MarkdownRenderer content={replaceTemplateVariables(
-                  msg.content,
-                  currentUserProfile?.name || '用户',
-                  currentRole?.name || 'AI助手'
-                )} />
-                {msg.isStreaming && (
-                  <Loader2 className="h-4 w-4 animate-spin mt-2" />
-                )}
+              <div className="group relative">
+                <div
+                  className={cn(
+                    'chat-bubble max-w-xs lg:max-w-md xl:max-w-lg',
+                    msg.role === 'user'
+                      ? 'chat-bubble-accent'
+                      : ''
+                  )}
+                >
+                  <MarkdownRenderer content={replaceTemplateVariables(
+                    msg.content,
+                    currentUserProfile?.name || '用户',
+                    currentRole?.name || 'AI助手'
+                  )} />
+                  {msg.isStreaming && (
+                    <Loader2 className="h-4 w-4 animate-spin mt-2" />
+                  )}
+                </div>
+                
+                {/* 操作按钮组 - hover时显示 */}
+                <div className={cn(
+                  'absolute flex gap-1 p-1 opacity-0 bg-white/40 rounded-md group-hover:opacity-100 transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  msg.role === 'user' 
+                    ? 'right-0 top-full mt-1' 
+                    : 'left-0 top-full mt-1'
+                )}>
+
+                  {/* 重新生成按钮 - 仅对最新的AI消息显示 */}
+                  {msg.role === 'assistant' && (() => {
+                    // 检查是否是最新的AI消息
+                    const lastAssistantMessageIndex = currentSession?.messages
+                      .map((m, i) => ({ message: m, index: i }))
+                      .filter(({ message }) => message.role === 'assistant')
+                      .pop()?.index;
+                    const currentIndex = currentSession?.messages.findIndex(m => m.id === msg.id);
+                    const isLatestAssistant = currentIndex === lastAssistantMessageIndex;
+                    
+                    return isLatestAssistant ? (
+                      <button
+                        className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors disabled:opacity-50"
+                        title="重新生成"
+                        disabled={isLoading}
+                        onClick={() => handleRegenerateMessage(msg.id)}
+                      >
+                        <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+                      </button>
+                    ) : null;
+                  })()}
+                  
+                  {/* 编辑按钮 */}
+                  <Popconfirm
+                    title="编辑消息"
+                    description={
+                      <div className="">
+                        <textarea
+                          value={editingMessageId === msg.id ? editingContent : msg.content}
+                          onChange={(e) => {
+                            if (editingMessageId === msg.id) {
+                              setEditingContent(e.target.value);
+                            } else {
+                              setEditingMessageId(msg.id);
+                              setEditingContent(e.target.value);
+                            }
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-md resize-none text-sm"
+                          rows={3}
+                          placeholder="编辑消息内容..."
+                        />
+                      </div>
+                    }
+                    onConfirm={() => {
+                      if (editingContent.trim()) {
+                        updateMessage(currentSession!.id, msg.id, editingContent.trim());
+                        setEditingMessageId(null);
+                        setEditingContent('');
+                        toast.success('消息已更新');
+                      }
+                    }}
+                    onCancel={() => {
+                      setEditingMessageId(null);
+                      setEditingContent('');
+                    }}
+                    okText="保存"
+                    cancelText="取消"
+                  >
+                    <button
+                      className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
+                      title="编辑"
+                    >
+                      <Edit3 className="h-4 w-4 " />
+                    </button>
+                  </Popconfirm>
+                  
+                  {/* 删除按钮 */}
+                  <Popconfirm
+                    title="确定要删除这条消息吗？"
+                    onConfirm={() => {
+                      deleteMessage(currentSession!.id, msg.id);
+                      toast.success('消息已删除');
+                    }}
+                  >
+                    <button
+                      className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
+                      title="删除"
+                    >
+                      <Trash2 className="h-4 w-4 " />
+                    </button>
+                  </Popconfirm>
+                  
+                  {/* 朗读按钮 - 仅对AI消息显示 */}
+                  {msg.role === 'assistant' && (
+                    <button
+                      className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
+                      title="朗读"
+                      onClick={() => {
+                        // TODO: 实现朗读功能
+                        console.log('朗读消息:', msg.id);
+                      }}
+                    >
+                      <Volume2 className="h-4 w-4 " />
+                    </button>
+                  )}
+                </div>
+                {/* 版本切换按钮组 - hover时显示 */}
+                <div className={cn(
+                  'absolute flex gap-1 p-1 opacity-0 bg-white/40 rounded-md group-hover:opacity-100 transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  msg.role === 'user' 
+                    ? 'left-0 top-full mt-1' 
+                    : 'right-0 top-full mt-1'
+                )}>
+                  {/* 版本切换按钮 - 对有多个版本的消息显示 */}
+                  {msg.versions && msg.versions.length > 1 && (
+                    <>
+                      <button
+                        className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors disabled:opacity-50"
+                        title="上一个版本"
+                        disabled={(msg.currentVersionIndex || 0) === 0}
+                        onClick={() => {
+                          const currentIndex = msg.currentVersionIndex || 0;
+                          if (currentIndex > 0) {
+                            switchMessageVersion(currentSession!.id, msg.id, currentIndex - 1);
+                          }
+                        }}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <span className="text-xs text-gray-500 px-1 content-center">
+                        {(msg.currentVersionIndex || 0) + 1}/{msg.versions.length}
+                      </span>
+                      <button
+                        className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors disabled:opacity-50"
+                        title="下一个版本"
+                        disabled={(msg.currentVersionIndex || 0) === msg.versions.length - 1}
+                        onClick={() => {
+                          const currentIndex = msg.currentVersionIndex || 0;
+                          if (currentIndex < msg.versions.length - 1) {
+                            switchMessageVersion(currentSession!.id, msg.id, currentIndex + 1);
+                          }
+                        }}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+                  </div>
               </div>
             </div>
           ))

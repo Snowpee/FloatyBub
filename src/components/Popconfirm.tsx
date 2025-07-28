@@ -4,7 +4,7 @@ import { cn } from '../lib/utils';
 
 interface PopconfirmProps {
   title?: string;
-  description?: string;
+  description?: string | React.ReactNode;
   onConfirm: () => void;
   onCancel?: () => void;
   children: React.ReactElement;
@@ -205,11 +205,11 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
         >
           {/* 内容 */}
           <div className="space-y-3">
-            <div className="text-sm font-medium text-gray-900 dark:text-white">
+            <div className="text-md font-medium text-gray-900 dark:text-white">
               {title}
             </div>
             {description && (
-              <div className="text-xs text-gray-600 dark:text-gray-400">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
                 {description}
               </div>
             )}
@@ -218,13 +218,13 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
             <div className="flex justify-end space-x-2">
               <button
                 onClick={handleCancel}
-                className="btn btn-sm btn-ghost text-xs"
+                className="btn btn-sm btn-ghost text-sm"
               >
                 {cancelText}
               </button>
               <button
                 onClick={handleConfirm}
-                className="btn btn-sm btn-error text-xs"
+                className="btn btn-sm btn-error text-sm"
               >
                 {okText}
               </button>
