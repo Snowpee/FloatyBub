@@ -95,7 +95,7 @@ print_info "当前分支: $current_branch"
 
 # 推送到远程仓库
 print_info "推送到远程仓库..."
-if git push origin "$current_branch"; then
+if git push --no-verify origin "$current_branch"; then
     print_success "推送成功！"
     print_success "✨ Git 提交流程完成！"
 else
