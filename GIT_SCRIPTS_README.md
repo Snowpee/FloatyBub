@@ -82,7 +82,7 @@ type(scope): description
 2. **网络连接**：推送需要网络连接到 GitHub
 3. **远程仓库配置**：确保已正确配置远程仓库
 4. **分支权限**：确保有推送到当前分支的权限
-5. **Git Hooks**：脚本使用 `--no-verify` 选项跳过 pre-commit hooks，避免潜在的配置问题
+5. **Git Hooks**：脚本使用 `--no-verify` 选项跳过 Git hooks，避免因缺失模块或配置问题导致的提交失败
 
 ## 🔧 故障排除
 
