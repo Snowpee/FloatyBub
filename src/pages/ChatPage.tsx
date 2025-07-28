@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import RoleSelector from '../components/RoleSelector';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import Avatar from '../components/Avatar';
+import { replaceTemplateVariables } from '../utils/templateUtils';
 
 const ChatPage: React.FC = () => {
   const { sessionId } = useParams();
@@ -119,7 +120,12 @@ const ChatPage: React.FC = () => {
       return;
     }
 
-    const userMessage = message.trim();
+    // 获取用户名和角色名，用于模板替换
+    const userName = currentUserProfile?.name || '用户';
+    const charName = currentRole?.name || 'AI助手';
+    
+    // 对用户输入应用模板替换
+    const userMessage = replaceTemplateVariables(message.trim(), userName, charName);
     setMessage('');
     setIsLoading(true);
     setIsGenerating(true);
@@ -181,6 +187,10 @@ const ChatPage: React.FC = () => {
   const buildSystemPrompt = (role: any, globalPrompts: any[], userProfile: any) => {
     const parts = [];
     
+    // 获取用户名和角色名，用于模板替换
+    const userName = userProfile?.name || '用户';
+    const charName = role?.name || 'AI助手';
+    
     // 添加用户资料信息
     if (userProfile) {
       const userInfo = [`用户名：${userProfile.name}`];
@@ -190,17 +200,19 @@ const ChatPage: React.FC = () => {
       parts.push(`[用户信息：${userInfo.join('，')}]`);
     }
     
-    // 添加全局提示词
+    // 添加全局提示词（应用模板替换）
     if (role.globalPromptId) {
       const globalPrompt = globalPrompts.find(p => p.id === role.globalPromptId);
       if (globalPrompt && globalPrompt.prompt.trim()) {
-        parts.push(`[全局设置：${globalPrompt.prompt.trim()}]`);
+        const processedPrompt = replaceTemplateVariables(globalPrompt.prompt.trim(), userName, charName);
+        parts.push(`[全局设置：${processedPrompt}]`);
       }
     }
     
-    // 添加角色提示词
+    // 添加角色提示词（应用模板替换）
     if (role.systemPrompt && role.systemPrompt.trim()) {
-      parts.push(`[角色设置：${role.systemPrompt.trim()}]`);
+      const processedPrompt = replaceTemplateVariables(role.systemPrompt.trim(), userName, charName);
+      parts.push(`[角色设置：${processedPrompt}]`);
     }
     
     return parts.join('\n\n');
@@ -528,6 +540,13 @@ const ChatPage: React.FC = () => {
             style={{ minHeight: '40px', maxHeight: '120px' }}
             disabled={isGenerating}
           />
+          {/* 模板替换预览 */}
+          {message.trim() && (message.includes('{{user}}') || message.includes('{{char}}')) && (
+            <div className="mt-2 p-2 bg-base-200 rounded text-sm text-base-content/70">
+              <span className="text-xs text-base-content/50">预览: </span>
+              {replaceTemplateVariables(message, currentUserProfile?.name || '用户', currentRole?.name || 'AI助手')}
+            </div>
+          )}
         </div>
         
         {/* 按钮区域 - 左右分布 */}
