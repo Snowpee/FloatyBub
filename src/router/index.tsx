@@ -6,6 +6,7 @@ import RolesPage from '../pages/RolesPage';
 import DataPage from '../pages/DataPage';
 import SettingsPage from '../pages/SettingsPage';
 import Home from '../pages/Home';
+import VoiceTest from '../pages/VoiceTest';
 
 export const router = createBrowserRouter([
   {
@@ -40,6 +41,10 @@ export const router = createBrowserRouter([
       {
         path: 'data',
         element: <DataPage />
+      },
+      {
+        path: 'voice-test',
+        element: <VoiceTest />
       }
     ]
   }

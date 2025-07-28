@@ -1,0 +1,13 @@
+{
+  "name": "tts-api",
+  "version": "1.0.0",
+  "description": "Fish Audio TTS Serverless Functions for Vercel",
+  "main": "tts.js",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "msgpack5": "^6.0.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

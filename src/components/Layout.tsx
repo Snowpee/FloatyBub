@@ -9,7 +9,8 @@ import {
   Trash2,
   MoreHorizontal,
   Pin,
-  Palette
+  Palette,
+  Volume2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -285,27 +286,38 @@ const Layout: React.FC = () => {
 
           {/* 底部操作区 */}
           <div className="p-4 border-t border-base-300">
-            <div className="grid grid-cols-2 gap-2">
-              <Link
-                to="/settings"
+            <div className="grid grid-cols-1 gap-2">
+              {/* <Link
+                to="/voice-test"
                 onClick={closeSidebarOnMobile}
                 className="btn btn-ghost btn-sm"
               >
-                <Settings className="h-4 w-4" />
-                设置
-              </Link>
+                <Volume2 className="h-4 w-4" />
+                语音测试
+              </Link> */}
               
-              <button
-                onClick={() => {
-                  const newTheme = theme === 'light' ? 'dark' : 'light';
-                  setTheme(newTheme);
-                }}
-                className="btn btn-ghost btn-sm"
-                title={theme === 'light' ? '切换到深色模式' : '切换到浅色模式'}
-              >
-                <Palette className="h-4 w-4" />
-                {theme === 'light' ? '亮色主题' : '深色主题'}
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  to="/settings"
+                  onClick={closeSidebarOnMobile}
+                  className="btn btn-ghost btn-sm"
+                >
+                  <Settings className="h-4 w-4" />
+                  设置
+                </Link>
+                
+                <button
+                  onClick={() => {
+                    const newTheme = theme === 'light' ? 'dark' : 'light';
+                    setTheme(newTheme);
+                  }}
+                  className="btn btn-ghost btn-sm"
+                  title={theme === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+                >
+                  <Palette className="h-4 w-4" />
+                  {theme === 'light' ? '亮色主题' : '深色主题'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

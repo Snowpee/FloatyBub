@@ -1,1 +1,26 @@
-{"rewrites":[{"source":"/(.*)","destination":"/index.html"}]}
+{
+  "functions": {
+    "api/tts.js": {
+      "maxDuration": 30
+    },
+    "api/health.js": {
+      "maxDuration": 10
+    },
+    "api/models.js": {
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "env": {
+    "FISH_AUDIO_API_KEY": "@fish_audio_api_key"
+  }
+}
