@@ -715,22 +715,15 @@ export const useAppStore = create<AppState>()(
           }
           if (state) {
             console.log('🔄 zustand 恢复存储数据成功，当前主题:', state.theme);
-            // 只在页面初始化时应用主题，避免干扰用户的主题切换操作
-            // 通过检查当前 DOM 的 data-theme 属性来判断是否需要应用
+            // 应用存储的主题到 DOM
             if (typeof document !== 'undefined') {
-              const currentDOMTheme = document.documentElement.getAttribute('data-theme');
-              // 如果 DOM 还没有设置主题或者与存储的主题不一致，则应用存储的主题
-              if (!currentDOMTheme || currentDOMTheme === 'light') {
-                document.documentElement.setAttribute('data-theme', state.theme);
-                if (state.theme === 'dark') {
-                  document.documentElement.classList.add('dark');
-                } else {
-                  document.documentElement.classList.remove('dark');
-                }
-                console.log('🔄 DOM 主题已应用:', state.theme);
+              document.documentElement.setAttribute('data-theme', state.theme);
+              if (state.theme === 'dark') {
+                document.documentElement.classList.add('dark');
               } else {
-                console.log('🔄 DOM 主题已存在，跳过应用:', currentDOMTheme);
+                document.documentElement.classList.remove('dark');
               }
+              console.log('🔄 DOM 主题已应用:', state.theme);
             }
           }
         };

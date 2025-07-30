@@ -151,7 +151,7 @@ const Layout: React.FC = () => {
           <div className="p-4 pb-0">
             <button
               onClick={handleNewChat}
-              className="btn btn-soft btn-accent btn-block"
+              className="btn btn-block"
             >
               <Plus className="h-4 w-4" />
               新建聊天
@@ -187,7 +187,7 @@ const Layout: React.FC = () => {
                       closeSidebarOnMobile();
                     }}
                     className={cn(
-                      "block p-3 rounded-lg transition-colors group",
+                      "chat-list p-3 transition-colors group",
                       isActive 
                         ? "bg-base-300" 
                         : "hover:bg-base-200"
@@ -316,7 +316,7 @@ const Layout: React.FC = () => {
                     title="切换主题"
                   >
                     <Palette className="h-4 w-4" />
-                    {theme === 'light' ? '亮色' : theme === 'dark' ? '深色' : theme === 'cupcake' ? '杯子蛋糕' : theme === 'floaty' ? '幻想' : '主题'}
+                    {theme === 'light' ? '亮色' : theme === 'dark' ? '深色' : theme === 'cupcake' ? '蛋糕' : theme === 'floaty' ? '浮光' : '主题'}
                   </button>
                   <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-32">
                     <li>
@@ -363,7 +363,7 @@ const Layout: React.FC = () => {
                         }}
                         className={`text-sm ${theme === 'cupcake' ? 'bg-base-200' : ''}`}
                       >
-                        杯子蛋糕
+                        蛋糕
                       </button>
                     </li>
                     <li>
@@ -374,7 +374,7 @@ const Layout: React.FC = () => {
                         }}
                         className={`text-sm ${theme === 'floaty' ? 'bg-base-200' : ''}`}
                       >
-                        幻想主题
+                        浮光
                       </button>
                     </li>
 

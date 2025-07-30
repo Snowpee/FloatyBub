@@ -1,11 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 @import "tailwindcss";
-@plugin "daisyui";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark, cupcake, floaty;
+}
 @plugin "daisyui/theme" {
-  name: "Floaty";
+  name: light;
+  --depth: 0;
+}
+@plugin "daisyui/theme" {
+  name: "floaty";
   default: false;
   prefersdark: false;
   color-scheme: "light";
@@ -31,7 +33,7 @@
   --color-error-content: oklch(98% 0 0);
   --radius-selector: 2rem;
   --radius-field: 2rem;
-  --radius-box: 2rem;
+  --radius-box: 1rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 2px;
@@ -52,6 +54,15 @@
   color-scheme: cupcake;
 }
 
+/* 
+=====
+自定义类
+=====
+*/
+.chat-list {
+  display: block;
+  border-radius: var(--radius-box);
+}
 .chat-container .chat-bubble em {
   opacity: .4;
 }
