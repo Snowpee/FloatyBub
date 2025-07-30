@@ -120,14 +120,10 @@ const DataPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    <div className="max-w-6xl mx-auto p-6 space-y-6 md:pt-0">
       {/* 页面标题 */}
       <div className="flex items-center space-x-3">
-        <Database className="h-8 w-8 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold text-base-content">
-            数据管理
-          </h1>
           <p className="text-base-content/70">
             管理您的配置、角色和聊天历史数据
           </p>

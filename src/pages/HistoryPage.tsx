@@ -166,11 +166,8 @@ const HistoryPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto md:pt-0">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-base-content mb-2">
-          历史管理
-        </h1>
         <p className="text-base-content/70">
           查看和管理您的聊天历史记录
         </p>

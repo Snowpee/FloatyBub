@@ -124,10 +124,9 @@ const UserProfilesPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto p-6 md:pt-0">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-base-content">用户角色</h1>
           <p className="text-base-content/60 mt-1">管理用户资料，在对话时传递给AI</p>
         </div>
         <button
@@ -141,7 +140,7 @@ const UserProfilesPage: React.FC = () => {
 
       {/* 当前用户显示 */}
       {currentUserProfile && (
-        <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 mb-6">
+        <div className="hero-list p-4 mb-6">
           <div className="flex items-center gap-3">
             <div className="avatar">
               <div className="w-10 h-10 rounded-full">
@@ -150,9 +149,10 @@ const UserProfilesPage: React.FC = () => {
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <h3 className="font-medium text-base-content">当前用户：{currentUserProfile.name}</h3>
-                <CheckCircle className="h-4 w-4 text-primary" />
+                <h3 className="font-medium text-base-content">{currentUserProfile.name}</h3>
+                <div className="badge badge-outline badge-primary">当前角色</div>
               </div>
+              
               {currentUserProfile.description && (
                 <p className="text-sm text-base-content/60 mt-1">{currentUserProfile.description}</p>
               )}
@@ -161,13 +161,16 @@ const UserProfilesPage: React.FC = () => {
               onClick={() => setCurrentUserProfile(null)}
               className="btn btn-ghost btn-sm"
             >
-              取消选择
+              取消设置
             </button>
           </div>
         </div>
       )}
-
+             
       {/* 用户资料列表 */}
+      {userProfiles.length > 0 && (
+        <p className="text-base-content mb-4">用户资料列表</p>
+      )}
       {userProfiles.length === 0 ? (
         <EmptyState message="暂无用户资料，点击上方按钮添加第一个用户资料" />
       ) : (
@@ -176,9 +179,9 @@ const UserProfilesPage: React.FC = () => {
             <div
               key={profile.id}
               className={cn(
-                "bg-base-100 border rounded-lg p-4 transition-all",
+                "hero-list",
                 currentUserProfile?.id === profile.id
-                  ? "border-primary shadow-md"
+                  ? "border-primary"
                   : "border-base-300 hover:border-base-400"
               )}
             >
@@ -208,25 +211,25 @@ const UserProfilesPage: React.FC = () => {
                   {currentUserProfile?.id !== profile.id && (
                     <button
                       onClick={() => handleSetCurrent(profile)}
-                      className="btn btn-ghost btn-xs"
-                      title="设为当前用户"
+                      className="btn btn-ghost btn-sm"
+                      title="设为当前角色"
                     >
-                      <User className="h-3 w-3" />
+                      <User className="h-4 w-4" />
                     </button>
                   )}
                   <button
                     onClick={() => handleEdit(profile)}
-                    className="btn btn-ghost btn-xs"
+                    className="btn btn-ghost btn-sm"
                     title="编辑"
                   >
-                    <Edit className="h-3 w-3" />
+                    <Edit className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(profile.id)}
-                    className="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                    className="btn btn-ghost btn-sm text-error hover:bg-error/10"
                     title="删除"
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>

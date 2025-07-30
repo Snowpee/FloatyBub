@@ -213,11 +213,8 @@ const ConfigPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto p-6 md:pt-0">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-base-content mb-2">
-          模型配置
-        </h1>
         <p className="text-base-content/60">
           配置和管理您的AI模型连接设置
         </p>
