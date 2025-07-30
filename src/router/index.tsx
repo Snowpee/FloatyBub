@@ -4,7 +4,6 @@ import ChatPage from '../pages/ChatPage';
 import ConfigPage from '../pages/ConfigPage';
 import RolesPage from '../pages/RolesPage';
 import DataPage from '../pages/DataPage';
-import SettingsPage from '../pages/SettingsPage';
 import Home from '../pages/Home';
 import VoiceTest from '../pages/VoiceTest';
 import VercelModelTest from '../pages/VercelModelTest';
@@ -25,10 +24,6 @@ export const router = createBrowserRouter([
       {
         path: 'chat/:sessionId',
         element: <ChatPage />
-      },
-      {
-        path: 'settings',
-        element: <SettingsPage />
       },
       {
         path: 'config',

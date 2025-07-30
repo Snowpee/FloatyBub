@@ -243,11 +243,8 @@ const VoiceSettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto md:pt-0">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-base-content mb-2 flex items-center gap-2">
-          语音设置
-        </h1>
         <p className="text-base-content/70">
           配置文本转语音功能的相关设置
         </p>

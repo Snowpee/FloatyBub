@@ -89,11 +89,8 @@ const GlobalPromptsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto md:pt-0">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-base-content mb-2">
-          全局提示词配置
-        </h1>
         <p className="text-base-content/70">
           管理可在角色中复用的全局提示词模板
         </p>
@@ -116,7 +113,7 @@ const GlobalPromptsPage: React.FC = () => {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {globalPrompts.map((prompt) => (
             <div key={prompt.id} className="card bg-base-100 shadow-sm">
-              <div className="card-body">
+              <div className="card-body flex flex-col justify-between h-full">
                 {/* 提示词头部 */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
@@ -130,20 +127,6 @@ const GlobalPromptsPage: React.FC = () => {
                     </div>
                   </div>
                   
-                  <div className="flex space-x-1">
-                    <button
-                      onClick={() => handleEdit(prompt)}
-                      className="btn btn-ghost btn-sm btn-square"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(prompt.id)}
-                      className="btn btn-ghost btn-sm btn-square text-error hover:bg-error/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
                 </div>
 
                 {/* 提示词内容预览 */}
@@ -156,9 +139,25 @@ const GlobalPromptsPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 创建时间 */}
-                <div className="mt-3 pt-3 border-t border-base-300 text-xs text-base-content/50">
-                  创建于 {new Date(prompt.createdAt).toLocaleDateString()}
+                {/* 创建时间和按钮组 */}
+                <div className="mt-auto">
+                  <div className="mt-3 pt-3 border-t border-base-300 text-xs text-base-content/50 mb-3">
+                    创建于 {new Date(prompt.createdAt).toLocaleDateString()}
+                  </div>
+                  <div className="flex space-x-1">
+                  <button
+                    onClick={() => handleEdit(prompt)}
+                    className="btn btn-ghost btn-sm btn-square"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(prompt.id)}
+                    className="btn btn-ghost btn-sm btn-square text-error hover:bg-error/10"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                  </div>
                 </div>
               </div>
             </div>

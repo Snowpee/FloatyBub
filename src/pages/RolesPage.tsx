@@ -188,11 +188,8 @@ const RolesPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto p-6 md:pt-0">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-base-content mb-2">
-          角色管理
-        </h1>
         <p className="text-base-content/60">
           创建和管理AI角色，定义不同的对话风格和专业领域
         </p>
@@ -210,7 +207,7 @@ const RolesPage: React.FC = () => {
       </div>
 
       {/* 角色网格 */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2">
         {aiRoles.map((role) => {
           const isDefault = defaultRoles.includes(role.id);
           const isCurrent = role.id === currentRoleId;
@@ -244,6 +241,23 @@ const RolesPage: React.FC = () => {
                   </div>
                 </div>
                 
+
+              </div>
+
+              {/* 角色描述 */}
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-base-content/70 mb-2">
+                  描述
+                </h4>
+                <p className="text-sm text-base-content/60 line-clamp-2">
+                  {role.description}
+                </p>
+              </div>
+              <div className="text-xs text-base-content/50">
+                创建于 {new Date(role.createdAt).toLocaleDateString()}
+              </div>
+              {/* 创建时间和当前角色toggle */}
+              <div className="mt-auto pt-3 border-t border-base-300 flex items-center justify-between">
                 <div className="flex space-x-1">
                   <button
                     onClick={() => handleEdit(role)}
@@ -259,33 +273,6 @@ const RolesPage: React.FC = () => {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
-                </div>
-              </div>
-
-              {/* 角色描述 */}
-              <div className="mb-4">
-                <h4 className="text-sm font-medium text-base-content/70 mb-2">
-                  描述
-                </h4>
-                <p className="text-sm text-base-content/60 line-clamp-2">
-                  {role.description}
-                </p>
-              </div>
-
-              {/* 系统提示词预览 */}
-              <div className="mb-4">
-                <h4 className="text-sm font-medium text-base-content/70 mb-2">
-                  系统提示词
-                </h4>
-                <div className="bg-base-200 rounded-md p-3 text-xs text-base-content/60 max-h-20 overflow-y-auto">
-                  {role.systemPrompt}
-                </div>
-              </div>
-
-              {/* 创建时间和当前角色toggle */}
-              <div className="mt-3 pt-3 border-t border-base-300 flex items-center justify-between">
-                <div className="text-xs text-base-content/50">
-                  创建于 {new Date(role.createdAt).toLocaleDateString()}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-base-content/60">默认角色</span>

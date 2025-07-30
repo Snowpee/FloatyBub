@@ -6,6 +6,10 @@
   name: light;
   --depth: 0;
 }
+
+/* 
+====== 自定义floaty主题 ======
+*/
 @plugin "daisyui/theme" {
   name: "floaty";
   default: false;
@@ -32,7 +36,7 @@
   --color-error: oklch(71% 0.194 13.428);
   --color-error-content: oklch(98% 0 0);
   --radius-selector: 2rem;
-  --radius-field: 2rem;
+  --radius-field: 1.25rem;
   --radius-box: 1rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
@@ -40,7 +44,16 @@
   --depth: 0;
   --noise: 0;
 }
+[data-theme='floaty'] {
+  .card {
+    border: var(--border) solid var(--color-base-300);
+    box-shadow: none !important;
+  }
+}
 
+/*
+====== 自定义floaty主题  ======
+*/
 
 :root {
   color-scheme: light;
@@ -62,6 +75,34 @@
 .chat-list {
   display: block;
   border-radius: var(--radius-box);
+}
+
+/* 设置特殊弹窗 */
+
+.hero-modal {
+  @apply relative bg-base-100 shadow-xl flex overflow-hidden;
+  border-radius: var(--radius-box) var(--radius-box) 0 0;
+  
+  /* 移动端：全屏 */
+  @apply w-full h-full;
+  
+  /* 桌面端：居中弹窗 */
+  @media (min-width: 768px) {
+    @apply w-full max-w-6xl mx-4;
+    height: 800px;
+    max-height: calc(100vh - 2rem);
+    border-radius: var(--radius-box);
+  }
+  .menu li button {
+    border-radius: var(--radius-box);
+  }
+}
+
+/* 自定义hero-list */
+.hero-list {
+  @apply bg-base-100 border border-base-300 p-4;
+  border-radius: var(--radius-box);
+  border: var(--border) solid var(--color-base-300);
 }
 .chat-container .chat-bubble em {
   opacity: .4;

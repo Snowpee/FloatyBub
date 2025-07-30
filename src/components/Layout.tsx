@@ -15,6 +15,7 @@ import {
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import Popconfirm from './Popconfirm';
+import SettingsModal from './SettingsModal';
 
 
 const Layout: React.FC = () => {
@@ -30,6 +31,9 @@ const Layout: React.FC = () => {
     deleteChatSession,
     hideSession
   } = useAppStore();
+  
+  // 设置弹窗状态
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // 从URL中获取当前会话ID
   const currentSessionId = location.pathname.startsWith('/chat/') 
@@ -300,14 +304,16 @@ const Layout: React.FC = () => {
 
               
               <div className="grid grid-cols-2 gap-2">
-                <Link
-                  to="/settings"
-                  onClick={closeSidebarOnMobile}
+                <button
+                  onClick={() => {
+                    setIsSettingsOpen(true);
+                    closeSidebarOnMobile();
+                  }}
                   className="btn btn-ghost btn-sm"
                 >
                   <Settings className="h-4 w-4" />
                   设置
-                </Link>
+                </button>
                 
                 <div className="dropdown dropdown-top dropdown-end">
                   <button
@@ -436,7 +442,11 @@ const Layout: React.FC = () => {
         />
       )}
 
-
+      {/* 设置弹窗 */}
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+      />
     </div>
   );
 };
