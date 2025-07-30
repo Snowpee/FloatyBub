@@ -251,56 +251,66 @@ const UserProfilesPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="space-y-4">
-              {/* 头像 */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">头像</span>
-                </label>
-                <div className="flex items-center gap-3">
-                  <div className="avatar">
-                    <div className="w-16 h-16 rounded-full">
-                      <img src={formData.avatar} alt="头像预览" />
+            <div className="space-y-6">
+              {/* 外观设置 */}
+              <fieldset className="fieldset">
+                
+                <div className="space-y-4">
+                  {/* 头像 */}
+                  <div className="form-control">
+                    <label className="label">
+                      <span className="label-text">头像</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <div className="avatar">
+                        <div className="w-16 h-16 rounded-full">
+                          <img src={formData.avatar} alt="头像预览" />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={generateNewAvatar}
+                        className="btn btn-outline btn-sm"
+                      >
+                        随机生成
+                      </button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={generateNewAvatar}
-                    className="btn btn-outline btn-sm"
-                  >
-                    随机生成
-                  </button>
                 </div>
-              </div>
+              </fieldset>
 
-              {/* 用户名 */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">用户名 *</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="input input-bordered w-full"
-                  placeholder="请输入用户名"
-                  maxLength={50}
-                />
-              </div>
+              {/* 基本信息 */}
+              <fieldset className="fieldset">
 
-              {/* 用户简介 */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">用户简介</span>
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="textarea textarea-bordered w-full h-24 resize-none"
-                  placeholder="请输入用户简介（可选）"
-                  maxLength={500}
-                />
-              </div>
+                <div className="space-y-4">
+                  {/* 用户名 */}
+                  <div className="form-control">
+                    <label className="label">用户名 *</label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="input input-bordered w-full"
+                      placeholder="请输入用户名"
+                      maxLength={50}
+                    />
+                  </div>
+
+                  {/* 用户简介 */}
+                  <div className="form-control">
+                    <label className="label">
+                      <span className="label-text">用户简介</span>
+                    </label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="textarea textarea-bordered w-full h-24 resize-none"
+                      placeholder="请输入用户简介（可选）"
+                      maxLength={500}
+                    />
+                  </div>
+                </div>
+              </fieldset>
             </div>
 
             <div className="modal-action">

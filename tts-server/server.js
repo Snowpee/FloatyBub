@@ -16,12 +16,41 @@ app.use(express.urlencoded({ extended: true }));
 const FISH_AUDIO_API_KEY = process.env.FISH_AUDIO_API_KEY;
 const FISH_AUDIO_BASE_URL = 'https://api.fish.audio/v1';
 
+// 支持的模型列表
+const SUPPORTED_MODELS = ['speech-1.5', 'speech-1.6', 's1'];
+const DEFAULT_MODEL = 'speech-1.6';
+
 if (!FISH_AUDIO_API_KEY) {
   console.warn('警告: 未设置 FISH_AUDIO_API_KEY 环境变量');
 }
 
+// API 密钥验证中间件
+const apiKeyAuth = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  const expectedApiKey = process.env.API_SECRET;
+  
+  if (!expectedApiKey) {
+    return res.status(500).json({ error: '服务器未配置 API 密钥' });
+  }
+  
+  if (!apiKey || apiKey !== expectedApiKey) {
+    return res.status(401).json({ error: '未授权访问：无效的 API 密钥' });
+  }
+  
+  next();
+};
+
+// 获取支持的模型列表
+app.get('/api/tts', apiKeyAuth, (req, res) => {
+  res.json({
+    success: true,
+    models: SUPPORTED_MODELS,
+    default: DEFAULT_MODEL
+  });
+});
+
 // TTS 请求处理
-app.post('/api/tts', async (req, res) => {
+app.post('/api/tts', apiKeyAuth, async (req, res) => {
   try {
     const {
       text,
@@ -30,12 +59,16 @@ app.post('/api/tts', async (req, res) => {
       reference_id = null,
       normalize = true,
       latency = 'normal',
-      chunk_length = 200
+      chunk_length = 200,
+      model = 'speech-1.6'
     } = req.body;
 
     if (!text) {
       return res.status(400).json({ error: '缺少必需的 text 参数' });
     }
+
+    // 验证模型参数
+    const selectedModel = SUPPORTED_MODELS.includes(model) ? model : DEFAULT_MODEL;
 
     // 构建请求数据
     const requestData = {
@@ -52,7 +85,8 @@ app.post('/api/tts', async (req, res) => {
     console.log('TTS 请求:', {
       text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
       format,
-      reference_id
+      reference_id,
+      model: selectedModel
     });
 
     // 使用 msgpack 编码请求数据
@@ -66,7 +100,7 @@ app.post('/api/tts', async (req, res) => {
       headers: {
         'Authorization': `Bearer ${FISH_AUDIO_API_KEY}`,
         'Content-Type': 'application/msgpack',
-        'Model': 'speech-1.6'
+        'Model': selectedModel
       },
       responseType: 'stream',
       timeout: 60000 // 60秒超时

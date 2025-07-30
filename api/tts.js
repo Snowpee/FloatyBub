@@ -5,20 +5,45 @@ const msgpack = require('msgpack5')();
 const FISH_AUDIO_API_KEY = process.env.FISH_AUDIO_API_KEY;
 const FISH_AUDIO_BASE_URL = 'https://api.fish.audio/v1';
 
+// 支持的模型列表
+const SUPPORTED_MODELS = ['speech-1.5', 'speech-1.6', 's1'];
+const DEFAULT_MODEL = 'speech-1.6';
+
 module.exports = async (req, res) => {
   // 设置 CORS 头
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
 
   // 处理 OPTIONS 请求
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // 只允许 POST 请求
+  // API 密钥验证
+  const apiKey = req.headers['x-api-key'];
+  const expectedApiKey = process.env.API_SECRET;
+  
+  if (!expectedApiKey) {
+    return res.status(500).json({ error: '服务器未配置 API 密钥' });
+  }
+  
+  if (!apiKey || apiKey !== expectedApiKey) {
+    return res.status(401).json({ error: '未授权访问：无效的 API 密钥' });
+  }
+
+  // 处理 GET 请求 - 返回支持的模型列表
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      success: true,
+      models: SUPPORTED_MODELS,
+      default: DEFAULT_MODEL
+    });
+  }
+
+  // 只允许 POST 请求进行 TTS
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: '只允许 POST 请求' });
+    return res.status(405).json({ error: '只允许 POST 和 GET 请求' });
   }
 
   try {
@@ -29,7 +54,8 @@ module.exports = async (req, res) => {
       reference_id = null,
       normalize = true,
       latency = 'normal',
-      chunk_length = 200
+      chunk_length = 200,
+      model = 'speech-1.6'
     } = req.body;
 
     if (!text) {
@@ -39,6 +65,9 @@ module.exports = async (req, res) => {
     if (!FISH_AUDIO_API_KEY) {
       return res.status(500).json({ error: '服务器未配置 API 密钥' });
     }
+
+    // 验证模型参数
+    const selectedModel = SUPPORTED_MODELS.includes(model) ? model : DEFAULT_MODEL;
 
     // 构建请求数据
     const requestData = {
@@ -55,7 +84,8 @@ module.exports = async (req, res) => {
     console.log('TTS 请求:', {
       text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
       format,
-      reference_id
+      reference_id,
+      model: selectedModel
     });
 
     // 使用 msgpack 编码请求数据
@@ -69,7 +99,7 @@ module.exports = async (req, res) => {
       headers: {
         'Authorization': `Bearer ${FISH_AUDIO_API_KEY}`,
         'Content-Type': 'application/msgpack',
-        'Model': 'speech-1.6'
+        'Model': selectedModel
       },
       responseType: 'stream',
       timeout: 30000 // 30秒超时（Vercel 限制）

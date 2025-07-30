@@ -725,12 +725,8 @@ const ChatPage: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="max-w-6xl mx-auto">
         {currentSession?.messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-base-content/60">
-            <Bot className="h-16 w-16 mb-4" />
-            <h3 className="text-xl font-medium mb-2">开始新的对话</h3>
-            <p className="text-center max-w-md">
-              选择一个AI角色和模型，然后开始与AI助手对话。
-            </p>
+          <div className="flex flex-col items-center justify-center h-[calc(100vh-500px)] text-base-content/60">
+            <h3 className="text-black/40 text-xl font-medium mb-2">Hello，我是 {currentRole?.name}</h3>
           </div>
         ) : (
           currentSession?.messages.map((msg) => (
@@ -811,7 +807,7 @@ const ChatPage: React.FC = () => {
                     : 'left-0 top-full mt-1'
                 )}>
 
-                  {/* 重新生成按钮 - 仅对最新的AI消息显示 */}
+                  {/* 重新生成按钮 - 仅对最新的AI消息显示，但不在第一条开场白时显示 */}
                   {msg.role === 'assistant' && (() => {
                     // 检查是否是最新的AI消息
                     const lastAssistantMessageIndex = currentSession?.messages
@@ -821,7 +817,13 @@ const ChatPage: React.FC = () => {
                     const currentIndex = currentSession?.messages.findIndex(m => m.id === msg.id);
                     const isLatestAssistant = currentIndex === lastAssistantMessageIndex;
                     
-                    return isLatestAssistant ? (
+                    // 检查是否是第一条AI消息（开场白）
+                    const isFirstAssistantMessage = currentSession?.messages.findIndex(m => m.role === 'assistant') === currentIndex;
+                    // 检查是否已经开始对话（是否有用户消息）
+                    const hasUserMessages = currentSession?.messages.some(m => m.role === 'user');
+                    
+                    // 只有在最新AI消息且不是第一条开场白（或已开始对话）时显示
+                    return isLatestAssistant && (!isFirstAssistantMessage || hasUserMessages) ? (
                       <button
                         className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors disabled:opacity-50"
                         title="重新生成"
@@ -906,6 +908,61 @@ const ChatPage: React.FC = () => {
                       <Volume2 className="h-4 w-4 " />
                     </button>
                   )}
+                  
+                  {/* 切换开场白按钮 - 仅对第一条AI消息且角色有多个开场白且未开始对话时显示 */}
+                  {msg.role === 'assistant' && (() => {
+                    // 检查是否是第一条AI消息
+                    const isFirstAssistantMessage = currentSession?.messages.findIndex(m => m.role === 'assistant') === currentSession?.messages.findIndex(m => m.id === msg.id);
+                    // 检查是否已经开始对话（是否有用户消息）
+                    const hasUserMessages = currentSession?.messages.some(m => m.role === 'user');
+                    // 获取消息对应的角色（优先使用消息的roleId，然后是会话的roleId）
+                    let messageRole = null;
+                    if (msg.roleId) {
+                      messageRole = aiRoles.find(r => r.id === msg.roleId);
+                    } else if (currentSession?.roleId) {
+                      messageRole = aiRoles.find(r => r.id === currentSession.roleId);
+                    }
+                    // 检查是否有多个开场白
+                    const hasMultipleOpenings = messageRole?.openingMessages && messageRole.openingMessages.length > 1;
+                    
+                    return isFirstAssistantMessage && hasMultipleOpenings && !hasUserMessages ? (
+                      <>
+                        <button
+                          className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
+                          title="上一个开场白"
+                          onClick={() => {
+                            const currentIndex = messageRole.openingMessages.findIndex(opening => opening === msg.content) || 0;
+                            const newIndex = currentIndex > 0 ? currentIndex - 1 : messageRole.openingMessages.length - 1;
+                            const newOpening = messageRole.openingMessages[newIndex];
+                            if (newOpening) {
+                              updateMessage(currentSession!.id, msg.id, newOpening);
+                              toast.success('已切换到上一个开场白');
+                            }
+                          }}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <span className="text-xs text-gray-500 px-1 content-center">
+                          {(messageRole.openingMessages.findIndex(opening => opening === msg.content) || 0) + 1}/{messageRole.openingMessages.length}
+                        </span>
+                        <button
+                          className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
+                          title="下一个开场白"
+                          onClick={() => {
+                            const currentIndex = messageRole.openingMessages.findIndex(opening => opening === msg.content) || 0;
+                            const newIndex = currentIndex < messageRole.openingMessages.length - 1 ? currentIndex + 1 : 0;
+                            const newOpening = messageRole.openingMessages[newIndex];
+                            if (newOpening) {
+                              updateMessage(currentSession!.id, msg.id, newOpening);
+                              toast.success('已切换到下一个开场白');
+                            }
+                          }}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </>
+                    ) : null;
+                  })()}
                 </div>
                 {/* 版本切换按钮组 - hover时显示 */}
                 <div className={cn(

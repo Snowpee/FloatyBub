@@ -33,6 +33,8 @@ git push origin main
 
 ```
 FISH_AUDIO_API_KEY = your_fish_audio_api_key_here
+VITE_API_SECRET = your_secret_api_key_here // 前端 API 密钥
+API_SECRET = your_secret_api_key_here // 后端 API 密钥
 ```
 
 **重要**: 将 `your_fish_audio_api_key_here` 替换为你的实际 Fish Audio API 密钥。

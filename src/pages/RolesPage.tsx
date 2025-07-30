@@ -32,11 +32,12 @@ const RolesPage: React.FC = () => {
     roleId: string;
     roleName: string;
   }>({ isOpen: false, roleId: '', roleName: '' });
-  const [formData, setFormData] = useState<Partial<AIRole>>({
+  const [formData, setFormData] = useState({
     name: '',
     description: '',
     systemPrompt: '',
-    openingMessage: '',
+    openingMessages: [''],
+    currentOpeningIndex: 0,
     avatar: '',
     globalPromptId: ''
   });
@@ -54,7 +55,8 @@ const RolesPage: React.FC = () => {
       name: role.name,
       description: role.description,
       systemPrompt: role.systemPrompt,
-      openingMessage: role.openingMessage || '',
+      openingMessages: role.openingMessages || [''],
+      currentOpeningIndex: role.currentOpeningIndex || 0,
       avatar: role.avatar,
       globalPromptId: role.globalPromptId || ''
     });
@@ -72,7 +74,8 @@ const RolesPage: React.FC = () => {
       name: '',
       description: '',
       systemPrompt: '',
-      openingMessage: '',
+      openingMessages: [''],
+      currentOpeningIndex: 0,
       avatar: generateRandomAvatar(),
       globalPromptId: ''
     });
@@ -81,17 +84,29 @@ const RolesPage: React.FC = () => {
   };
 
   const handleSave = () => {
-    if (!formData.name || !formData.description || !formData.systemPrompt) {
-      toast.error('请填写所有必填字段');
+    if (!formData.name?.trim()) {
+      toast.error('请输入角色名称');
       return;
     }
 
+    // 过滤空的开场白
+    const filteredOpeningMessages = formData.openingMessages.filter(msg => msg.trim() !== '');
+    if (filteredOpeningMessages.length === 0) {
+      filteredOpeningMessages.push(''); // 至少保留一个空的开场白
+    }
+
+    const roleData = {
+      ...formData,
+      openingMessages: filteredOpeningMessages,
+      currentOpeningIndex: Math.min(formData.currentOpeningIndex, filteredOpeningMessages.length - 1)
+    };
+
     if (editingId) {
-      updateAIRole(editingId, formData);
-      toast.success('角色已更新');
+      updateAIRole(editingId, roleData);
+      toast.success('角色更新成功');
     } else {
-      addAIRole(formData as Omit<AIRole, 'id' | 'createdAt' | 'updatedAt'>);
-      toast.success('角色已添加');
+      addAIRole(roleData as Omit<AIRole, 'id' | 'createdAt' | 'updatedAt'>);
+      toast.success('角色创建成功');
     }
 
     setIsEditing(false);
@@ -101,6 +116,42 @@ const RolesPage: React.FC = () => {
   const handleCancel = () => {
     setIsEditing(false);
     setEditingId(null);
+    setFormData({
+      name: '',
+      description: '',
+      systemPrompt: '',
+      openingMessages: [''],
+      currentOpeningIndex: 0,
+      avatar: '',
+      globalPromptId: ''
+    });
+  };
+
+  // 开场白管理函数
+  const addOpeningMessage = () => {
+    setFormData(prev => ({
+      ...prev,
+      openingMessages: [...prev.openingMessages, '']
+    }));
+  };
+
+  const removeOpeningMessage = (index: number) => {
+    if (formData.openingMessages.length <= 1) {
+      toast.error('至少需要保留一个开场白');
+      return;
+    }
+    setFormData(prev => ({
+      ...prev,
+      openingMessages: prev.openingMessages.filter((_, i) => i !== index),
+      currentOpeningIndex: Math.min(prev.currentOpeningIndex, prev.openingMessages.length - 2)
+    }));
+  };
+
+  const updateOpeningMessage = (index: number, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      openingMessages: prev.openingMessages.map((msg, i) => i === index ? value : msg)
+    }));
   };
 
   const handleDelete = (id: string) => {
@@ -256,7 +307,7 @@ const RolesPage: React.FC = () => {
       {/* 编辑/添加模态框 */}
       {isEditing && (
         <div className="modal modal-open">
-          <div className="modal-box w-11/12 max-w-2xl">
+          <div className="modal-box max-w-2xl w-full">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-base-content">
                 {editingId ? '编辑角色' : '创建新角色'}
@@ -269,12 +320,20 @@ const RolesPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="space-y-4">
-              {/* 角色名称 */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">角色名称 *</span>
-                </label>
+            <div className="space-y-6">
+              {/* 基本信息 */}
+              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                <legend className="fieldset-legend">基本信息</legend>
+                
+                <label className="label">角色头像</label>
+                <RoleAvatarUpload
+                  name={formData.name || '新角色'}
+                  currentAvatar={formData.avatar}
+                  onAvatarChange={(avatar) => setFormData({ ...formData, avatar })}
+                  className="self-center"
+                />
+
+                <label className="label">角色名称 *</label>
                 <input
                   type="text"
                   value={formData.name || ''}
@@ -282,13 +341,8 @@ const RolesPage: React.FC = () => {
                   className="input input-bordered w-full"
                   placeholder="例如: 编程助手"
                 />
-              </div>
-
-              {/* 角色描述 */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">角色描述 *</span>
-                </label>
+                
+                <label className="label">角色描述 *</label>
                 <textarea
                   value={formData.description || ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -296,26 +350,13 @@ const RolesPage: React.FC = () => {
                   className="textarea textarea-bordered w-full"
                   placeholder="简要描述这个角色的特点和用途"
                 />
-              </div>
+              </fieldset>
 
-              {/* 角色头像上传 */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">角色头像</span>
-                </label>
-                <RoleAvatarUpload
-                  name={formData.name || '新角色'}
-                  currentAvatar={formData.avatar}
-                  onAvatarChange={(avatar) => setFormData({ ...formData, avatar })}
-                  className="self-center"
-                />
-              </div>
-
-              {/* 全局提示词选择 */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">全局提示词（可选）</span>
-                </label>
+              {/* 提示词配置 */}
+              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                <legend className="fieldset-legend">提示词配置</legend>
+                
+                <label className="label">全局提示词（可选）</label>
                 <select
                   value={formData.globalPromptId || ''}
                   onChange={(e) => setFormData({ ...formData, globalPromptId: e.target.value })}
@@ -329,19 +370,12 @@ const RolesPage: React.FC = () => {
                   ))}
                 </select>
                 {formData.globalPromptId && (
-                  <label className="label">
-                    <span className="label-text-alt text-info">
-                      已选择全局提示词，保存后将在对话时自动应用
-                    </span>
-                  </label>
+                  <p className="label text-info text-sm mt-1">
+                    已选择全局提示词，保存后将在对话时自动应用
+                  </p>
                 )}
-              </div>
-
-              {/* 系统提示词 */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">系统提示词 *</span>
-                </label>
+                
+                <label className="label mt-4">系统提示词 *</label>
                 <textarea
                   value={formData.systemPrompt || ''}
                   onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
@@ -349,27 +383,48 @@ const RolesPage: React.FC = () => {
                   className="textarea textarea-bordered w-full"
                   placeholder="定义AI的角色、行为方式和回答风格。例如：你是一个专业的编程助手，擅长多种编程语言..."
                 />
-              </div>
+              </fieldset>
 
-              {/* 开场白 */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">开场白（可选）</span>
-                </label>
-                <textarea
-                  value={formData.openingMessage || ''}
-                  onChange={(e) => setFormData({ ...formData, openingMessage: e.target.value })}
-                  rows={3}
-                  className="textarea textarea-bordered w-full"
-                  placeholder="设置角色的开场白，将作为对话的第一句话显示。例如：你好！我是你的编程助手，有什么编程问题需要帮助吗？"
-                />
-                <label className="label">
-                  <span className="label-text-alt text-base-content/60">
-                    开场白将在新对话开始时自动显示
-                  </span>
-                </label>
-              </div>
-
+              {/* 开场白设置 */}
+              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                <legend className="fieldset-legend">开场白设置</legend>
+                
+                <label className="label">开场白（可选）</label>
+                <div className="space-y-3">
+                  {formData.openingMessages.map((message, index) => (
+                    <div key={index} className="flex gap-2">
+                      <textarea
+                        value={message}
+                        onChange={(e) => updateOpeningMessage(index, e.target.value)}
+                        rows={3}
+                        className="textarea textarea-bordered flex-1"
+                        placeholder={`开场白 ${index + 1}：设置角色的开场白，将作为对话的第一句话显示`}
+                      />
+                      {formData.openingMessages.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeOpeningMessage(index)}
+                          className="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                          title="删除此开场白"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addOpeningMessage}
+                    className="btn btn-outline btn-sm w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    新增更多开场白
+                  </button>
+                </div>
+                <p className="label text-base-content/60 text-sm mt-2 whitespace-normal">
+                  开场白将在新对话开始时以翻页方式显示，用户可以选择喜欢的开场白
+                </p>
+              </fieldset>
             </div>
 
             <div className="modal-action">

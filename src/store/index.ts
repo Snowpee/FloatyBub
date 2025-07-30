@@ -26,7 +26,8 @@ export interface AIRole {
   name: string;
   description: string;
   systemPrompt: string;
-  openingMessage?: string; // 开场白
+  openingMessages?: string[]; // 开场白数组
+  currentOpeningIndex?: number; // 当前显示的开场白索引
   avatar?: string;
   globalPromptId?: string; // 关联的全局提示词ID
   createdAt: Date;
@@ -100,7 +101,7 @@ interface AppState {
   tempSessionId: string | null; // 临时会话ID
   
   // UI状态
-  theme: 'light' | 'dark' | 'cupcake' | 'bumblebee' | 'emerald' | 'corporate' | 'synthwave' | 'retro' | 'cyberpunk' | 'valentine' | 'halloween' | 'garden' | 'forest' | 'aqua' | 'lofi' | 'pastel' | 'fantasy' | 'wireframe' | 'black' | 'luxury' | 'dracula' | 'cmyk' | 'autumn' | 'business' | 'acid' | 'lemonade' | 'night' | 'coffee' | 'winter' | 'dim' | 'nord' | 'sunset' | 'caramellatte' | 'abyss' | 'silk';
+  theme: 'light' | 'dark' | 'cupcake' | 'floaty';
   sidebarOpen: boolean;
   
   // Actions
@@ -146,7 +147,7 @@ interface AppState {
   setCurrentUserProfile: (profile: UserProfile | null) => void;
   
   // UI相关
-  setTheme: (theme: 'light' | 'dark' | 'cupcake' | 'bumblebee' | 'emerald' | 'corporate' | 'synthwave' | 'retro' | 'cyberpunk' | 'valentine' | 'halloween' | 'garden' | 'forest' | 'aqua' | 'lofi' | 'pastel' | 'fantasy' | 'wireframe' | 'black' | 'luxury' | 'dracula' | 'cmyk' | 'autumn' | 'business' | 'acid' | 'lemonade' | 'night' | 'coffee' | 'winter' | 'dim' | 'nord' | 'sunset' | 'caramellatte' | 'abyss' | 'silk') => void;
+  setTheme: (theme: 'light' | 'dark' | 'cupcake' | 'floaty') => void;
   toggleSidebar: () => void;
   
   // 数据导入导出
@@ -165,7 +166,8 @@ const defaultRoles: AIRole[] = [
     name: 'AI助手',
     description: '通用AI助手，可以帮助您解答问题和完成各种任务',
     systemPrompt: '你是一个有用的AI助手，请用友好、专业的语气回答用户的问题。',
-    openingMessage: '你好！我是你的AI助手，很高兴为你服务。有什么我可以帮助你的吗？',
+    openingMessages: ['你好！我是你的AI助手，很高兴为你服务。有什么我可以帮助你的吗？'],
+    currentOpeningIndex: 0,
     avatar: avatar01,
     createdAt: new Date(),
     updatedAt: new Date()
@@ -175,7 +177,8 @@ const defaultRoles: AIRole[] = [
     name: '编程专家',
     description: '专业的编程助手，擅长代码编写、调试和技术问题解答',
     systemPrompt: '你是一个专业的编程专家，擅长多种编程语言和技术栈。请提供准确、实用的编程建议和代码示例。',
-    openingMessage: '你好！我是编程专家，专注于帮助你解决各种编程问题。无论是代码调试、架构设计还是技术选型，我都很乐意为你提供专业建议。',
+    openingMessages: ['你好！我是编程专家，专注于帮助你解决各种编程问题。无论是代码调试、架构设计还是技术选型，我都很乐意为你提供专业建议。'],
+    currentOpeningIndex: 0,
     avatar: avatar02,
     createdAt: new Date(),
     updatedAt: new Date()
@@ -185,7 +188,8 @@ const defaultRoles: AIRole[] = [
     name: '创意写手',
     description: '富有创意的写作助手，擅长文案创作和内容策划',
     systemPrompt: '你是一个富有创意的写作专家，擅长各种文体的创作。请用生动、有趣的语言帮助用户完成写作任务。',
-    openingMessage: '嗨！我是你的创意写手伙伴，擅长各种文体创作。无论你需要写文案、故事、诗歌还是其他创意内容，我都能为你提供灵感和帮助！',
+    openingMessages: ['嗨！我是你的创意写手伙伴，擅长各种文体创作。无论你需要写文案、故事、诗歌还是其他创意内容，我都能为你提供灵感和帮助！'],
+    currentOpeningIndex: 0,
     avatar: avatar03,
     createdAt: new Date(),
     updatedAt: new Date()
@@ -589,6 +593,12 @@ export const useAppStore = create<AppState>()(
             after: hasDarkClass,
             shouldHaveDark: theme === 'dark'
           });
+          
+          // 强制触发重新渲染以确保主题生效
+          document.documentElement.style.setProperty('--theme-transition', 'all 0.2s ease');
+          setTimeout(() => {
+            document.documentElement.style.removeProperty('--theme-transition');
+          }, 200);
         }
         
         console.log('🔧 store.setTheme 执行完成');
@@ -696,6 +706,35 @@ export const useAppStore = create<AppState>()(
     {
       name: 'ai-chat-storage',
       version: 2, // 增加版本号以触发迁移
+      onRehydrateStorage: () => {
+        console.log('🔄 zustand 开始恢复存储数据');
+        return (state, error) => {
+          if (error) {
+            console.error('🔄 zustand 恢复存储数据失败:', error);
+            return;
+          }
+          if (state) {
+            console.log('🔄 zustand 恢复存储数据成功，当前主题:', state.theme);
+            // 只在页面初始化时应用主题，避免干扰用户的主题切换操作
+            // 通过检查当前 DOM 的 data-theme 属性来判断是否需要应用
+            if (typeof document !== 'undefined') {
+              const currentDOMTheme = document.documentElement.getAttribute('data-theme');
+              // 如果 DOM 还没有设置主题或者与存储的主题不一致，则应用存储的主题
+              if (!currentDOMTheme || currentDOMTheme === 'light') {
+                document.documentElement.setAttribute('data-theme', state.theme);
+                if (state.theme === 'dark') {
+                  document.documentElement.classList.add('dark');
+                } else {
+                  document.documentElement.classList.remove('dark');
+                }
+                console.log('🔄 DOM 主题已应用:', state.theme);
+              } else {
+                console.log('🔄 DOM 主题已存在，跳过应用:', currentDOMTheme);
+              }
+            }
+          }
+        };
+      },
       migrate: (persistedState: any, version: number) => {
         // 数据迁移：为现有消息补充roleId信息
         if (version < 2 && persistedState?.chatSessions) {

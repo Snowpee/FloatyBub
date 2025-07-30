@@ -169,7 +169,7 @@ const GlobalPromptsPage: React.FC = () => {
       {/* 编辑/添加模态框 */}
       {isEditing && (
         <div className="modal modal-open">
-          <div className="modal-box w-11/12 max-w-2xl">
+          <div className="modal-box max-w-2xl w-full">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-base-content">
                 {editingId ? '编辑全局提示词' : '创建全局提示词'}
@@ -182,47 +182,47 @@ const GlobalPromptsPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="space-y-4">
-              {/* 标题 */}
-              <div>
-                <label className="label">
-                  <span className="label-text">标题 *</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.title || ''}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="input input-bordered w-full"
-                  placeholder="例如: 专业编程助手提示词"
-                />
-              </div>
+            <div>
+              {/* 基本信息 */}
+              <fieldset className="fieldset">
+                
+                <div>
+                  {/* 标题 */}
+                  <div className="form-control">
+                    <label className="label mb-1">
+                      <span className="label-text">标题 *</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.title || ''}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      className="input input-bordered w-full"
+                      placeholder="例如: 专业编程助手提示词"
+                    />
+                  </div>
+                </div>
+              </fieldset>
 
-              {/* 提示词内容 */}
-              <div>
-                <label className="label">
-                  <span className="label-text">提示词内容 *</span>
-                </label>
-                <textarea
-                  value={formData.prompt || ''}
-                  onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
-                  rows={8}
-                  className="textarea textarea-bordered w-full"
-                  placeholder="输入全局提示词内容，这将作为系统级别的指导原则..."
-                />
-              </div>
+              {/* 提示词配置 */}
+              <fieldset className="fieldset">
 
-              {/* 提示词建议 */}
-              <div className="alert alert-info">
-                <h4 className="text-sm font-medium mb-2">
-                  💡 全局提示词编写建议
-                </h4>
-                <ul className="text-xs space-y-1">
-                  <li>• 定义通用的行为准则和价值观</li>
-                  <li>• 设置回答的基本格式和风格</li>
-                  <li>• 包含安全性和道德约束</li>
-                  <li>• 避免过于具体的领域知识，保持通用性</li>
-                </ul>
-              </div>
+                <div>
+                  {/* 提示词内容 */}
+                  <div className="form-control">
+                    <label className="label mb-1">
+                      <span className="label-text">提示词内容 *</span>
+                    </label>
+                    <textarea
+                      value={formData.prompt || ''}
+                      onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
+                      rows={8}
+                      className="textarea textarea-bordered w-full"
+                      placeholder="输入全局提示词内容，这将作为系统级别的指导原则..."
+                    />
+                  </div>
+                </div>
+              </fieldset>
+
             </div>
 
             <div className="modal-action">

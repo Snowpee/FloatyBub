@@ -356,7 +356,7 @@ const ConfigPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="space-y-4">
+            <fieldset className="fieldset">
               <div>
                 <label className="label">
                   <span className="label-text">配置名称 *</span>
@@ -495,7 +495,8 @@ const ConfigPage: React.FC = () => {
                   />
                 </label>
               </div>
-            </div>
+            </fieldset>
+            {/* /结束配置表单 */}
 
             <div className="modal-action">
               <button

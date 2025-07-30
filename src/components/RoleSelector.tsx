@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Bot, Users, Sparkles } from 'lucide-react';
+import { Bot, Users, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import Avatar from './Avatar';
@@ -17,6 +17,9 @@ const RoleSelector: React.FC = () => {
     createTempSession,
     addMessage
   } = useAppStore();
+
+  // 管理每个角色的开场白选择索引
+  const [roleOpeningIndexes, setRoleOpeningIndexes] = useState<Record<string, number>>({});
 
   const enabledModels = llmConfigs.filter(config => config.enabled);
 
@@ -37,18 +40,42 @@ const RoleSelector: React.FC = () => {
     // 创建临时会话
     const sessionId = createTempSession(roleId, currentModelId || enabledModels[0].id);
     
-    // 如果角色有开场白，添加为第一条消息
+    // 如果角色有开场白，添加当前选择的开场白为第一条消息
     const selectedRole = aiRoles.find(role => role.id === roleId);
-    if (selectedRole?.openingMessage?.trim()) {
-      addMessage(sessionId, {
-        role: 'assistant',
-        content: selectedRole.openingMessage,
-        timestamp: new Date()
-      });
+    if (selectedRole?.openingMessages && selectedRole.openingMessages.length > 0) {
+      const currentIndex = roleOpeningIndexes[roleId] || 0;
+      const openingMessage = selectedRole.openingMessages[currentIndex];
+      if (openingMessage?.trim()) {
+        addMessage(sessionId, {
+          role: 'assistant',
+          content: openingMessage,
+          timestamp: new Date()
+        });
+      }
     }
     
     // 导航到聊天页面
     navigate(`/chat/${sessionId}`);
+  };
+
+  // 切换开场白
+  const switchOpeningMessage = (roleId: string, direction: 'prev' | 'next') => {
+    const role = aiRoles.find(r => r.id === roleId);
+    if (!role?.openingMessages || role.openingMessages.length <= 1) return;
+
+    const currentIndex = roleOpeningIndexes[roleId] || 0;
+    let newIndex = currentIndex;
+
+    if (direction === 'prev') {
+      newIndex = currentIndex > 0 ? currentIndex - 1 : role.openingMessages.length - 1;
+    } else {
+      newIndex = currentIndex < role.openingMessages.length - 1 ? currentIndex + 1 : 0;
+    }
+
+    setRoleOpeningIndexes(prev => ({
+      ...prev,
+      [roleId]: newIndex
+    }));
   };
 
   if (aiRoles.length === 0) {
@@ -126,13 +153,42 @@ const RoleSelector: React.FC = () => {
                 </div>
               </div>
               
-              {(role.systemPrompt || role.openingMessage) && (
+              {(role.systemPrompt || (role.openingMessages && role.openingMessages.length > 0)) && (
                 <div className="mt-4 pt-4 border-t border-base-300 space-y-2">
-                  {role.openingMessage && (
+                  {role.openingMessages && role.openingMessages.length > 0 && (
                     <div>
-                      <p className="text-xs text-base-content/70 font-medium mb-1">开场白:</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs text-base-content/70 font-medium">开场白:</p>
+                        {role.openingMessages.length > 1 && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                switchOpeningMessage(role.id, 'prev');
+                              }}
+                              className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
+                              title="上一个开场白"
+                            >
+                              <ChevronLeft className="h-3 w-3" />
+                            </button>
+                            <span className="text-xs text-gray-500 px-1">
+                              {(roleOpeningIndexes[role.id] || 0) + 1}/{role.openingMessages.length}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                switchOpeningMessage(role.id, 'next');
+                              }}
+                              className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
+                              title="下一个开场白"
+                            >
+                              <ChevronRight className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <p className="text-xs text-base-content/60 line-clamp-2">
-                        {role.openingMessage}
+                        {role.openingMessages[roleOpeningIndexes[role.id] || 0] || '暂无开场白'}
                       </p>
                     </div>
                   )}

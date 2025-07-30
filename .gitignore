@@ -40,3 +40,6 @@ commit.bat
 test-scripts.sh
 quick-commit.sh
 deploy.sh
+
+# 其它
+.trae/documents/

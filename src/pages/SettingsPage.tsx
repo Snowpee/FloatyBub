@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Users, Database, History, FileText, UserCircle } from 'lucide-react';
+import { Settings, Users, Database, History, FileText, UserCircle, Volume2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import ConfigPage from './ConfigPage';
 import RolesPage from './RolesPage';
@@ -7,8 +7,9 @@ import UserProfilesPage from './UserProfilesPage';
 import DataPage from './DataPage';
 import HistoryPage from './HistoryPage';
 import GlobalPromptsPage from './GlobalPromptsPage';
+import VoiceSettingsPage from './VoiceSettingsPage';
 
-type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'data' | 'history';
+type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data' | 'history';
 
 const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('config');
@@ -16,13 +17,13 @@ const SettingsPage: React.FC = () => {
   const tabs = [
     {
       id: 'config' as TabType,
-      name: '模型配置',
+      name: '模型',
       icon: Settings,
       component: ConfigPage
     },
     {
       id: 'roles' as TabType,
-      name: '角色管理',
+      name: '角色卡',
       icon: Users,
       component: RolesPage
     },
@@ -34,19 +35,25 @@ const SettingsPage: React.FC = () => {
     },
     {
       id: 'globalPrompts' as TabType,
-      name: '全局提示词配置',
+      name: '全局提示词',
       icon: FileText,
       component: GlobalPromptsPage
     },
     {
+      id: 'voice' as TabType,
+      name: '语音',
+      icon: Volume2,
+      component: VoiceSettingsPage
+    },
+    {
       id: 'data' as TabType,
-      name: '数据管理',
+      name: '数据',
       icon: Database,
       component: DataPage
     },
     {
       id: 'history' as TabType,
-      name: '历史管理',
+      name: '历史',
       icon: History,
       component: HistoryPage
     }

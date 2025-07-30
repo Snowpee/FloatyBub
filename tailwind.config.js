@@ -3,12 +3,7 @@
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   safelist: [
-    // DaisyUI 组件类
-    'badge', 'badge-primary', 'badge-secondary', 'badge-accent',
-    'btn', 'btn-primary', 'btn-secondary', 'btn-accent',
-    'bg-base-100', 'bg-base-200', 'bg-base-300',
-    'text-base-content', 'border-base-300',
-    // 确保所有 DaisyUI 主题相关的类都被包含
+    // DaisyUI 主题相关类的模式匹配（覆盖所有组件和颜色变体）
     { pattern: /^(badge|btn|bg|text|border)-(primary|secondary|accent|neutral|base|info|success|warning|error)/ },
     { pattern: /^(bg|text|border)-base-(100|200|300|content)/ }
   ],
@@ -18,12 +13,9 @@ export default {
     },
     extend: {},
   },
-  plugins: [require('daisyui')],
-  daisyui: {
-    themes: ["light", "dark"],
-    darkTheme: "dark",
-    base: true,
-    styled: true,
-    utils: true,
-  },
+  plugins: [
+    require('daisyui')({
+      themes: ['light', 'dark', 'cupcake', 'floaty']
+    })
+  ]
 };

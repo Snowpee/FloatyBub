@@ -66,7 +66,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
           name={name}
           avatar={currentAvatar}
           size="xl"
-          className="shadow-lg"
+          className="rounded-sm"
         />
         
         {/* 上传按钮覆盖层 */}

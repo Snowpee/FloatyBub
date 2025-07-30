@@ -10,7 +10,6 @@ import {
   MoreHorizontal,
   Pin,
   Palette,
-  Volume2,
   EyeOff
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -277,7 +276,7 @@ const Layout: React.FC = () => {
                               placement="right"
                               okText="删除"
                               cancelText="取消"
-                              getPopupContainer={() => linkRef?.current!}
+                              getPopupContainer={() => linkRef?.current || undefined}
                             >
                               <button className="text-sm text-error w-full text-left flex items-center">
                                 <Trash2 className="h-4 w-4 mr-2" />
@@ -298,14 +297,7 @@ const Layout: React.FC = () => {
           {/* 底部操作区 */}
           <div className="p-4 border-t border-base-300">
             <div className="grid grid-cols-1 gap-2">
-              {/* <Link
-                to="/voice-test"
-                onClick={closeSidebarOnMobile}
-                className="btn btn-ghost btn-sm"
-              >
-                <Volume2 className="h-4 w-4" />
-                语音测试
-              </Link> */}
+
               
               <div className="grid grid-cols-2 gap-2">
                 <Link
@@ -317,17 +309,77 @@ const Layout: React.FC = () => {
                   设置
                 </Link>
                 
-                <button
-                  onClick={() => {
-                    const newTheme = theme === 'light' ? 'dark' : 'light';
-                    setTheme(newTheme);
-                  }}
-                  className="btn btn-ghost btn-sm"
-                  title={theme === 'light' ? '切换到深色模式' : '切换到浅色模式'}
-                >
-                  <Palette className="h-4 w-4" />
-                  {theme === 'light' ? '亮色主题' : '深色主题'}
-                </button>
+                <div className="dropdown dropdown-top dropdown-end">
+                  <button
+                    tabIndex={0}
+                    className="btn btn-ghost btn-sm"
+                    title="切换主题"
+                  >
+                    <Palette className="h-4 w-4" />
+                    {theme === 'light' ? '亮色' : theme === 'dark' ? '深色' : theme === 'cupcake' ? '杯子蛋糕' : theme === 'floaty' ? '幻想' : '主题'}
+                  </button>
+                  <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-32">
+                    <li>
+                      <button
+                        onClick={() => {
+                          setTheme('light');
+                          (document.activeElement as HTMLElement)?.blur();
+                        }}
+                        className={`text-sm ${theme === 'light' ? 'bg-base-200' : ''}`}
+                      >
+                        亮色主题
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => {
+                          setTheme('dark');
+                          (document.activeElement as HTMLElement)?.blur();
+                        }}
+                        className={`text-sm ${theme === 'dark' ? 'bg-base-200' : ''}`}
+                      >
+                        深色主题
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => {
+                          console.log('🎨 点击杯子蛋糕主题按钮');
+                          console.log('🎨 当前主题:', theme);
+                          setTheme('cupcake');
+                          console.log('🎨 调用 setTheme 完成');
+                          // 延迟检查主题是否生效
+                          setTimeout(() => {
+                            const currentStoreTheme = useAppStore.getState().theme;
+                            console.log('🎨 延迟检查 - 当前主题:', document.documentElement.getAttribute('data-theme'));
+                            console.log('🎨 延迟检查 - store 主题:', currentStoreTheme);
+                            console.log('🎨 延迟检查 - 主题切换验证:', {
+                              domTheme: document.documentElement.getAttribute('data-theme'),
+                              storeTheme: currentStoreTheme,
+                              isConsistent: document.documentElement.getAttribute('data-theme') === currentStoreTheme
+                            });
+                          }, 100);
+                          (document.activeElement as HTMLElement)?.blur();
+                        }}
+                        className={`text-sm ${theme === 'cupcake' ? 'bg-base-200' : ''}`}
+                      >
+                        杯子蛋糕
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => {
+                          setTheme('floaty');
+                          (document.activeElement as HTMLElement)?.blur();
+                        }}
+                        className={`text-sm ${theme === 'floaty' ? 'bg-base-200' : ''}`}
+                      >
+                        幻想主题
+                      </button>
+                    </li>
+
+                  </ul>
+                </div>
               </div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Play, Square, Download, Volume2 } from 'lucide-react';
 
 interface TTSRequest {
@@ -9,6 +9,7 @@ interface TTSRequest {
   normalize: boolean;
   latency: 'normal' | 'balanced';
   chunk_length: number;
+  model?: string;
 }
 
 
@@ -21,6 +22,8 @@ const VoiceTest: React.FC = () => {
   const [serverStatus, setServerStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
   const [modelId, setModelId] = useState('59cb5986671546eaa6ca8ae6f29f6d22');
   const [customModelId, setCustomModelId] = useState('');
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [defaultModel, setDefaultModel] = useState('speech-1.6');
   
   const [config, setConfig] = useState<TTSRequest>({
     text: '',
@@ -28,17 +31,51 @@ const VoiceTest: React.FC = () => {
     mp3_bitrate: 128,
     normalize: true,
     latency: 'normal',
-    chunk_length: 200
+    chunk_length: 200,
+    model: 'speech-1.6'
   });
   
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // 获取可用模型列表
+  const fetchAvailableModels = async () => {
+    try {
+      // 根据环境选择 API 地址
+      const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+      const response = await fetch(`${apiBaseUrl}/api/tts`, {
+        method: 'GET',
+        headers: {
+          'x-api-key': import.meta.env.VITE_API_SECRET || 'your-api-key-here'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.models) {
+          setAvailableModels(data.models);
+          setDefaultModel(data.default || 'speech-1.6');
+          // 如果当前选择的模型不在可用列表中，则设置为默认模型
+          if (!data.models.includes(config.model)) {
+            setConfig(prev => ({ ...prev, model: data.default || 'speech-1.6' }));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('获取模型列表失败:', error);
+      // 如果获取失败，使用默认模型列表
+      setAvailableModels(['speech-1.5', 'speech-1.6', 's1']);
+    }
+  };
 
   // 检查服务器状态
   const checkServerStatus = async () => {
     try {
       // 根据环境选择 API 地址
       const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
-      const response = await fetch(`${apiBaseUrl}/api/health`);
+      const response = await fetch(`${apiBaseUrl}/api/health`, {
+        headers: {
+          'x-api-key': import.meta.env.VITE_API_SECRET || 'your-api-key-here'
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setServerStatus('online');
@@ -73,6 +110,7 @@ const VoiceTest: React.FC = () => {
         normalize: config.normalize,
         latency: config.latency,
         chunk_length: config.chunk_length,
+        model: config.model,
         ...(finalModelId && { reference_id: finalModelId })
       };
 
@@ -86,7 +124,8 @@ const VoiceTest: React.FC = () => {
       const response = await fetch(`${apiBaseUrl}/api/tts`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-api-key': import.meta.env.VITE_API_SECRET || 'your-api-key-here'
         },
         body: JSON.stringify(requestData)
       });
@@ -144,9 +183,10 @@ const VoiceTest: React.FC = () => {
 
 
 
-  // 页面加载时检查服务器状态
-  React.useEffect(() => {
+  // 页面加载时检查服务器状态和获取模型列表
+  useEffect(() => {
     checkServerStatus();
+    fetchAvailableModels();
   }, []);
 
   // 清理 URL
@@ -279,7 +319,28 @@ const VoiceTest: React.FC = () => {
                 />
               </div>
               
-
+              <div>
+                <label className="label">
+                  <span className="label-text">AI 模型</span>
+                </label>
+                <select 
+                  className="select select-bordered w-full"
+                  value={config.model}
+                  onChange={(e) => setConfig(prev => ({ ...prev, model: e.target.value }))}
+                >
+                  {availableModels.length > 0 ? (
+                    availableModels.map((model) => (
+                      <option key={model} value={model}>
+                        {model === 'speech-1.5' ? 'Speech 1.5' :
+                         model === 'speech-1.6' ? 'Speech 1.6' :
+                         model === 's1' ? 'S1' : model}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={config.model}>加载中...</option>
+                  )}
+                </select>
+              </div>
               
               <div className="flex items-center">
                 <label className="label cursor-pointer">
@@ -414,8 +475,9 @@ const VoiceTest: React.FC = () => {
                 <li>确保后端服务已启动: <code className="bg-base-300 px-2 py-1 rounded">cd tts-server && npm run dev</code></li>
                 <li>在 <code className="bg-base-300 px-2 py-1 rounded">tts-server/.env</code> 文件中配置你的 Fish Audio API 密钥</li>
                 <li>输入要转换的文本内容</li>
+                <li>选择合适的 AI 模型（Speech 1.5、Speech 1.6 或 S1）</li>
                 <li>根据需要调整音频格式、比特率等配置</li>
-                <li>可选：上传参考音频文件以启用语音克隆功能</li>
+                <li>可选：选择预设语音模型或输入自定义模型 ID</li>
                 <li>点击"生成语音"按钮</li>
                 <li>生成完成后可以播放、下载音频文件</li>
               </ol>
@@ -424,9 +486,11 @@ const VoiceTest: React.FC = () => {
                 <h3 className="font-semibold mb-2">注意事项:</h3>
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   <li>需要有效的 Fish Audio API 密钥</li>
-                  <li>参考音频用于语音克隆，可提供更个性化的语音效果</li>
+                  <li>不同 AI 模型具有不同的语音特性和质量</li>
+                  <li>Speech 1.6 为默认推荐模型，具有较好的平衡性</li>
+                  <li>语音模型 ID 用于指定特定的声音风格</li>
                   <li>文本长度建议控制在合理范围内</li>
-                  <li>生成时间取决于文本长度和网络状况</li>
+                  <li>生成时间取决于文本长度、模型选择和网络状况</li>
                 </ul>
               </div>
             </div>

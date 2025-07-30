@@ -7,6 +7,7 @@ import DataPage from '../pages/DataPage';
 import SettingsPage from '../pages/SettingsPage';
 import Home from '../pages/Home';
 import VoiceTest from '../pages/VoiceTest';
+import VercelModelTest from '../pages/VercelModelTest';
 
 export const router = createBrowserRouter([
   {
@@ -45,6 +46,10 @@ export const router = createBrowserRouter([
       {
         path: 'voice-test',
         element: <VoiceTest />
+      },
+      {
+        path: 'vercel-model-test',
+        element: <VercelModelTest />
       }
     ]
   }

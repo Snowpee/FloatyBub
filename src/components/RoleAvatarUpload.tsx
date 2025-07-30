@@ -70,14 +70,14 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
   };
 
   return (
-    <div className={cn('flex flex-col items-center space-y-4', className)}>
+    <div className={cn('flex items-start gap-6', className)}>
       {/* 头像预览 */}
-      <div className="relative">
+      <div className="relative flex-shrink-0">
         <Avatar
           name={name}
           avatar={currentAvatar}
           size="xl"
-          className="shadow-lg"
+          className=""
         />
         
         {/* 上传按钮覆盖层 */}
@@ -91,37 +91,42 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
         </div>
       </div>
 
-      {/* 操作按钮 */}
-      <div className="flex flex-wrap justify-center gap-2">
-        <button
-          type="button"
-          onClick={handleRandomAvatar}
-          className="btn btn-sm btn-outline"
-        >
-          <Shuffle className="h-4 w-4 mr-1" />
-          随机生成
-        </button>
-        
-        <button
-          type="button"
-          onClick={handleUploadClick}
-          disabled={isUploading}
-          className="btn btn-sm btn-primary"
-        >
-          <Upload className="h-4 w-4 mr-1" />
-          {isUploading ? '上传中...' : '上传头像'}
-        </button>
-        
-        {currentAvatar && (
+      {/* 右侧内容 */}
+      <div className="flex-1 space-y-4">
+        {/* 操作按钮 */}
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={handleRemoveAvatar}
-            className="btn btn-sm btn-ghost text-error"
+            onClick={handleRandomAvatar}
+            className="btn btn-sm btn-outline"
           >
-            <X className="h-4 w-4 mr-1" />
-            移除
+            <Shuffle className="h-4 w-4 mr-1" />
+            随机生成
           </button>
-        )}
+          
+          {currentAvatar && (
+            <button
+              type="button"
+              onClick={handleRemoveAvatar}
+              className="btn btn-sm btn-ghost text-error"
+            >
+              <X className="h-4 w-4 mr-1" />
+              移除
+            </button>
+          )}
+        </div>
+
+        {/* 提示文字 */}
+        <div className="text-left">
+          <p className="text-xs text-base-content/60">
+            支持 JPEG、PNG、GIF、WebP 格式， 文件大小不超过 5MB。
+          </p>
+          {!currentAvatar && (
+            <p className="text-xs text-base-content/40 mt-1">
+              未设置头像时将根据角色名自动生成
+            </p>
+          )}
+        </div>
       </div>
 
       {/* 隐藏的文件输入 */}
@@ -132,21 +137,6 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
         onChange={handleFileSelect}
         className="hidden"
       />
-
-      {/* 提示文字 */}
-      <div className="text-center">
-        <p className="text-xs text-base-content/60">
-          支持 JPEG、PNG、GIF、WebP 格式
-        </p>
-        <p className="text-xs text-base-content/60">
-          文件大小不超过 5MB
-        </p>
-        {!currentAvatar && (
-          <p className="text-xs text-base-content/40 mt-1">
-            未设置头像时将根据角色名自动生成
-          </p>
-        )}
-      </div>
     </div>
   );
 };
