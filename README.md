@@ -199,12 +199,41 @@ tts-server/             # 本地TTS服务器
 └── .env.example        # 环境变量模板
 ```
 
+## 🎵 语音功能
+
+### Fish Audio TTS 集成
+- **文本转语音**: 支持高质量的语音合成
+- **语音克隆**: 支持上传参考音频进行声音克隆
+- **多种格式**: 支持 MP3、WAV 等音频格式
+- **参数调节**: 可调节比特率、延迟模式等参数
+- **安全代理**: 通过后端代理保护 API 密钥
+
+### 语音功能配置
+1. **获取 Fish Audio API 密钥**
+   - 访问 [Fish Audio](https://fish.audio) 注册账号
+   - 获取 API 密钥
+
+2. **本地开发配置**
+   ```bash
+   # 启动 TTS 服务器
+   cd tts-server
+   npm install
+   cp .env.example .env
+   # 在 .env 中配置 FISH_AUDIO_API_KEY
+   npm start
+   ```
+
+3. **Vercel 部署配置**
+   - 在 Vercel 环境变量中设置 `FISH_AUDIO_API_KEY`
+   - API 接口自动部署为 Serverless Functions
+
 ## 🔒 隐私与安全
 
 - **本地存储**: 所有用户数据和配置都存储在浏览器本地
-- **API密钥安全**: 密钥仅在客户端使用，不会发送到第三方服务器
+- **API密钥安全**: LLM API 密钥仅在客户端使用，TTS API 密钥通过后端代理保护
 - **无数据收集**: 应用不收集任何用户数据或使用统计
 - **开源透明**: 完全开源，代码公开透明
+- **安全验证**: TTS API 包含密钥验证机制，防止未授权访问
 
 ## 🤝 贡献指南
 
@@ -225,8 +254,13 @@ tts-server/             # 本地TTS服务器
 - [React](https://reactjs.org/) - 用户界面库
 - [Vite](https://vitejs.dev/) - 快速的构建工具
 - [Tailwind CSS](https://tailwindcss.com/) - 实用优先的CSS框架
+- [DaisyUI](https://daisyui.com/) - 基于 Tailwind 的组件库
 - [Zustand](https://github.com/pmndrs/zustand) - 轻量级状态管理
+- [React Router](https://reactrouter.com/) - 声明式路由
+- [Sonner](https://sonner.emilkowal.ski/) - 优雅的通知组件
 - [Lucide](https://lucide.dev/) - 美观的图标库
+- [Fish Audio](https://fish.audio/) - 高质量语音合成服务
+- [TRAE SOLO](https://trae.ai/) - AI 开发工具
 
 ---
 
