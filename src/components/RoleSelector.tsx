@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { Bot, Users, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { toast } from 'sonner';
+import { toast } from '../hooks/useToast';
 import Avatar from './Avatar';
 
 const RoleSelector: React.FC = () => {

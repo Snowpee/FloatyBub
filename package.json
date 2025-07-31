@@ -23,7 +23,7 @@
     "react-router-dom": "^7.3.0",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
-    "sonner": "^2.0.6",
+
     "tailwind-merge": "^3.0.2",
     "zustand": "^5.0.6"
   },

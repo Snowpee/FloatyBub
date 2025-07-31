@@ -9,7 +9,7 @@ import {
   FileText
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { toast } from 'sonner';
+import { toast } from '../hooks/useToast';
 import EmptyState from '../components/EmptyState';
 
 

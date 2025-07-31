@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { toast } from 'sonner';
+import { toast } from '../../hooks/useToast';
 
 interface ModelListResponse {
   success: boolean;

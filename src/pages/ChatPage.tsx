@@ -66,8 +66,9 @@ const ChatPage: React.FC = () => {
 
   // 获取当前会话
   const currentSession = chatSessions.find(s => s.id === (sessionId || currentSessionId));
-  const currentRole = aiRoles.find(r => r.id === currentRoleId);
-  const currentModel = llmConfigs.find(m => m.id === currentModelId);
+  // ===== 修复：使用当前会话的角色和模型，而不是全局的 =====
+  const currentRole = currentSession ? aiRoles.find(r => r.id === currentSession.roleId) : aiRoles.find(r => r.id === currentRoleId);
+  const currentModel = currentSession ? llmConfigs.find(m => m.id === currentSession.modelId) : llmConfigs.find(m => m.id === currentModelId);
 
   // 如果有sessionId参数，设置为当前会话
   useEffect(() => {
@@ -153,13 +154,14 @@ const ChatPage: React.FC = () => {
       toast.error('当前模型未配置或已禁用');
       return;
     }
-
+    
     // 获取用户名和角色名，用于模板替换
     const userName = currentUserProfile?.name || '用户';
     const charName = currentRole?.name || 'AI助手';
     
     // 对用户输入应用模板替换
     const userMessage = replaceTemplateVariables(message.trim(), userName, charName);
+    
     setMessage('');
     setIsLoading(true);
     setIsGenerating(true);
@@ -285,6 +287,78 @@ const ChatPage: React.FC = () => {
         content: userMessage
       });
 
+      // ===== 添加详细的调试信息 =====
+      if (process.env.NODE_ENV === 'development') {
+        console.log('\n🚀 ===== LLM API 调用详情 =====');
+        console.log('📅 时间:', new Date().toLocaleString());
+        console.log('🔗 会话ID:', sessionId);
+        console.log('💬 消息ID:', messageId);
+        console.log('🤖 当前模型:', currentModel.name, `(${currentModel.provider})`);
+        console.log('🎭 当前角色:', currentRole.name);
+        console.log('👤 当前用户:', currentUserProfile?.name || '未设置');
+        console.log('📊 消息总数:', messages.length);
+        
+        console.log('\n📝 ===== 完整提示词内容 =====');
+        messages.forEach((msg, index) => {
+          console.log(`\n[${index + 1}] ${msg.role.toUpperCase()}:`);
+          console.log('---');
+          console.log(msg.content);
+          console.log('---');
+        });
+        
+        console.log('\n🔧 ===== 系统提示词详情 =====');
+        if (systemPrompt) {
+          console.log('系统提示词长度:', systemPrompt.length, '字符');
+          console.log('系统提示词内容:');
+          console.log('---');
+          console.log(systemPrompt);
+          console.log('---');
+        } else {
+          console.log('❌ 无系统提示词');
+        }
+        
+        console.log('\n📋 ===== 用户输入详情 =====');
+        console.log('原始用户输入:', userMessage);
+        console.log('用户输入长度:', userMessage.length, '字符');
+        
+        console.log('\n📚 ===== 历史消息概览 =====');
+        const historyMessages = currentSession!.messages.filter(m => m.role !== 'assistant' || !m.isStreaming);
+        console.log('历史消息数量:', historyMessages.length);
+        historyMessages.forEach((msg, index) => {
+          const preview = msg.content.length > 50 ? msg.content.substring(0, 50) + '...' : msg.content;
+          console.log(`[${index + 1}] ${msg.role}: ${preview}`);
+        });
+        
+        console.log('\n⚙️ ===== 模型配置详情 =====');
+        console.log('模型名称:', currentModel.model);
+        console.log('温度参数:', currentModel.temperature);
+        console.log('最大令牌:', currentModel.maxTokens);
+        console.log('API地址:', currentModel.baseUrl || '默认地址');
+        if (currentModel.proxyUrl) {
+          console.log('代理地址:', currentModel.proxyUrl);
+        }
+        
+        console.log('\n🎯 ===== 角色配置详情 =====');
+        console.log('角色名称:', currentRole.name);
+        console.log('角色描述:', currentRole.description || '无描述');
+        if (currentRole.globalPromptId) {
+          const globalPrompt = globalPrompts.find(p => p.id === currentRole.globalPromptId);
+          console.log('全局提示词:', globalPrompt?.title || '未找到');
+        }
+        console.log('角色系统提示词长度:', currentRole.systemPrompt?.length || 0, '字符');
+        
+        console.log('\n👥 ===== 用户资料详情 =====');
+        if (currentUserProfile) {
+          console.log('用户名称:', currentUserProfile.name);
+          console.log('用户描述:', currentUserProfile.description || '无描述');
+        } else {
+          console.log('❌ 未设置用户资料');
+        }
+        
+        console.log('\n🌐 ===== API 请求详情 =====');
+      }
+      // ===== 调试信息结束 =====
+
       // 根据不同的provider调用相应的API
       let apiUrl = '';
       let headers: Record<string, string> = {
@@ -372,6 +446,15 @@ const ChatPage: React.FC = () => {
         apiUrl = currentModel.proxyUrl;
       }
 
+      // ===== 添加 API 请求体调试信息 =====
+      if (process.env.NODE_ENV === 'development') {
+        console.log('请求URL:', apiUrl);
+        console.log('请求头:', JSON.stringify(headers, null, 2));
+        console.log('请求体:', JSON.stringify(body, null, 2));
+        console.log('===============================\n');
+      }
+      // ===== API 请求体调试信息结束 =====
+
       // 清理之前的请求并创建新的 AbortController
       cleanupRequest();
       abortControllerRef.current = new AbortController();
@@ -425,7 +508,7 @@ const ChatPage: React.FC = () => {
                 }
 
                 // 调试日志
-                if (content) {
+                if (content && process.env.NODE_ENV === 'development') {
                   console.log('Received content:', content);
                 }
 
@@ -566,6 +649,34 @@ const ChatPage: React.FC = () => {
       throw new Error('模型未配置');
     }
 
+    // ===== 添加重新生成的详细调试信息 =====
+    console.log('\n🔄 ===== LLM API 重新生成调用详情 =====');
+    console.log('📅 时间:', new Date().toLocaleString());
+    console.log('🤖 当前模型:', currentModel.name, `(${currentModel.provider})`);
+    console.log('🎭 当前角色:', currentRole?.name || '未设置');
+    console.log('👤 当前用户:', currentUserProfile?.name || '未设置');
+    console.log('📊 重新生成消息总数:', messages.length);
+    
+    console.log('\n📝 ===== 重新生成完整提示词内容 =====');
+    messages.forEach((msg, index) => {
+      console.log(`\n[${index + 1}] ${msg.role.toUpperCase()}:`);
+      console.log('---');
+      console.log(msg.content);
+      console.log('---');
+    });
+    
+    console.log('\n⚙️ ===== 重新生成模型配置详情 =====');
+    console.log('模型名称:', currentModel.model);
+    console.log('温度参数:', currentModel.temperature);
+    console.log('最大令牌:', currentModel.maxTokens);
+    console.log('API地址:', currentModel.baseUrl || '默认地址');
+    if (currentModel.proxyUrl) {
+      console.log('代理地址:', currentModel.proxyUrl);
+    }
+    
+    console.log('\n🌐 ===== 重新生成 API 请求详情 =====');
+    // ===== 重新生成调试信息结束 =====
+
     // 根据不同的provider调用相应的API
     let apiUrl = '';
     let headers: Record<string, string> = {
@@ -652,6 +763,13 @@ const ChatPage: React.FC = () => {
     if (currentModel.proxyUrl) {
       apiUrl = currentModel.proxyUrl;
     }
+
+    // ===== 添加重新生成 API 请求体调试信息 =====
+    console.log('重新生成请求URL:', apiUrl);
+    console.log('重新生成请求头:', JSON.stringify(headers, null, 2));
+    console.log('重新生成请求体:', JSON.stringify(body, null, 2));
+    console.log('===============================\n');
+    // ===== 重新生成 API 请求体调试信息结束 =====
 
     // 清理之前的请求并创建新的 AbortController
     cleanupRequest();

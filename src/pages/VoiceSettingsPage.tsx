@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Volume2, Play, Square, RefreshCw, Settings, Plus, Trash2, Save } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '../hooks/useToast';
 
 interface VoiceModel {
   id: string;

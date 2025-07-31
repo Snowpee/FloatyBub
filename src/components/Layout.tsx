@@ -13,7 +13,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { toast } from 'sonner';
+import { toast } from '../hooks/useToast';
 import Popconfirm from './Popconfirm';
 import SettingsModal from './SettingsModal';
 
@@ -111,6 +111,12 @@ const Layout: React.FC = () => {
 
   const deleteSession = (sessionId: string) => {
     deleteChatSession(sessionId);
+    
+    // 如果删除的是当前会话，导航到聊天首页
+    if (currentSessionId === sessionId) {
+      navigate('/chat');
+    }
+    
     toast.success('会话已删除');
   };
 

@@ -339,9 +339,12 @@ export const useAppStore = create<AppState>()(
       },
       
       // 聊天会话相关actions
+      // 聊天会话相关actions
       createChatSession: (roleId, modelId) => {
+        const state = get();
         const sessionId = generateId();
-        const role = get().aiRoles.find(r => r.id === roleId);
+        const role = state.aiRoles.find(r => r.id === roleId);
+        
         const newSession: ChatSession = {
           id: sessionId,
           title: `与${role?.name || 'AI'}的对话`,
@@ -351,6 +354,7 @@ export const useAppStore = create<AppState>()(
           createdAt: new Date(),
           updatedAt: new Date()
         };
+        
         set((state) => ({
           chatSessions: [newSession, ...state.chatSessions],
           currentSessionId: sessionId,
@@ -360,8 +364,10 @@ export const useAppStore = create<AppState>()(
       },
       
       createTempSession: (roleId, modelId) => {
+        const state = get();
         const sessionId = generateId();
-        const role = get().aiRoles.find(r => r.id === roleId);
+        const role = state.aiRoles.find(r => r.id === roleId);
+        
         const newSession: ChatSession = {
           id: sessionId,
           title: `与${role?.name || 'AI'}的对话`,
@@ -371,6 +377,7 @@ export const useAppStore = create<AppState>()(
           createdAt: new Date(),
           updatedAt: new Date()
         };
+        
         set((state) => ({
           chatSessions: [newSession, ...state.chatSessions],
           currentSessionId: sessionId,
@@ -426,7 +433,14 @@ export const useAppStore = create<AppState>()(
       },
       
       setCurrentSession: (id) => {
-        set({ currentSessionId: id });
+        const state = get();
+        const newSession = state.chatSessions.find(s => s.id === id);
+        
+        set({ 
+          currentSessionId: id,
+          currentRoleId: newSession?.roleId || state.currentRoleId,
+          currentModelId: newSession?.modelId || state.currentModelId
+        });
       },
       
       addMessage: (sessionId, message) => {
@@ -437,7 +451,7 @@ export const useAppStore = create<AppState>()(
           ...message,
           id: message.id || generateId(),
           timestamp: new Date(),
-          roleId: session?.roleId, // 所有消息都保存会话的roleId
+          roleId: session?.roleId,
           userProfileId: message.role === 'user' ? state.currentUserProfile?.id : undefined
         };
         

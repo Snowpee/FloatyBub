@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { MessageCircle, Calendar, User, Bot, Trash2, MoreVertical } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { toast } from 'sonner';
+import { toast } from '../hooks/useToast';
 import Avatar from './Avatar';
 
 const ChatSessionList: React.FC = () => {

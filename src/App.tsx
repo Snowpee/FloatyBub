@@ -1,37 +1,14 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
-import { Toaster } from 'sonner';
-import { useAppStore } from './store';
-import ChatPage from './pages/ChatPage';
-import SettingsPage from './pages/SettingsPage';
+import ToastContainer from './components/ToastContainer';
 
 function App() {
-  const { theme } = useAppStore();
-
+  console.log('🚀 [App] App 组件渲染');
   return (
     <div>
       <Layout />
-      <Toaster 
-        theme={theme === 'dark' ? 'dark' : 'light'}
-        position="top-right"
-        richColors
-        toastOptions={{
-          unstyled: true,
-          classNames: {
-            toast: 'alert shadow-lg border-0 border-radius-[var(--radius-box)] max-w-sm sm:max-w-sm',
-            title: 'font-semibold text-base',
-            description: 'text-sm opacity-80',
-            actionButton: 'btn btn-sm btn-primary',
-            cancelButton: 'btn btn-sm btn-ghost',
-            closeButton: 'btn btn-sm btn-ghost btn-circle',
-            success: 'alert-success',
-            error: 'alert-error',
-            info: 'alert-info',
-            warning: 'alert-warning',
-          },
-        }}
-      />
+      <ToastContainer />
+      {/* 移除重复的 Outlet，Layout 组件内部已经有了 */}
     </div>
   );
 }

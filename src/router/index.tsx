@@ -5,8 +5,9 @@ import ConfigPage from '../pages/ConfigPage';
 import RolesPage from '../pages/RolesPage';
 import DataPage from '../pages/DataPage';
 import Home from '../pages/Home';
-import VoiceTest from '../pages/VoiceTest';
-import VercelModelTest from '../pages/VercelModelTest';
+import VoiceTest from '../pages/tests/VoiceTest';
+import VercelModelTest from '../pages/tests/VercelModelTest';
+import ToastTestPage from '../pages/tests/ToastTestPage';
 
 export const router = createBrowserRouter([
   {
@@ -45,6 +46,10 @@ export const router = createBrowserRouter([
       {
         path: 'vercel-model-test',
         element: <VercelModelTest />
+      },
+      {
+        path: 'toast-test',
+        element: <ToastTestPage />
       }
     ]
   }
