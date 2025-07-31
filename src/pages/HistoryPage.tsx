@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../store';
 import {
@@ -11,21 +11,27 @@ import {
   Download,
   Filter,
   ChevronDown,
-  Eye
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Avatar from '../components/Avatar';
 
-const HistoryPage: React.FC = () => {
+interface HistoryPageProps {
+  onCloseModal?: () => void;
+}
+
+const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
   const {
     chatSessions,
     aiRoles,
     llmConfigs,
     deleteChatSession,
     setCurrentSession,
-    showSession
+    showSession,
+    hideSession
   } = useAppStore();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,6 +43,7 @@ const HistoryPage: React.FC = () => {
     sessionId: string;
     sessionTitle: string;
   }>({ isOpen: false, sessionId: '', sessionTitle: '' });
+  const modalRef = useRef<HTMLDialogElement>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -52,17 +59,19 @@ const HistoryPage: React.FC = () => {
       return matchesSearch && matchesRole && matchesModel;
     });
 
-    // 排序
+    // 排序 - 默认按时间降序（最新的在最上面）
     filtered.sort((a, b) => {
       let comparison = 0;
       
       if (sortBy === 'date') {
-        comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+        comparison = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(); // 按创建时间降序
       } else if (sortBy === 'title') {
         comparison = a.title.localeCompare(b.title);
+        return sortOrder === 'asc' ? comparison : -comparison;
       }
       
-      return sortOrder === 'asc' ? comparison : -comparison;
+      // 对于日期排序，始终使用降序（最新的在最上面）
+      return sortBy === 'date' ? comparison : (sortOrder === 'asc' ? comparison : -comparison);
     });
 
     return filtered;
@@ -78,19 +87,41 @@ const HistoryPage: React.FC = () => {
       sessionId: sessionId,
       sessionTitle: session?.title || '未知会话'
     });
+    modalRef.current?.showModal();
   };
 
   const confirmDeleteSession = () => {
     deleteChatSession(confirmDialog.sessionId);
     toast.success('会话已删除');
+    modalRef.current?.close();
   };
 
-  const handleShowSession = (sessionId: string, e: React.MouseEvent) => {
+  const handleCancel = () => {
+    modalRef.current?.close();
+  };
+
+  useEffect(() => {
+    const dialog = modalRef.current;
+    if (dialog) {
+      const handleClose = () => {
+        setConfirmDialog({ isOpen: false, sessionId: '', sessionTitle: '' });
+      };
+      dialog.addEventListener('close', handleClose);
+      return () => dialog.removeEventListener('close', handleClose);
+    }
+  }, []);
+
+  const handleToggleSession = (sessionId: string, isHidden: boolean, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    showSession(sessionId);
-    toast.success('会话已重新加载到侧边栏');
+    if (isHidden) {
+      showSession(sessionId);
+      toast.success('会话已重新加载到侧边栏');
+    } else {
+      hideSession(sessionId);
+      toast.success('会话已从侧边栏隐藏');
+    }
   };
 
   const handleExportSession = (sessionId: string, e: React.MouseEvent) => {
@@ -296,39 +327,37 @@ const HistoryPage: React.FC = () => {
           {filteredAndSortedSessions.map((session) => (
             <div key={session.id} className="card bg-base-100 shadow-sm border border-base-300 hover:shadow-md transition-shadow">
               <div className="card-body">
-                <div className="flex items-start justify-between">
-                  <Link
-                    to={`/chat/${session.id}`}
-                    onClick={() => setCurrentSession(session.id)}
-                    className="flex-1 min-w-0 hover:text-primary transition-colors"
-                  >
-                    {/* 会话标题和时间 */}
-                    <div className="flex items-center space-x-3 mb-2">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between space-y-4 md:space-y-0">
+                  <div className="flex-1 min-w-0">
+                    {/* 会话标题 */}
+                    <div className="mb-2">
                       <h3 className="card-title text-base-content truncate">
                         {session.title}
                       </h3>
-                      <span className="flex items-center text-sm text-base-content/60">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {formatDate(session.updatedAt)}
-                      </span>
                     </div>
 
-                    {/* 角色和模型信息 */}
-                    <div className="flex items-center space-x-4 mb-3">
-                      <div className="flex items-center space-x-2 text-sm text-base-content/70">
-                        <Avatar
-                          name={getRoleName(session.roleId)}
-                          avatar={getRole(session.roleId)?.avatar}
-                          size="sm"
-                        />
-                        <span>{getRoleName(session.roleId)}</span>
-                      </div>
-                      <span className="flex items-center text-sm text-base-content/70">
+                    {/* 角色信息 */}
+                    <div className="flex items-center space-x-2 text-sm text-base-content/70 mb-2">
+                      <Avatar
+                        name={getRoleName(session.roleId)}
+                        avatar={getRole(session.roleId)?.avatar}
+                        size="sm"
+                      />
+                      <span>{getRoleName(session.roleId)}</span>
+                    </div>
+
+                    {/* 模型和统计信息 - 移动端一行显示 */}
+                    <div className="flex items-center space-x-4 mb-3 text-sm">
+                      <span className="flex items-center text-base-content/70">
                         <Bot className="h-3 w-3 mr-1" />
                         {getModelName(session.modelId)}
                       </span>
-                      <span className="text-sm text-base-content/60">
+                      <span className="text-base-content/60">
                         {session.messages.length} 条消息
+                      </span>
+                      <span className="flex items-center text-base-content/60">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        {formatDate(session.updatedAt)}
                       </span>
                     </div>
 
@@ -336,33 +365,58 @@ const HistoryPage: React.FC = () => {
                     <p className="text-base-content/60 text-sm line-clamp-2">
                       {getMessagePreview(session.messages)}
                     </p>
-                  </Link>
+                  </div>
 
                   {/* 操作按钮 */}
-                  <div className="flex items-center space-x-2 ml-4">
-                    {session.isHidden && (
-                      <button
-                        onClick={(e) => handleShowSession(session.id, e)}
-                        className="btn btn-ghost btn-sm btn-square text-success hover:bg-success/10"
-                        title="重新加载到侧边栏"
+                  <div className="flex items-center justify-between md:ml-4 w-full md:w-auto">
+                    <div className="flex items-center space-x-2">
+                      <label 
+                        className="swap swap-rotate btn btn-ghost btn-sm btn-square hover:bg-base-200"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          
+                          if (session.isHidden) {
+                            showSession(session.id);
+                            toast.success('会话已重新加载到侧边栏');
+                          } else {
+                            hideSession(session.id);
+                            toast.success('会话已从侧边栏隐藏');
+                          }
+                        }}
+                        title={session.isHidden ? "显示会话" : "隐藏会话"}
                       >
-                        <Eye className="h-4 w-4" />
+                        <input 
+                          type="checkbox" 
+                          checked={!session.isHidden}
+                          readOnly
+                        />
+                        <Eye className="swap-on h-4 w-4 text-success" />
+                        <EyeOff className="swap-off h-4 w-4 text-base-content/60" />
+                      </label>
+                      <button
+                        onClick={(e) => handleExportSession(session.id, e)}
+                        className="btn btn-ghost btn-sm btn-square text-info hover:bg-info/10"
+                        title="导出会话"
+                      >
+                        <Download className="h-4 w-4" />
                       </button>
-                    )}
-                    <button
-                      onClick={(e) => handleExportSession(session.id, e)}
-                      className="btn btn-ghost btn-sm btn-square text-info hover:bg-info/10"
-                      title="导出会话"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteSession(session.id, e)}
-                      className="btn btn-ghost btn-sm btn-square text-error hover:bg-error/10"
-                      title="删除会话"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                      <button
+                        onClick={(e) => handleDeleteSession(session.id, e)}
+                        className="btn btn-ghost btn-sm btn-square text-error hover:bg-error/10"
+                        title="删除会话"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <Link
+                      to={`/chat/${session.id}`}
+                      onClick={() => {
+                        setCurrentSession(session.id);
+                        onCloseModal?.();
+                      }}
+                      className="btn btn-sm md:ml-2"
+                    >查看会话</Link>
                   </div>
                 </div>
               </div>
@@ -372,30 +426,31 @@ const HistoryPage: React.FC = () => {
       )}
 
       {/* 删除确认模态框 */}
-      {confirmDialog.isOpen && (
-        <div className="modal modal-open">
-          <div className="modal-box">
-            <h3 className="font-bold text-lg mb-4">删除会话</h3>
-            <p className="py-4">
-              确定要删除会话 "{confirmDialog.sessionTitle}" 吗？此操作不可撤销，所有聊天记录将被永久删除。
-            </p>
-            <div className="modal-action">
-              <button
-                onClick={() => setConfirmDialog({ isOpen: false, sessionId: '', sessionTitle: '' })}
-                className="btn"
-              >
-                取消
-              </button>
-              <button
-                onClick={confirmDeleteSession}
-                className="btn btn-error"
-              >
-                删除
-              </button>
-            </div>
+      <dialog ref={modalRef} className="modal">
+        <div className="modal-box">
+          <h3 className="font-bold text-lg mb-4">删除会话</h3>
+          <p className="py-4">
+            确定要删除会话 "{confirmDialog.sessionTitle}" 吗？此操作不可撤销，所有聊天记录将被永久删除。
+          </p>
+          <div className="modal-action">
+            <button
+              onClick={handleCancel}
+              className="btn"
+            >
+              取消
+            </button>
+            <button
+              onClick={confirmDeleteSession}
+              className="btn btn-error"
+            >
+              删除
+            </button>
           </div>
         </div>
-      )}
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
     </div>
   );
 };

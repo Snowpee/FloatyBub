@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore, LLMConfig } from '../store';
 import {
   Plus,
@@ -16,7 +16,11 @@ import { toast } from 'sonner';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 
-const ConfigPage: React.FC = () => {
+interface ConfigPageProps {
+  onCloseModal?: () => void;
+}
+
+const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
   const {
     llmConfigs,
     addLLMConfig,
@@ -27,6 +31,7 @@ const ConfigPage: React.FC = () => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const modalRef = useRef<HTMLDialogElement>(null);
   const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -56,6 +61,7 @@ const ConfigPage: React.FC = () => {
     setFormData(config);
     setEditingId(config.id);
     setIsEditing(true);
+    modalRef.current?.showModal();
   };
 
   const handleAdd = () => {
@@ -72,6 +78,7 @@ const ConfigPage: React.FC = () => {
     });
     setEditingId(null);
     setIsEditing(true);
+    modalRef.current?.showModal();
   };
 
   const handleSave = () => {
@@ -90,11 +97,13 @@ const ConfigPage: React.FC = () => {
 
     setIsEditing(false);
     setEditingId(null);
+    modalRef.current?.close();
   };
 
   const handleCancel = () => {
     setIsEditing(false);
     setEditingId(null);
+    modalRef.current?.close();
   };
 
   const handleDelete = (id: string) => {
@@ -211,6 +220,19 @@ const ConfigPage: React.FC = () => {
   const getProviderModels = (provider: string) => {
     return providers.find(p => p.value === provider)?.models || [];
   };
+
+  // 当模态框关闭时重置状态
+  useEffect(() => {
+    const dialog = modalRef.current;
+    if (dialog) {
+      const handleClose = () => {
+        setIsEditing(false);
+        setEditingId(null);
+      };
+      dialog.addEventListener('close', handleClose);
+      return () => dialog.removeEventListener('close', handleClose);
+    }
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto p-6 md:pt-0">
@@ -338,20 +360,18 @@ const ConfigPage: React.FC = () => {
       )}
 
       {/* 编辑/添加模态框 */}
-      {isEditing && (
-        <div className="modal modal-open">
-          <div className="modal-box w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-base-content">
-                {editingId ? '编辑配置' : '添加配置'}
-              </h2>
-              <button
-                onClick={handleCancel}
-                className="btn btn-ghost btn-sm btn-circle"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <dialog ref={modalRef} className="modal">
+        <div className="modal-box w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <form method="dialog">
+            <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">
+              <X className="h-5 w-5" />
+            </button>
+          </form>
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-base-content">
+              {editingId ? '编辑配置' : '添加配置'}
+            </h2>
+          </div>
 
             <fieldset className="fieldset">
               <div>
@@ -495,24 +515,25 @@ const ConfigPage: React.FC = () => {
             </fieldset>
             {/* /结束配置表单 */}
 
-            <div className="modal-action">
-              <button
-                onClick={handleCancel}
-                className="btn btn-ghost"
-              >
+          <div className="modal-action">
+            <form method="dialog">
+              <button className="btn btn-ghost">
                 取消
               </button>
-              <button
-                onClick={handleSave}
-                className="btn btn-primary"
-              >
-                <Save className="h-4 w-4" />
-                保存
-              </button>
-            </div>
+            </form>
+            <button
+              onClick={handleSave}
+              className="btn btn-primary"
+            >
+              <Save className="h-4 w-4" />
+              保存
+            </button>
           </div>
         </div>
-      )}
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
 
       {/* 确认删除对话框 */}
       <ConfirmDialog

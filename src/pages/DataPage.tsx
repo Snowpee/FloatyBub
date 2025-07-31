@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../store';
 import {
   Download,
@@ -14,7 +14,11 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import ConfirmDialog from '../components/ConfirmDialog';
 
-const DataPage: React.FC = () => {
+interface DataPageProps {
+  onCloseModal?: () => void;
+}
+
+const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
   const {
     llmConfigs,
     aiRoles,
@@ -27,6 +31,26 @@ const DataPage: React.FC = () => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const clearConfirmModalRef = useRef<HTMLDialogElement>(null);
+
+  // 处理模态框显示
+  useEffect(() => {
+    if (showClearConfirm) {
+      clearConfirmModalRef.current?.showModal();
+    }
+  }, [showClearConfirm]);
+
+  // 监听模态框关闭事件
+  useEffect(() => {
+    const modal = clearConfirmModalRef.current;
+    if (modal) {
+      const handleClose = () => {
+        setShowClearConfirm(false);
+      };
+      modal.addEventListener('close', handleClose);
+      return () => modal.removeEventListener('close', handleClose);
+    }
+  }, []);
 
   // 计算数据统计
   const stats = {
@@ -98,8 +122,13 @@ const DataPage: React.FC = () => {
   // 清空所有数据
   const handleClearAll = () => {
     clearAllData();
-    setShowClearConfirm(false);
+    clearConfirmModalRef.current?.close();
     toast.success('所有数据已清空');
+  };
+
+  // 取消清空操作
+  const handleCancelClear = () => {
+    clearConfirmModalRef.current?.close();
   };
 
   // 计算存储大小（估算）
@@ -166,7 +195,7 @@ const DataPage: React.FC = () => {
       </div>
 
       {/* 存储信息 */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+      <div className="card bg-white dark:bg-gray-800 p-6 border border-gray-200 dark:border-gray-700">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
           <Info className="h-5 w-5 mr-2" />
           存储信息
@@ -275,35 +304,36 @@ const DataPage: React.FC = () => {
       </div>
 
       {/* 清空确认模态框 */}
-      {showClearConfirm && (
-        <div className="modal modal-open">
-          <div className="modal-box">
-            <div className="flex items-center mb-4">
-              <AlertTriangle className="h-6 w-6 text-error mr-3" />
-              <h3 className="text-lg font-semibold text-base-content">
-                确认清空所有数据
-              </h3>
-            </div>
-            <p className="text-base-content/70 mb-6">
-              此操作将删除所有LLM配置、AI角色和聊天历史，且无法恢复。您确定要继续吗？
-            </p>
-            <div className="modal-action">
-              <button
-                onClick={() => setShowClearConfirm(false)}
-                className="btn btn-ghost"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleClearAll}
-                className="btn btn-error"
-              >
-                确认清空
-              </button>
-            </div>
+      <dialog ref={clearConfirmModalRef} className="modal">
+        <div className="modal-box">
+          <div className="flex items-center mb-4">
+            <AlertTriangle className="h-6 w-6 text-error mr-3" />
+            <h3 className="text-lg font-semibold text-base-content">
+              确认清空所有数据
+            </h3>
+          </div>
+          <p className="text-base-content/70 mb-6">
+            此操作将删除所有LLM配置、AI角色和聊天历史，且无法恢复。您确定要继续吗？
+          </p>
+          <div className="modal-action">
+            <button
+              onClick={handleCancelClear}
+              className="btn btn-ghost"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleClearAll}
+              className="btn btn-error"
+            >
+              确认清空
+            </button>
           </div>
         </div>
-      )}
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
     </div>
   );
 };

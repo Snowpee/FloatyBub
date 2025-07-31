@@ -10,15 +10,18 @@
 - **多模型支持**: 支持 OpenAI GPT、Claude、Gemini、通义千问等主流大语言模型
 - **流式输出**: 实时显示AI回复，提供流畅的对话体验
 - **智能角色系统**: 支持自定义AI角色、系统提示词和个性化开场白
+- **用户资料管理**: 支持多用户资料切换，个性化对话体验
 - **全局提示词**: 可复用的提示词模板，提升对话质量
+- **语音功能**: 集成 Fish Audio TTS，支持文本转语音和语音克隆
 - **会话管理**: 完整的聊天历史记录、会话搜索和分类管理
 - **配置管理**: 灵活的模型配置和API密钥管理
 - **数据导入导出**: 支持完整的数据备份和迁移
 
 ### 🎨 用户体验
 - **现代化界面**: 基于 DaisyUI 的精美设计系统
-- **丰富主题**: 支持 35+ 内置主题，满足个性化需求
+- **多主题支持**: 支持亮色、深色、纸杯蛋糕、浮光等多种主题
 - **响应式设计**: 完美适配桌面端和移动端，优化移动端交互
+- **智能通知**: 基于 Sonner 的优雅通知系统，支持 DaisyUI 样式
 - **友好交互**: 优雅的确认对话框、空状态提示和状态反馈
 - **本地存储**: 安全的本地数据存储，保护隐私
 
@@ -34,19 +37,20 @@
 
 - **前端框架**: React 18 + TypeScript
 - **构建工具**: Vite 6
-- **样式方案**: Tailwind CSS + DaisyUI
-- **状态管理**: Zustand
-- **路由管理**: React Router 7
+- **样式方案**: Tailwind CSS 4 + DaisyUI 5
+- **状态管理**: Zustand 5
+- **路由管理**: React Router DOM 7
 - **图标库**: Lucide React
-- **通知组件**: Sonner
+- **通知组件**: Sonner 2
 - **Markdown**: React Markdown + Rehype Highlight
 - **代码高亮**: Highlight.js
+- **语音服务**: Fish Audio TTS API
 - **部署平台**: Vercel
 
 ## 🚀 快速开始
 
 ### 环境要求
-- Node.js 18.0+
+- Node.js 22.x (推荐) 或 18.0+
 - pnpm 或 npm
 
 ### 安装依赖
@@ -81,31 +85,45 @@ npm run build
 ## 📖 使用指南
 
 ### 1. 配置LLM服务
-1. 点击侧边栏的"模型配置"菜单
+1. 点击设置按钮，进入"模型"配置页面
 2. 添加新的模型配置
 3. 填写API密钥、基础URL等信息
 4. 保存配置
 
 ### 2. 创建AI角色
-1. 进入"AI角色"页面
+1. 在设置中进入"角色卡"页面
 2. 点击"添加角色"按钮
 3. 设置角色名称、描述、系统提示词和开场白
 4. 可选择关联全局提示词模板
 5. 上传自定义头像（可选）
 6. 保存角色设置
 
-### 3. 开始聊天
+### 3. 配置用户资料
+1. 在设置中进入"用户角色"页面
+2. 创建或编辑用户资料
+3. 设置用户名、描述、个人信息等
+4. 可上传个人头像
+5. 切换不同用户资料以获得个性化体验
+
+### 4. 语音功能设置
+1. 在设置中进入"语音"页面
+2. 配置 Fish Audio API 密钥
+3. 选择语音模型和参数
+4. 测试语音合成功能
+5. 支持文本转语音和语音克隆
+
+### 5. 开始聊天
 1. 在首页选择AI角色
 2. 系统会自动显示角色的开场白
 3. 开始与AI对话
 4. 支持实时流式回复和 Markdown 渲染
 
-### 4. 管理会话
-- 在"聊天历史"页面查看所有会话
+### 6. 管理会话
+- 在"历史"页面查看所有会话
 - 支持按角色、模型、时间筛选会话
 - 支持会话搜索和导出
-- 点击会话可以继续对话
-- 支持置顶和删除会话
+- 点击"查看会话"按钮继续对话
+- 支持隐藏和删除会话
 
 ## 🌐 部署到Vercel
 
@@ -129,31 +147,56 @@ src/
 │   ├── Layout.tsx      # 应用布局组件
 │   ├── Avatar.tsx      # 头像组件
 │   ├── AvatarUpload.tsx # 头像上传组件
+│   ├── RoleAvatarUpload.tsx # 角色头像上传组件
 │   ├── ChatSessionList.tsx # 聊天会话列表
 │   ├── ConfirmDialog.tsx # 确认对话框组件
+│   ├── Empty.tsx       # 空状态组件
 │   ├── EmptyState.tsx  # 空状态组件
 │   ├── MarkdownRenderer.tsx # Markdown渲染器
 │   ├── Popconfirm.tsx  # 弹出确认组件
-│   └── RoleSelector.tsx # 角色选择器
+│   ├── RoleSelector.tsx # 角色选择器
+│   └── SettingsModal.tsx # 设置弹窗组件
 ├── pages/              # 页面组件
 │   ├── Home.tsx        # 首页
 │   ├── ChatPage.tsx    # 聊天页面
 │   ├── ConfigPage.tsx  # 模型配置页面
 │   ├── RolesPage.tsx   # AI角色管理页面
+│   ├── UserProfilesPage.tsx # 用户资料管理页面
 │   ├── GlobalPromptsPage.tsx # 全局提示词页面
+│   ├── VoiceSettingsPage.tsx # 语音设置页面
+│   ├── VoiceTest.tsx   # 语音测试页面
+│   ├── VercelModelTest.tsx # 模型测试页面
 │   ├── HistoryPage.tsx # 聊天历史页面
 │   ├── DataPage.tsx    # 数据管理页面
 │   └── SettingsPage.tsx # 设置页面
 ├── store/              # 状态管理
 │   └── index.ts        # Zustand store
 ├── hooks/              # 自定义Hooks
-│   └── useTheme.ts     # 主题管理Hook
 ├── utils/              # 工具函数
-│   └── avatarUtils.ts  # 头像工具函数
+│   ├── avatarUtils.ts  # 头像工具函数
+│   └── templateUtils.ts # 模板工具函数
 ├── router/             # 路由配置
 │   └── index.tsx       # 路由定义
-└── lib/                # 工具函数
-    └── utils.ts        # 通用工具函数
+├── lib/                # 工具函数
+│   └── utils.ts        # 通用工具函数
+├── assets/             # 静态资源
+│   └── avatar/         # 默认头像资源
+├── App.tsx             # 应用主组件
+├── main.tsx            # 应用入口
+└── index.css           # 全局样式
+```
+
+### 语音功能相关文件
+```
+api/                    # Vercel Serverless Functions
+├── tts.js              # TTS API 接口
+├── models.js           # 模型列表接口
+└── health.js           # 健康检查接口
+
+tts-server/             # 本地TTS服务器
+├── server.js           # Express服务器
+├── package.json        # 服务器依赖
+└── .env.example        # 环境变量模板
 ```
 
 ## 🔒 隐私与安全

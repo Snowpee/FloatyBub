@@ -31,6 +31,7 @@ const ChatPage: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  const [visibleActionButtons, setVisibleActionButtons] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -89,6 +90,25 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentSession?.messages]);
+
+  // 点击外部区域关闭按钮组
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      // 如果点击的不是消息气泡或按钮组，则关闭按钮组
+      if (!target.closest('.chat-bubble') && !target.closest('.absolute.flex.gap-1')) {
+        setVisibleActionButtons(null);
+      }
+    };
+
+    if (visibleActionButtons) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [visibleActionButtons]);
 
   // 自动调整文本框高度
   useEffect(() => {
@@ -706,7 +726,7 @@ const ChatPage: React.FC = () => {
 
   // 处理键盘事件
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSendMessage();
     }
@@ -783,11 +803,17 @@ const ChatPage: React.FC = () => {
               <div className="group relative">
                 <div
                   className={cn(
-                    'chat-bubble max-w-xs lg:max-w-md xl:max-w-lg',
+                    'chat-bubble max-w-xs lg:max-w-md xl:max-w-lg cursor-pointer md:cursor-default',
                     msg.role === 'user'
                       ? 'chat-bubble-accent'
                       : ''
                   )}
+                  onClick={() => {
+                    // 移动端点击切换按钮组显示
+                    if (window.innerWidth < 768) {
+                      setVisibleActionButtons(visibleActionButtons === msg.id ? null : msg.id);
+                    }
+                  }}
                 >
                   <MarkdownRenderer content={replaceTemplateVariables(
                     msg.content,
@@ -799,9 +825,12 @@ const ChatPage: React.FC = () => {
                   )}
                 </div>
                 
-                {/* 操作按钮组 - hover时显示 */}
+                {/* 操作按钮组 - hover时显示或移动端点击显示 */}
                 <div className={cn(
-                  'absolute flex gap-1 p-1 opacity-0 bg-white/40 rounded-md group-hover:opacity-100 transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  'absolute flex gap-1 p-1 bg-white/40 rounded-md transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  'opacity-0 group-hover:opacity-100', // 桌面端hover显示
+                  'md:opacity-0 md:group-hover:opacity-100', // 桌面端确保hover效果
+                  visibleActionButtons === msg.id ? 'opacity-100' : '', // 移动端点击显示
                   msg.role === 'user' 
                     ? 'right-0 top-full mt-1' 
                     : 'left-0 top-full mt-1'
@@ -964,9 +993,12 @@ const ChatPage: React.FC = () => {
                     ) : null;
                   })()}
                 </div>
-                {/* 版本切换按钮组 - hover时显示 */}
+                {/* 版本切换按钮组 - hover时显示或移动端点击显示 */}
                 <div className={cn(
-                  'absolute flex gap-1 p-1 opacity-0 bg-white/40 rounded-md group-hover:opacity-100 transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  'absolute flex gap-1 p-1 bg-white/40 rounded-md transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  'opacity-0 group-hover:opacity-100', // 桌面端hover显示
+                  'md:opacity-0 md:group-hover:opacity-100', // 桌面端确保hover效果
+                  visibleActionButtons === msg.id ? 'opacity-100' : '', // 移动端点击显示
                   msg.role === 'user' 
                     ? 'left-0 top-full mt-1' 
                     : 'right-0 top-full mt-1'

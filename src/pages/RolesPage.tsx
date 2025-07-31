@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore, AIRole } from '../store';
 import {
   Plus,
@@ -14,7 +14,11 @@ import Avatar from '../components/Avatar';
 import RoleAvatarUpload from '../components/RoleAvatarUpload';
 import { generateAvatar, generateRandomLocalAvatar } from '../utils/avatarUtils';
 
-const RolesPage: React.FC = () => {
+interface RolesPageProps {
+  onCloseModal?: () => void;
+}
+
+const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
   const {
     aiRoles,
     currentRoleId,
@@ -26,6 +30,8 @@ const RolesPage: React.FC = () => {
   } = useAppStore();
 
   const [isEditing, setIsEditing] = useState(false);
+  const modalRef = useRef<HTMLDialogElement>(null);
+  const confirmDialogRef = useRef<HTMLDialogElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -62,6 +68,7 @@ const RolesPage: React.FC = () => {
     });
     setEditingId(role.id);
     setIsEditing(true);
+    modalRef.current?.showModal();
   };
 
   const handleAdd = () => {
@@ -81,6 +88,7 @@ const RolesPage: React.FC = () => {
     });
     setEditingId(null);
     setIsEditing(true);
+    modalRef.current?.showModal();
   };
 
   const handleSave = () => {
@@ -109,23 +117,37 @@ const RolesPage: React.FC = () => {
       toast.success('角色创建成功');
     }
 
+    modalRef.current?.close();
     setIsEditing(false);
     setEditingId(null);
   };
 
   const handleCancel = () => {
-    setIsEditing(false);
-    setEditingId(null);
-    setFormData({
-      name: '',
-      description: '',
-      systemPrompt: '',
-      openingMessages: [''],
-      currentOpeningIndex: 0,
-      avatar: '',
-      globalPromptId: ''
-    });
+    modalRef.current?.close();
   };
+
+  // 监听 dialog 关闭事件，重置状态
+  useEffect(() => {
+    const dialog = modalRef.current;
+    if (dialog) {
+      const handleClose = () => {
+        setIsEditing(false);
+        setEditingId(null);
+        setFormData({
+          name: '',
+          description: '',
+          systemPrompt: '',
+          openingMessages: [''],
+          currentOpeningIndex: 0,
+          avatar: '',
+          globalPromptId: ''
+        });
+      };
+      
+      dialog.addEventListener('close', handleClose);
+      return () => dialog.removeEventListener('close', handleClose);
+    }
+  }, []);
 
   // 开场白管理函数
   const addOpeningMessage = () => {
@@ -166,12 +188,31 @@ const RolesPage: React.FC = () => {
       roleId: id,
       roleName: role?.name || '未知角色'
     });
+    confirmDialogRef.current?.showModal();
   };
 
   const confirmDelete = () => {
     deleteAIRole(confirmDialog.roleId);
     toast.success('角色已删除');
+    confirmDialogRef.current?.close();
   };
+
+  const handleCancelDelete = () => {
+    confirmDialogRef.current?.close();
+  };
+
+  // 监听删除确认 dialog 关闭事件
+  useEffect(() => {
+    const dialog = confirmDialogRef.current;
+    if (dialog) {
+      const handleClose = () => {
+        setConfirmDialog({ isOpen: false, roleId: '', roleName: '' });
+      };
+      
+      dialog.addEventListener('close', handleClose);
+      return () => dialog.removeEventListener('close', handleClose);
+    }
+  }, []);
 
   const handleSetCurrent = (id: string) => {
     setCurrentRole(id);
@@ -292,9 +333,8 @@ const RolesPage: React.FC = () => {
       </div>
 
       {/* 编辑/添加模态框 */}
-      {isEditing && (
-        <div className="modal modal-open">
-          <div className="modal-box max-w-2xl w-full">
+      <dialog ref={modalRef} className="modal">
+        <div className="modal-box max-w-2xl w-full">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-base-content">
                 {editingId ? '编辑角色' : '创建新角色'}
@@ -430,13 +470,14 @@ const RolesPage: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
 
       {/* 删除确认模态框 */}
-      {confirmDialog.isOpen && (
-        <div className="modal modal-open">
-          <div className="modal-box">
+      <dialog ref={confirmDialogRef} className="modal">
+        <div className="modal-box">
             <div className="flex items-center mb-4">
               <Trash2 className="h-6 w-6 text-error mr-3" />
               <h3 className="text-lg font-semibold text-base-content">
@@ -448,7 +489,7 @@ const RolesPage: React.FC = () => {
             </p>
             <div className="modal-action">
               <button
-                onClick={() => setConfirmDialog({ isOpen: false, roleId: '', roleName: '' })}
+                onClick={handleCancelDelete}
                 className="btn btn-ghost"
               >
                 取消
@@ -461,8 +502,10 @@ const RolesPage: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
-      )}
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
     </div>
   );
 };

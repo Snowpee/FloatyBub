@@ -16,7 +16,11 @@ interface VoiceSettings {
   voiceIds: string[];
 }
 
-const VoiceSettingsPage: React.FC = () => {
+interface VoiceSettingsPageProps {
+  onCloseModal?: () => void;
+}
+
+const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) => {
   const [settings, setSettings] = useState<VoiceSettings>({
     provider: 'fish-audio',
     apiUrl: 'https://api.fish.audio',

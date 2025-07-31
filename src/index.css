@@ -49,23 +49,19 @@
     border: var(--border) solid var(--color-base-300);
     box-shadow: none !important;
   }
+  .stats {
+    border: var(--border) solid var(--color-base-300);
+    box-shadow: none !important;
+  }
 }
 
-/*
-====== 自定义floaty主题  ======
+/* 
+===== 修改默认设置 =====
 */
-
-:root {
-  color-scheme: light;
+.modal-backdrop {
+  backdrop-filter: blur(0.125rem);
 }
 
-[data-theme='dark'] {
-  color-scheme: dark;
-}
-
-[data-theme='cupcake'] {
-  color-scheme: cupcake;
-}
 
 /* 
 =====
@@ -76,7 +72,9 @@
   display: block;
   border-radius: var(--radius-box);
 }
-
+dialog .modal-box {
+  max-height: calc(100vh - 2rem);
+}
 /* 设置特殊弹窗 */
 
 .hero-modal {
@@ -95,6 +93,9 @@
   }
   .menu li button {
     border-radius: var(--radius-box);
+    &:active {
+      background-color: var(--color-base-300);
+    }
   }
 }
 
@@ -106,6 +107,81 @@
 }
 .chat-container .chat-bubble em {
   opacity: .4;
+}
+/* 定义 hero-popover */
+.hero-popover {
+  @apply fixed z-[9999] w-64 p-3 bg-white dark:bg-gray-800 rounded-lg transition-opacity transition-transform duration-200 ease-out;
+  border-radius: var(--radius-box);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1), 0 0 0 var(--border) rgb(0 0 0 / 5%);
+}
+.hero-popover textarea {
+  @apply w-full h-24 p-2 border border-base-300;
+  border-radius: var(--radius-box);
+  border: var(--border) solid var(--color-base-300);
+}
+
+
+/* 动画效果 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes zoom-in-95 {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-from-bottom-4 {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation-fill-mode: both;
+}
+
+.fade-in {
+  animation-name: fade-in;
+}
+
+.zoom-in-95 {
+  animation-name: zoom-in-95;
+}
+
+.slide-in-from-bottom-4 {
+  animation-name: slide-in-from-bottom-4;
+}
+
+.duration-200 {
+  animation-duration: 200ms;
+}
+
+.duration-300 {
+  animation-duration: 300ms;
+}
+
+/* 桌面端不使用底部滑入动画 */
+@media (min-width: 768px) {
+  .md\:slide-in-from-bottom-0 {
+    animation-name: zoom-in-95;
+  }
 }
 
 /* 隐藏 TRAE SOLO 徽章 */

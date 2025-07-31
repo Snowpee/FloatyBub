@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore, UserProfile } from '../store';
 import {
   Plus,
@@ -19,7 +19,11 @@ const generateRandomAvatar = () => {
   return generateRandomLocalAvatar();
 };
 
-const UserProfilesPage: React.FC = () => {
+interface UserProfilesPageProps {
+  onCloseModal?: () => void;
+}
+
+const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => {
   const {
     userProfiles,
     currentUserProfile,
@@ -30,6 +34,19 @@ const UserProfilesPage: React.FC = () => {
   } = useAppStore();
 
   const [isEditing, setIsEditing] = useState(false);
+  const modalRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = modalRef.current;
+    if (dialog) {
+      const handleClose = () => {
+        setIsEditing(false);
+        setEditingId(null);
+      };
+      dialog.addEventListener('close', handleClose);
+      return () => dialog.removeEventListener('close', handleClose);
+    }
+  }, []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -48,6 +65,7 @@ const UserProfilesPage: React.FC = () => {
     setFormData({ name: '', description: '', avatar: newAvatar });
     setIsEditing(true);
     setEditingId(null);
+    modalRef.current?.showModal();
   };
 
   const handleEdit = (profile: UserProfile) => {
@@ -58,6 +76,7 @@ const UserProfilesPage: React.FC = () => {
     });
     setIsEditing(true);
     setEditingId(profile.id);
+    modalRef.current?.showModal();
   };
 
   const handleSave = () => {
@@ -82,8 +101,7 @@ const UserProfilesPage: React.FC = () => {
         });
         toast.success('用户资料已添加');
       }
-      setIsEditing(false);
-      setEditingId(null);
+      modalRef.current?.close();
     } catch (error) {
       console.error('保存用户资料失败:', error);
       toast.error('保存用户资料失败');
@@ -91,8 +109,7 @@ const UserProfilesPage: React.FC = () => {
   };
 
   const handleCancel = () => {
-    setIsEditing(false);
-    setEditingId(null);
+    modalRef.current?.close();
   };
 
   const handleDelete = (id: string) => {
@@ -239,9 +256,8 @@ const UserProfilesPage: React.FC = () => {
       )}
 
       {/* 编辑对话框 */}
-      {isEditing && (
-        <div className="modal modal-open">
-          <div className="modal-box w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <dialog ref={modalRef} className="modal">
+        <div className="modal-box w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-base-content">
                 {editingId ? '编辑用户资料' : '添加用户资料'}
@@ -332,9 +348,11 @@ const UserProfilesPage: React.FC = () => {
                 保存
               </button>
             </div>
-          </div>
         </div>
-      )}
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
 
       {/* 删除确认对话框 */}
       <ConfirmDialog

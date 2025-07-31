@@ -134,7 +134,7 @@ const Layout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-base-200 flex">
+    <div className="min-h-screen bg-base-200 flex overflow-y-scroll overflow-x-hidden">
       {/* 侧边栏 */}
       <div className={cn(
         'w-64 bg-base-100 border-r border-base-300 transition-all duration-200 ease-in-out flex-shrink-0',
@@ -325,6 +325,7 @@ const Layout: React.FC = () => {
                     {theme === 'light' ? '亮色' : theme === 'dark' ? '深色' : theme === 'cupcake' ? '蛋糕' : theme === 'floaty' ? '浮光' : '主题'}
                   </button>
                   <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-32">
+                    <span className="text-sm text-base-content/40 px-3 py-2">主题</span>
                     <li>
                       <button
                         onClick={() => {
@@ -333,7 +334,7 @@ const Layout: React.FC = () => {
                         }}
                         className={`text-sm ${theme === 'light' ? 'bg-base-200' : ''}`}
                       >
-                        亮色主题
+                        亮色
                       </button>
                     </li>
                     <li>
@@ -344,7 +345,7 @@ const Layout: React.FC = () => {
                         }}
                         className={`text-sm ${theme === 'dark' ? 'bg-base-200' : ''}`}
                       >
-                        深色主题
+                        深色
                       </button>
                     </li>
                     <li>
@@ -369,7 +370,7 @@ const Layout: React.FC = () => {
                         }}
                         className={`text-sm ${theme === 'cupcake' ? 'bg-base-200' : ''}`}
                       >
-                        蛋糕
+                        纸杯蛋糕
                       </button>
                     </li>
                     <li>
@@ -400,7 +401,8 @@ const Layout: React.FC = () => {
       )}>
         {/* 顶部栏 */}
         <header className="bg-base-100 bg-opacity-90 border-b border-base-300 backdrop-blur">
-          <div className="flex items-center justify-between h-16 px-4">
+          <div className="relative flex items-center h-16 px-4">
+            {/* 左侧按钮 */}
             <div className="flex items-center space-x-4">
               <button
                 onClick={toggleSidebar}
@@ -408,28 +410,29 @@ const Layout: React.FC = () => {
               >
                 <Menu className="h-5 w-5" />
               </button>
-              
-
             </div>
             
-
-            
-            {/* 会话标题 - 居中显示 */}
+            {/* 会话标题 - 绝对居中显示 */}
             {location.pathname.startsWith('/chat') && currentSessionId && (() => {
               const currentSession = chatSessions.find(s => s.id === currentSessionId);
               return currentSession ? (
-                <div className="flex-1 text-center">
-                  <h1 className="text-lg font-medium text-base-content truncate max-w-xs mx-auto">
+                <div className="absolute left-1/2 transform -translate-x-1/2">
+                  <h1 className="text-lg font-medium text-base-content truncate max-w-xs">
                     {currentSession.title}
                   </h1>
                 </div>
               ) : null;
             })()}
+            
+            {/* 右侧占位，保持布局平衡 */}
+            <div className="flex items-center space-x-4 ml-auto">
+              {/* 可以在这里添加右侧按钮 */}
+            </div>
           </div>
         </header>
 
         {/* 页面内容 */}
-        <main className="flex-1 overflow-scroll">
+        <main className="flex-1 overflow-y-scroll">
           <Outlet />
         </main>
       </div>

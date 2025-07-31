@@ -90,11 +90,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       // 桌面端：居中显示
       "md:flex md:items-center md:justify-center",
       // 移动端：顶部预留1rem
-      "pt-4 md:pt-0"
+      "pt-4 md:pt-0",
+      // 动画效果
+      "animate-in fade-in duration-200"
     )}>
       {/* 背景遮罩 */}
       <div 
-        className="absolute inset-0 bg-black/50" 
+        className="modal-backdrop absolute inset-0 bg-black/50 animate-in fade-in duration-200" 
         onClick={handleClose}
       />
       
@@ -104,7 +106,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         // 桌面端：居中弹窗
         "md:rounded-lg md:w-full md:max-w-6xl md:h-[800px] md:max-h-[calc(100vh-2rem)] md:mx-4",
         // 移动端：全屏减去顶部预留空间
-        "w-full h-full"
+        "w-full h-full",
+        // 动画效果
+        "animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 md:slide-in-from-bottom-0"
       )}>
         {/* 左侧导航栏 */}
         <div className="w-64 bg-base-100 border-r border-base-300 flex-shrink-0 hidden md:flex flex-col">
@@ -213,7 +217,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               
               {/* 内容区域 */}
               <div className="flex-1 overflow-y-auto">
-                <ActiveComponent />
+                <ActiveComponent onCloseModal={handleClose} />
               </div>
             </>
           )}
@@ -236,7 +240,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
           
           {/* 内容区域 */}
           <div className="flex-1 overflow-y-auto min-h-0">
-            <ActiveComponent />
+            <ActiveComponent onCloseModal={handleClose} />
           </div>
         </div>
       </div>

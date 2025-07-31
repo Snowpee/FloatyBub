@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore, GlobalPrompt } from '../store';
 import {
   Plus,
@@ -13,7 +13,11 @@ import { toast } from 'sonner';
 import EmptyState from '../components/EmptyState';
 
 
-const GlobalPromptsPage: React.FC = () => {
+interface GlobalPromptsPageProps {
+  onCloseModal?: () => void;
+}
+
+const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) => {
   const {
     globalPrompts,
     addGlobalPrompt,
@@ -28,6 +32,9 @@ const GlobalPromptsPage: React.FC = () => {
     promptId: string;
     promptTitle: string;
   }>({ isOpen: false, promptId: '', promptTitle: '' });
+  
+  const modalRef = useRef<HTMLDialogElement>(null);
+  const confirmModalRef = useRef<HTMLDialogElement>(null);
   const [formData, setFormData] = useState<Partial<GlobalPrompt>>({
     title: '',
     prompt: ''
@@ -40,6 +47,7 @@ const GlobalPromptsPage: React.FC = () => {
     });
     setEditingId(prompt.id);
     setIsEditing(true);
+    modalRef.current?.showModal();
   };
 
   const handleAdd = () => {
@@ -49,6 +57,7 @@ const GlobalPromptsPage: React.FC = () => {
     });
     setEditingId(null);
     setIsEditing(true);
+    modalRef.current?.showModal();
   };
 
   const handleSave = () => {
@@ -65,13 +74,42 @@ const GlobalPromptsPage: React.FC = () => {
       toast.success('全局提示词已添加');
     }
 
-    setIsEditing(false);
-    setEditingId(null);
+    modalRef.current?.close();
   };
 
+  useEffect(() => {
+    const modal = modalRef.current;
+    const confirmModal = confirmModalRef.current;
+    
+    const handleModalClose = () => {
+      setIsEditing(false);
+      setEditingId(null);
+    };
+    
+    const handleConfirmModalClose = () => {
+      setConfirmDialog({ isOpen: false, promptId: '', promptTitle: '' });
+    };
+    
+    if (modal) {
+      modal.addEventListener('close', handleModalClose);
+    }
+    
+    if (confirmModal) {
+      confirmModal.addEventListener('close', handleConfirmModalClose);
+    }
+    
+    return () => {
+      if (modal) {
+        modal.removeEventListener('close', handleModalClose);
+      }
+      if (confirmModal) {
+        confirmModal.removeEventListener('close', handleConfirmModalClose);
+      }
+    };
+  }, []);
+
   const handleCancel = () => {
-    setIsEditing(false);
-    setEditingId(null);
+    modalRef.current?.close();
   };
 
   const handleDelete = (id: string) => {
@@ -81,11 +119,18 @@ const GlobalPromptsPage: React.FC = () => {
       promptId: id,
       promptTitle: prompt?.title || '未知提示词'
     });
+    confirmModalRef.current?.showModal();
   };
 
   const confirmDelete = () => {
     deleteGlobalPrompt(confirmDialog.promptId);
     toast.success('全局提示词已删除');
+    confirmModalRef.current?.close();
+  };
+
+  const handleConfirmCancel = () => {
+    setConfirmDialog({ isOpen: false, promptId: '', promptTitle: '' });
+    confirmModalRef.current?.close();
   };
 
   return (
@@ -166,9 +211,8 @@ const GlobalPromptsPage: React.FC = () => {
       )}
 
       {/* 编辑/添加模态框 */}
-      {isEditing && (
-        <div className="modal modal-open">
-          <div className="modal-box max-w-2xl w-full">
+      <dialog ref={modalRef} className="modal">
+        <div className="modal-box max-w-2xl w-full">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-base-content">
                 {editingId ? '编辑全局提示词' : '创建全局提示词'}
@@ -239,14 +283,15 @@ const GlobalPromptsPage: React.FC = () => {
                 保存
               </button>
             </div>
-          </div>
         </div>
-      )}
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
 
       {/* 删除确认模态框 */}
-      {confirmDialog.isOpen && (
-        <div className="modal modal-open">
-          <div className="modal-box">
+      <dialog ref={confirmModalRef} className="modal">
+        <div className="modal-box">
             <h3 className="text-lg font-semibold text-base-content mb-4">
               删除全局提示词
             </h3>
@@ -255,7 +300,7 @@ const GlobalPromptsPage: React.FC = () => {
             </p>
             <div className="modal-action">
               <button
-                onClick={() => setConfirmDialog({ isOpen: false, promptId: '', promptTitle: '' })}
+                onClick={handleConfirmCancel}
                 className="btn btn-ghost"
               >
                 取消
@@ -267,9 +312,11 @@ const GlobalPromptsPage: React.FC = () => {
                 删除
               </button>
             </div>
-          </div>
         </div>
-      )}
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
     </div>
   );
 };

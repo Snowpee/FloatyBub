@@ -68,10 +68,16 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   return (
     <dialog 
       ref={dialogRef}
-      className="modal"
+      className={cn(
+        "modal",
+        isOpen && "animate-in fade-in duration-200"
+      )}
       onClose={handleDialogClose}
     >
-      <div className="modal-box max-w-md">
+      <div className={cn(
+        "modal-box max-w-md",
+        isOpen && "animate-in zoom-in-95 slide-in-from-bottom-4 duration-200"
+      )}>
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">

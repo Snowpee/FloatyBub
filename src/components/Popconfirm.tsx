@@ -194,7 +194,7 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
       {isOpen && createPortal(
         <div
           ref={popoverRef}
-          className={`fixed z-[9999] w-64 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg transition-opacity transition-transform duration-200 ease-out ${
+          className={`hero-popover ${
             isPositioned ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
           }`}
           style={{
