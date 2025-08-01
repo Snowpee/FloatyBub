@@ -1,12 +1,24 @@
 @import "tailwindcss";
+@theme {
+  --color-base-light: oklch(100% 0 0);
+}
 @plugin "daisyui" {
   themes: light --default, dark --prefersdark, cupcake, floaty;
 }
 @plugin "daisyui/theme" {
+  name: dark;
+  --depth: 0;
+  --color-base-light: oklch(27% 0.015 240);
+}
+@plugin "daisyui/theme" {
   name: light;
   --depth: 0;
+  --color-base-light: oklch(100% 0 0);
 }
-
+@plugin "daisyui/theme" {
+  name: cupcake;
+  --color-base-light: oklch(100% 0 0);
+}
 /* 
 ====== 自定义floaty主题 ======
 */
@@ -43,16 +55,11 @@
   --border: 2px;
   --depth: 0;
   --noise: 0;
+  /* 新增部分 */
+  --color-base-400: oklch(93% 0 0);
 }
 [data-theme='floaty'] {
-  .card {
-    border: var(--border) solid var(--color-base-300);
-    box-shadow: none !important;
-  }
-  .stats {
-    border: var(--border) solid var(--color-base-300);
-    box-shadow: none !important;
-  }
+
 }
 
 /* 
@@ -68,6 +75,22 @@
 自定义类
 =====
 */
+.select,
+.input,
+.textarea {
+  &:focus-within {
+    outline: var(--border) solid  color-mix(in oklab, var(--color-base-content) 10%, #0000);
+    border-color: color-mix(in oklab, var(--color-base-content) 50%, #0000);
+  }
+}
+.card {
+  border: var(--border) solid var(--color-base-300);
+  box-shadow: none;
+}
+.stats {
+  border: var(--border) solid var(--color-base-300);
+  box-shadow: none;
+}
 .chat-list {
   display: block;
   border-radius: var(--radius-box);
@@ -80,8 +103,7 @@ dialog .modal-box {
   border-radius: var(--radius-box);
   border: var(--border) solid var(--color-base-300);
   &:focus-within {
-    outline: var(--border) solid rgb(0 0 0 / 10%);
-    outline-offset: -2px;
+    border-color: color-mix(in oklab, var(--color-base-content) 30%, #0000);
   }
 }
 .gradient-mask-y {

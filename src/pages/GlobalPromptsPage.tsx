@@ -37,12 +37,14 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
   const confirmModalRef = useRef<HTMLDialogElement>(null);
   const [formData, setFormData] = useState<Partial<GlobalPrompt>>({
     title: '',
+    description: '',
     prompt: ''
   });
 
   const handleEdit = (prompt: GlobalPrompt) => {
     setFormData({
       title: prompt.title,
+      description: prompt.description || '',
       prompt: prompt.prompt
     });
     setEditingId(prompt.id);
@@ -53,6 +55,7 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
   const handleAdd = () => {
     setFormData({
       title: '',
+      description: '',
       prompt: ''
     });
     setEditingId(null);
@@ -158,9 +161,9 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {globalPrompts.map((prompt) => (
             <div key={prompt.id} className="card bg-base-100 shadow-sm">
-              <div className="card-body flex flex-col justify-between h-full">
+              <div className="card-body flex flex-col justify-between h-full pb-4 group">
                 {/* 提示词头部 */}
-                <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between mb-0">
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                       <FileText className="h-5 w-5 text-primary" />
@@ -174,15 +177,14 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
                   
                 </div>
 
-                {/* 提示词内容预览 */}
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-base-content/70 mb-2">
-                    提示词内容
-                  </h4>
-                  <div className="bg-base-200 rounded-md p-3 text-xs text-base-content/60 max-h-32 overflow-y-auto">
-                    {prompt.prompt}
+                {/* 描述信息 */}
+                {prompt.description && (
+                  <div className="mb-4">
+                    <p className="text-sm text-base-content/70 line-clamp-2">
+                      {prompt.description}
+                    </p>
                   </div>
-                </div>
+                )}
 
                 {/* 创建时间和按钮组 */}
                 <div className="mt-auto">
@@ -192,13 +194,13 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
                   <div className="flex space-x-1">
                   <button
                     onClick={() => handleEdit(prompt)}
-                    className="btn btn-ghost btn-sm btn-square"
+                    className="btn btn-sm"
                   >
                     <Edit className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(prompt.id)}
-                    className="btn btn-ghost btn-sm btn-square text-error hover:bg-error/10"
+                    className="btn btn-circle btn-sm text-error hover:bg-error/10 ml-2 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -241,6 +243,20 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       className="input input-bordered w-full"
                       placeholder="例如: 专业编程助手提示词"
+                    />
+                  </div>
+
+                  {/* 描述 */}
+                  <div className="form-control">
+                    <label className="label mb-1">
+                      <span className="label-text">描述</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.description || ''}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="input input-bordered w-full"
+                      placeholder="简要描述该提示词的用途和特点"
                     />
                   </div>
                 </div>

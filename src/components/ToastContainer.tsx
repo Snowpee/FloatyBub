@@ -38,21 +38,21 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
   };
 
   return (
-    <div className={cn('alert shadow-lg', getAlertClass())}>
+    <div className={cn('alert shadow-lg w-80 min-w-80 max-w-80', getAlertClass())}>
       <div className="flex items-center gap-3 flex-1">
         {getIcon()}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {toast.title && (
-            <div className="font-semibold text-base">{toast.title}</div>
+            <div className="font-semibold text-base break-words">{toast.title}</div>
           )}
-          <div className={cn('text-sm', toast.title ? 'opacity-80' : '')}>
+          <div className={cn('text-sm break-words', toast.title ? 'opacity-80' : '')}>
             {toast.message}
           </div>
         </div>
       </div>
       <button
         onClick={() => onDismiss(toast.id)}
-        className="btn btn-sm btn-ghost btn-circle"
+        className="btn btn-sm btn-ghost btn-circle flex-shrink-0 ml-auto"
         aria-label="关闭通知"
       >
         <X className="w-4 h-4" />

@@ -260,7 +260,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                 'card bg-base-100 shadow-sm hover:shadow-md transition-all duration-200'
               )}
             >
-              <div className="card-body">
+              <div className="card-body pb-4 group">
               {/* 角色头部 */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
@@ -290,11 +290,11 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                 <h4 className="text-sm font-medium text-base-content/70 mb-2">
                   描述
                 </h4>
-                <p className="text-sm text-base-content/60 line-clamp-2">
+                <p className="text-sm text-base-content/60 line-clamp-2 overflow-hidden text-ellipsis whitespace-nowrap">
                   {role.description}
                 </p>
               </div>
-              <div className="text-xs text-base-content/50">
+              <div className="text-xs text-base-content/50 mt-auto">
                 创建于 {new Date(role.createdAt).toLocaleDateString()}
               </div>
               {/* 创建时间和当前角色toggle */}
@@ -302,14 +302,14 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                 <div className="flex space-x-1">
                   <button
                     onClick={() => handleEdit(role)}
-                    className="btn btn-ghost btn-sm"
+                    className="btn btn-sm"
                   >
                     <Edit className="h-4 w-4" />
                   </button>
                   {!isDefault && (
                     <button
                       onClick={() => handleDelete(role.id)}
-                      className="btn btn-ghost btn-sm text-error"
+                      className="btn btn-circle btn-sm text-error ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

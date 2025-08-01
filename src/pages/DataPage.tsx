@@ -195,7 +195,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
       </div>
 
       {/* 存储信息 */}
-      <div className="card bg-white dark:bg-gray-800 p-6 border border-gray-200 dark:border-gray-700">
+      <div className="card bg-base-100 dark:bg-gray-800 p-6 border border-gray-200 dark:border-gray-700">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
           <Info className="h-5 w-5 mr-2" />
           存储信息
@@ -288,7 +288,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
             <AlertTriangle className="h-5 w-5 mr-2" />
             危险操作
           </h2>
-          <div className="alert alert-error mb-4">
+          <div className="alert alert-error alert-soft mb-4">
             <AlertTriangle className="h-4 w-4" />
             <span>以下操作不可逆，请谨慎使用。建议在执行前先导出数据备份。</span>
           </div>

@@ -9,7 +9,10 @@ import {
   Eye,
   EyeOff,
   CheckCircle,
-  XCircle
+  MinusCircle,
+  Wifi,
+  Loader2,
+  Ban
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
@@ -33,6 +36,7 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const modalRef = useRef<HTMLDialogElement>(null);
   const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
+  const [testingConfigs, setTestingConfigs] = useState<Record<string, boolean>>({});
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     configId: string;
@@ -129,7 +133,34 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
     setShowApiKey(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // 简化错误消息
+  const simplifyErrorMessage = (errorMessage: string): string => {
+    const message = errorMessage.toLowerCase();
+    
+    if (message.includes('api key') || message.includes('unauthorized') || message.includes('invalid key')) {
+      return 'API密钥无效';
+    }
+    if (message.includes('quota') || message.includes('limit') || message.includes('billing')) {
+      return '配额已用完';
+    }
+    if (message.includes('model') && (message.includes('not found') || message.includes('does not exist'))) {
+      return '模型不存在';
+    }
+    if (message.includes('permission') || message.includes('forbidden') || message.includes('access denied')) {
+      return '权限不足';
+    }
+    if (message.includes('network') || message.includes('connection') || message.includes('timeout')) {
+      return '网络连接失败';
+    }
+    if (message.includes('rate limit')) {
+      return '请求过于频繁';
+    }
+    
+    return '连接失败';
+  };
+
   const testConnection = async (config: LLMConfig) => {
+    setTestingConfigs(prev => ({ ...prev, [config.id]: true }));
     toast.info('正在测试连接...');
     
     try {
@@ -177,16 +208,20 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
       } else {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.error?.message || errorData.message || `HTTP ${response.status}`;
-        toast.error(`连接测试失败: ${errorMessage}`);
+        const simplifiedMessage = simplifyErrorMessage(errorMessage);
+        toast.error(`连接测试失败: ${simplifiedMessage}`);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
         toast.error('连接测试超时');
       } else if (error.message.includes('fetch')) {
-        toast.error('网络连接失败，请检查网络或代理设置');
+        toast.error('网络连接失败');
       } else {
-        toast.error(`连接测试失败: ${error.message}`);
+        const simplifiedMessage = simplifyErrorMessage(error.message);
+        toast.error(`连接测试失败: ${simplifiedMessage}`);
       }
+    } finally {
+      setTestingConfigs(prev => ({ ...prev, [config.id]: false }));
     }
   };
   
@@ -263,7 +298,7 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
               key={config.id}
               className="card bg-base-100 shadow-sm"
             >
-            <div className="card-body">
+            <div className="card-body pb-4 group">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-2">
                   <h3 className="text-lg font-medium text-base-content">
@@ -272,64 +307,25 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
                   {config.enabled ? (
                     <CheckCircle className="h-5 w-5 text-success" />
                   ) : (
-                    <XCircle className="h-5 w-5 text-error" />
+                    <Ban className="h-5 w-5 text-warning" />
                   )}
                 </div>
-                <div className="flex space-x-1">
-                  <button
-                    onClick={() => handleEdit(config)}
-                    className="btn btn-ghost btn-xs"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleDelete(config.id);
-                    }}
-                    className="btn btn-ghost btn-xs text-error"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+
               </div>
 
               <div className="space-y-3 text-sm">
-                <div>
+                <div className="flex justify-between">
                   <span className="text-base-content/60">提供商:</span>
                   <span className="ml-2 text-base-content capitalize">
                     {config.provider}
                   </span>
                 </div>
                 
-                <div>
+                <div className="flex justify-between">
                   <span className="text-base-content/60">模型:</span>
-                  <span className="ml-2 text-base-content">
+                  <span className="ml-2 text-base-content overflow-hidden text-ellipsis whitespace-nowrap max-w-2/3">
                     {config.model}
                   </span>
-                </div>
-                
-                <div>
-                  <span className="text-base-content/60">API密钥:</span>
-                  <div className="flex items-center mt-1">
-                    <span className="text-base-content font-mono text-xs">
-                      {showApiKey[config.id] 
-                        ? config.apiKey 
-                        : '••••••••••••••••'
-                      }
-                    </span>
-                    <button
-                      onClick={() => toggleApiKeyVisibility(config.id)}
-                      className="btn btn-ghost btn-xs ml-2"
-                    >
-                      {showApiKey[config.id] ? (
-                        <EyeOff className="h-3 w-3" />
-                      ) : (
-                        <Eye className="h-3 w-3" />
-                      )}
-                    </button>
-                  </div>
                 </div>
                 
                 <div className="flex justify-between">
@@ -347,11 +343,45 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
                 </div>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-base-300">
-                <button
-                  onClick={() => testConnection(config)}
-                  className="btn btn-outline btn-sm w-full"
-                >测试连接</button>
+              <div className="mt-4 pt-4 border-t border-base-300 mt-auto">
+                <div className="flex space-x-1">
+                  <div className="group">
+                    <button
+                      onClick={() => handleEdit(config)}
+                      className="btn btn-sm"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDelete(config.id);
+                      }}
+                      className="btn btn-sm btn-circle btn-soft btn-error ml-2 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => testConnection(config)}
+                    disabled={testingConfigs[config.id]}
+                    className="btn btn-sm ml-auto"
+                  >
+                    {testingConfigs[config.id] ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        正在测试
+                      </>
+                    ) : (
+                      <>
+                        <Wifi className="h-4 w-4" />
+                        测试连接
+                      </>
+                    )}
+                  </button>
+                </div>
+
               </div>
             </div>
             </div>

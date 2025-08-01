@@ -48,6 +48,7 @@ export interface UserProfile {
 export interface GlobalPrompt {
   id: string;
   title: string;
+  description?: string;
   prompt: string;
   createdAt: Date;
   updatedAt: Date;
