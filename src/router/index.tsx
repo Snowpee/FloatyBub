@@ -4,7 +4,6 @@ import ChatPage from '../pages/ChatPage';
 import Home from '../pages/Home';
 import NotFound from '../pages/NotFound';
 import VoiceTest from '../pages/tests/VoiceTest';
-import VercelModelTest from '../pages/tests/VercelModelTest';
 import ToastTestPage from '../pages/tests/ToastTestPage';
 
 export const router = createBrowserRouter([
@@ -26,12 +25,8 @@ export const router = createBrowserRouter([
       },
 
       {
-        path: 'voice-test',
+        path: 'tests/voice',
         element: <VoiceTest />
-      },
-      {
-        path: 'vercel-model-test',
-        element: <VercelModelTest />
       },
       {
         path: 'toast-test',
