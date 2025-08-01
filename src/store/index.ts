@@ -210,7 +210,7 @@ export const useAppStore = create<AppState>()(
       chatSessions: [],
       currentSessionId: null,
       tempSessionId: null,
-      theme: 'light',
+      theme: 'floaty',
       sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
       
       // LLM配置相关actions

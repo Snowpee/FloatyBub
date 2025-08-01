@@ -17,7 +17,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { toast } from 'sonner';
+import { toast } from '../hooks/useToast';
 import RoleSelector from '../components/RoleSelector';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import Avatar from '../components/Avatar';
@@ -860,7 +860,7 @@ const ChatPage: React.FC = () => {
 
 
       {/* 消息列表 */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 pb-10 space-y-4 gradient-mask-b [--gradient-mask-padding:2rem]">
         <div className="max-w-6xl mx-auto">
         {currentSession?.messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[calc(100vh-500px)] text-base-content/60">
@@ -1165,7 +1165,8 @@ const ChatPage: React.FC = () => {
       </div>
 
       {/* 输入区域 */}
-      <div className="border-t border-base-300 p-4">
+      <div className="p-4 pt-0">
+        <div className="chat-input max-w-6xl mx-auto">
         {/* 输入框 - 单独一行 */}
         <div className="mb-3">
           <textarea
@@ -1262,6 +1263,7 @@ const ChatPage: React.FC = () => {
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

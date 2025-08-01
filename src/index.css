@@ -59,7 +59,7 @@
 ===== 修改默认设置 =====
 */
 .modal-backdrop {
-  backdrop-filter: blur(0.125rem);
+  /* backdrop-filter: blur(0.125rem); */
 }
 
 
@@ -74,6 +74,21 @@
 }
 dialog .modal-box {
   max-height: calc(100vh - 2rem);
+}
+.chat-input {
+  @apply border border-base-300 p-2 transition-all;
+  border-radius: var(--radius-box);
+  border: var(--border) solid var(--color-base-300);
+  &:focus-within {
+    outline: var(--border) solid rgb(0 0 0 / 10%);
+    outline-offset: -2px;
+  }
+}
+.gradient-mask-y {
+  mask: linear-gradient(0deg, transparent 0%, #000 var(--gradient-mask-padding, 1rem), #000  calc(100% - var(--gradient-mask-padding, 1rem)), transparent 100%);
+}
+.gradient-mask-b {
+  mask: linear-gradient(0deg, transparent 0%, #000 var(--gradient-mask-padding, 1rem), #000  100%);
 }
 /* 设置特殊弹窗 */
 
@@ -155,18 +170,22 @@ dialog .modal-box {
 
 .animate-in {
   animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fade-in {
   animation-name: fade-in;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .zoom-in-95 {
   animation-name: zoom-in-95;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .slide-in-from-bottom-4 {
   animation-name: slide-in-from-bottom-4;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .duration-200 {

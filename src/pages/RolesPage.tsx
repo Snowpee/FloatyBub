@@ -8,7 +8,7 @@ import {
   X
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { toast } from 'sonner';
+import { toast } from '../hooks/useToast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Avatar from '../components/Avatar';
 import RoleAvatarUpload from '../components/RoleAvatarUpload';

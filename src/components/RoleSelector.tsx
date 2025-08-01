@@ -89,7 +89,7 @@ const RoleSelector: React.FC = () => {
           请先在设置中创建AI角色，然后回来开始聊天
         </p>
         <button
-          onClick={() => navigate('/settings')}
+          onClick={() => window.location.hash = '#setting/roles'}
           className="btn btn-primary btn-lg"
         >
           前往设置
@@ -99,12 +99,12 @@ const RoleSelector: React.FC = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="h-full max-w-6xl mx-auto p-6 pt-12">
       <div className="text-center mb-8">
         <div className="flex items-center justify-center mb-4">
           <Sparkles className="h-8 w-8 text-primary mr-2" />
           <h1 className="text-3xl font-bold text-base-content">
-            选择AI角色
+            选择角色，开始聊天
           </h1>
         </div>
         <p className="text-base-content/60">
@@ -117,9 +117,15 @@ const RoleSelector: React.FC = () => {
           <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
           </svg>
-          <span className="text-sm">
-            请先在设置中配置并启用至少一个AI模型才能开始聊天
+          <span className="text-md">
+            暂无 AI 模型，请先配置并启用 AI 模型才能开始聊天
           </span>
+            <button
+              onClick={() => window.location.hash = '#setting/config'}
+              className="btn btn-sm"
+            >
+              配置模型
+            </button>
         </div>
       )}
 
@@ -212,7 +218,7 @@ const RoleSelector: React.FC = () => {
           没有找到合适的角色？
         </p>
         <button
-          onClick={() => navigate('/settings')}
+          onClick={() => window.location.hash = '#setting/roles'}
           className="btn btn-link btn-sm text-primary"
         >
           创建新角色

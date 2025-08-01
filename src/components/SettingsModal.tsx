@@ -14,11 +14,17 @@ type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' |
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  defaultTab?: TabType;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('config');
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultTab = 'config' }) => {
+  const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
   const [showList, setShowList] = useState(true); // 移动端是否显示列表视图
+
+  // 当 defaultTab 改变时更新 activeTab
+  React.useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
 
   const tabs = [
     {

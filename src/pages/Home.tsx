@@ -55,13 +55,13 @@ const Home: React.FC = () => {
                 开始聊天
               </button>
             ) : (
-              <Link
-                to="/config"
+              <button
+                onClick={() => window.location.hash = '#setting/config'}
                 className="btn btn-primary btn-lg"
               >
                 <Settings className="h-5 w-5" />
                 配置模型
-              </Link>
+              </button>
             )}
           </div>
         </div>
@@ -74,22 +74,10 @@ const Home: React.FC = () => {
 
         {/* 状态提示 */}
         {!hasConfigs && (
-          <div className="alert alert-warning mt-12">
-            <Settings className="h-6 w-6" />
-            <div>
-              <h3 className="font-bold">
-                开始使用前需要配置
-              </h3>
-              <div className="text-sm">
-                请先添加至少一个AI模型配置才能开始聊天。
-              </div>
-              <Link
-                to="/config"
-                className="btn btn-sm btn-outline mt-2"
-              >
-                立即配置
-              </Link>
-            </div>
+          <div role="alert" className="alert sm:alert-horizontal mt-12 max-w-md mx-auto flex">
+              <span>
+                请先添加 AI 模型配置，点击配置按钮开始配置吧！
+              </span>
           </div>
         )}
       </div>

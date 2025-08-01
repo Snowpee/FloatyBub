@@ -3,7 +3,7 @@ import { Upload, X, Camera, Shuffle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { fileToBase64, validateImageFile, generateRandomLocalAvatar } from '../utils/avatarUtils';
 import Avatar from './Avatar';
-import { toast } from 'sonner';
+import { toast } from '../hooks/useToast';
 
 interface RoleAvatarUploadProps {
   name: string;

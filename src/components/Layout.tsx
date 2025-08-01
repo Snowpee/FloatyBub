@@ -17,6 +17,8 @@ import { toast } from '../hooks/useToast';
 import Popconfirm from './Popconfirm';
 import SettingsModal from './SettingsModal';
 
+type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data' | 'history';
+
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -34,6 +36,7 @@ const Layout: React.FC = () => {
   
   // 设置弹窗状态
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsDefaultTab, setSettingsDefaultTab] = useState<TabType>('config');
   
   // 从URL中获取当前会话ID
   const currentSessionId = location.pathname.startsWith('/chat/') 
@@ -49,6 +52,42 @@ const Layout: React.FC = () => {
       timestamp: new Date().toISOString()
     });
   }, [theme]);
+
+  // 监听 hash 变化来控制设置弹窗
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      
+      if (hash.startsWith('#setting')) {
+        // 解析设置页面类型
+        const settingPath = hash.replace('#setting', '').replace('/', '');
+        const validTabs = ['config', 'roles', 'userProfiles', 'globalPrompts', 'voice', 'data', 'history'];
+        
+        // 设置默认页面
+        if (settingPath && validTabs.includes(settingPath)) {
+          setSettingsDefaultTab(settingPath as TabType);
+        } else {
+          setSettingsDefaultTab('config');
+        }
+        
+        // 打开设置弹窗
+        setIsSettingsOpen(true);
+      } else {
+        // 关闭设置弹窗
+        setIsSettingsOpen(false);
+      }
+    };
+
+    // 初始检查
+    handleHashChange();
+    
+    // 监听 hash 变化
+    window.addEventListener('hashchange', handleHashChange);
+    
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, []);
 
 
   // 监听窗口大小变化，在移动端和桌面端切换时调整侧边栏状态
@@ -173,7 +212,7 @@ const Layout: React.FC = () => {
 
 
           {/* 历史对话列表 */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4 gradient-mask-y [--gradient-mask-padding:1rem]">
             <div className="space-y-2">
               {recentSessions.length === 0 ? (
                 <div className="text-center py-8">
@@ -305,14 +344,14 @@ const Layout: React.FC = () => {
           </div>
 
           {/* 底部操作区 */}
-          <div className="p-4 border-t border-base-300">
+          <div className="p-4 pt-0">
             <div className="grid grid-cols-1 gap-2">
 
               
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
-                    setIsSettingsOpen(true);
+                    window.location.hash = '#setting';
                     closeSidebarOnMobile();
                   }}
                   className="btn btn-ghost btn-sm"
@@ -328,19 +367,19 @@ const Layout: React.FC = () => {
                     title="切换主题"
                   >
                     <Palette className="h-4 w-4" />
-                    {theme === 'light' ? '亮色' : theme === 'dark' ? '深色' : theme === 'cupcake' ? '蛋糕' : theme === 'floaty' ? '浮光' : '主题'}
+                    {theme === 'floaty' ? '浮光' : theme === 'dark' ? '暗色' : theme === 'light' ? '简洁' : theme === 'cupcake' ? '纸杯蛋糕' : '主题'}
                   </button>
                   <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-32">
                     <span className="text-sm text-base-content/40 px-3 py-2">主题</span>
                     <li>
                       <button
                         onClick={() => {
-                          setTheme('light');
+                          setTheme('floaty');
                           (document.activeElement as HTMLElement)?.blur();
                         }}
-                        className={`text-sm ${theme === 'light' ? 'bg-base-200' : ''}`}
+                        className={`text-sm ${theme === 'floaty' ? 'bg-base-200' : ''}`}
                       >
-                        亮色
+                        浮光
                       </button>
                     </li>
                     <li>
@@ -351,7 +390,18 @@ const Layout: React.FC = () => {
                         }}
                         className={`text-sm ${theme === 'dark' ? 'bg-base-200' : ''}`}
                       >
-                        深色
+                        暗色
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => {
+                          setTheme('light');
+                          (document.activeElement as HTMLElement)?.blur();
+                        }}
+                        className={`text-sm ${theme === 'light' ? 'bg-base-200' : ''}`}
+                      >
+                        简洁
                       </button>
                     </li>
                     <li>
@@ -377,17 +427,6 @@ const Layout: React.FC = () => {
                         className={`text-sm ${theme === 'cupcake' ? 'bg-base-200' : ''}`}
                       >
                         纸杯蛋糕
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        onClick={() => {
-                          setTheme('floaty');
-                          (document.activeElement as HTMLElement)?.blur();
-                        }}
-                        className={`text-sm ${theme === 'floaty' ? 'bg-base-200' : ''}`}
-                      >
-                        浮光
                       </button>
                     </li>
 
@@ -454,7 +493,14 @@ const Layout: React.FC = () => {
       {/* 设置弹窗 */}
       <SettingsModal 
         isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
+        onClose={() => {
+          setIsSettingsOpen(false);
+          // 清除 hash
+          if (window.location.hash.startsWith('#setting')) {
+            window.location.hash = '';
+          }
+        }}
+        defaultTab={settingsDefaultTab}
       />
     </div>
   );
