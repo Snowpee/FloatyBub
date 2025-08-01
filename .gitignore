@@ -40,3 +40,6 @@ commit.bat
 test-scripts.sh
 quick-commit.sh
 deploy.sh
+
+# Trae AI IDE 工作目录
+.trae/
