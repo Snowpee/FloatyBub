@@ -242,6 +242,8 @@ npm run dev
 
 ## 🌐 部署到 Vercel
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Snowpee/FloatyBub)
+
 本项目已配置为支持 Vercel Serverless Functions，可以将前端和后端一起部署到 Vercel 平台。
 
 ### 🚀 部署步骤
