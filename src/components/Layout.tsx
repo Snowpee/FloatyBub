@@ -11,11 +11,15 @@ import {
   MoreHorizontal,
   Pin,
   Palette,
-  EyeOff
+  EyeOff,
+  LogIn
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Popconfirm from './Popconfirm';
 import SettingsModal from './SettingsModal';
+import { useAuth } from '../hooks/useAuth';
+import { UserAvatar } from './auth/UserAvatar';
+import { AuthModal } from './auth/AuthModal';
 
 type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data' | 'history';
 
@@ -23,7 +27,7 @@ type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' |
 const Layout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { theme, setTheme } = useAppStore();
+  const { theme, setTheme, currentUser } = useAppStore();
   const {
     sidebarOpen,
     toggleSidebar,
@@ -38,6 +42,10 @@ const Layout: React.FC = () => {
     tempSessionId,
     deleteTempSession
   } = useAppStore();
+  
+  // 认证相关
+  const { user, loading: authLoading } = useAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   
   // 设置弹窗状态
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -378,7 +386,26 @@ const Layout: React.FC = () => {
           {/* 底部操作区 */}
           <div className="p-4 pt-0">
             <div className="grid grid-cols-1 gap-2">
-
+              {/* 用户认证区域 */}
+              <div className="mb-2">
+                {(user || currentUser) ? (
+                  <UserAvatar 
+                    onOpenSettings={() => {
+                      window.location.hash = '#setting';
+                      closeSidebarOnMobile();
+                    }}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setIsAuthModalOpen(true)}
+                    className="btn btn-primary btn-sm w-full"
+                    disabled={authLoading}
+                  >
+                    <LogIn className="h-4 w-4" />
+                    {authLoading ? '加载中...' : '登录'}
+                  </button>
+                )}
+              </div>
               
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -621,6 +648,12 @@ const Layout: React.FC = () => {
           }
         }}
         defaultTab={settingsDefaultTab}
+      />
+      
+      {/* 认证弹窗 */}
+      <AuthModal 
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
       />
     </div>
   );

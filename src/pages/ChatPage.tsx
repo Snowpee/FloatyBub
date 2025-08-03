@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import {
@@ -71,34 +71,43 @@ const ChatPage: React.FC = () => {
   // 临时会话和正式会话使用相同的角色获取逻辑
   const isTemporarySession = tempSessionId === currentSession?.id;
   
-  // 简化的角色获取逻辑：优先使用会话角色，然后回退到第一个可用角色
-  const getCurrentRole = () => {
-    console.log('🔍 getCurrentRole 调用:', {
-      sessionId: currentSession?.id,
-      sessionRoleId: currentSession?.roleId,
-      aiRolesCount: aiRoles.length,
-      tempSessionId
-    });
+  // 使用 useMemo 优化角色获取逻辑，避免频繁重新计算
+  const currentRole = useMemo(() => {
+    // 减少日志输出频率
+    const shouldLog = Math.random() < 0.1; // 只有10%的概率输出日志
+    
+    if (shouldLog) {
+      console.log('🔍 getCurrentRole 调用:', {
+        sessionId: currentSession?.id,
+        sessionRoleId: currentSession?.roleId,
+        aiRolesCount: aiRoles.length,
+        tempSessionId
+      });
+    }
     
     let role = null;
     
     // 优先使用当前会话的roleId
     if (currentSession?.roleId) {
       role = aiRoles.find(r => r.id === currentSession.roleId);
-      console.log('🔍 使用会话角色:', role?.name || 'NOT_FOUND');
+      if (shouldLog) {
+        console.log('🔍 使用会话角色:', role?.name || 'NOT_FOUND');
+      }
     }
     
     // 如果会话角色不存在，回退到第一个可用角色
     if (!role && aiRoles.length > 0) {
       role = aiRoles[0];
-      console.log('🔍 使用第一个角色:', role?.name || 'NOT_FOUND');
+      if (shouldLog) {
+        console.log('🔍 使用第一个角色:', role?.name || 'NOT_FOUND');
+      }
     }
     
-    console.log('🔍 最终角色:', role?.name || 'NONE');
+    if (shouldLog) {
+      console.log('🔍 最终角色:', role?.name || 'NONE');
+    }
     return role;
-  };
-  
-  const currentRole = getCurrentRole();
+  }, [currentSession?.id, currentSession?.roleId, aiRoles, tempSessionId]);
   const currentModel = currentSession ? llmConfigs.find(m => m.id === currentSession.modelId) : llmConfigs.find(m => m.id === currentModelId);
 
   // 如果有sessionId参数，设置为当前会话

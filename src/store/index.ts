@@ -94,6 +94,9 @@ interface AppState {
   userProfiles: UserProfile[];
   currentUserProfile: UserProfile | null;
   
+  // 用户认证
+  currentUser: any | null;
+  
   // 全局提示词
   globalPrompts: GlobalPrompt[];
   
@@ -133,6 +136,7 @@ interface AppState {
   hideSession: (id: string) => void;
   showSession: (id: string) => void;
   setCurrentSession: (id: string) => void;
+  migrateIdsToUUID: () => boolean;
   addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'> & { id?: string }) => void;
   updateMessage: (sessionId: string, messageId: string, content: string, isStreaming?: boolean) => void;
   updateMessageWithReasoning: (sessionId: string, messageId: string, content?: string, reasoningContent?: string, isStreaming?: boolean, isReasoningComplete?: boolean) => void;
@@ -148,6 +152,9 @@ interface AppState {
   deleteUserProfile: (id: string) => void;
   setCurrentUserProfile: (profile: UserProfile | null) => void;
   
+  // 用户认证相关
+  setCurrentUser: (user: any | null) => void;
+  
   // UI相关
   setTheme: (theme: 'light' | 'dark' | 'cupcake' | 'floaty') => void;
   toggleSidebar: () => void;
@@ -158,8 +165,30 @@ interface AppState {
   clearAllData: () => void;
 }
 
-// 生成唯一ID
-const generateId = () => Math.random().toString(36).substr(2, 9);
+// 生成符合 UUID v4 标准的唯一ID
+const generateId = () => {
+  // 生成符合 UUID v4 格式的字符串
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
+// 验证 UUID 格式
+const isValidUUID = (id: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+};
+
+// 将旧格式 ID 转换为 UUID 格式
+const convertToUUID = (oldId: string): string => {
+  if (isValidUUID(oldId)) {
+    return oldId;
+  }
+  // 为旧格式 ID 生成一个新的 UUID
+  return generateId();
+};
 
 // 默认AI角色
 const defaultRoles: AIRole[] = [
@@ -207,6 +236,7 @@ export const useAppStore = create<AppState>()(
       aiRoles: defaultRoles,
       userProfiles: [],
       currentUserProfile: null,
+      currentUser: null,
       globalPrompts: [],
       chatSessions: [],
       currentSessionId: null,
@@ -313,6 +343,11 @@ export const useAppStore = create<AppState>()(
       
       setCurrentUserProfile: (profile) => {
         set({ currentUserProfile: profile });
+      },
+      
+      // 用户认证相关actions
+      setCurrentUser: (user) => {
+        set({ currentUser: user });
       },
       
       // 全局提示词相关actions
@@ -451,6 +486,62 @@ export const useAppStore = create<AppState>()(
           // 避免因为时序问题导致全局状态被undefined覆盖
           currentModelId: newSession?.modelId ? newSession.modelId : state.currentModelId
         });
+      },
+      
+      // 迁移旧格式 ID 到 UUID 格式
+      migrateIdsToUUID: () => {
+        const state = get();
+        let hasChanges = false;
+        const idMapping = new Map<string, string>();
+        
+        const updatedSessions = state.chatSessions.map(session => {
+          const originalSessionId = session.id;
+          const newSessionId = convertToUUID(session.id);
+          
+          if (originalSessionId !== newSessionId) {
+            idMapping.set(originalSessionId, newSessionId);
+            hasChanges = true;
+            console.log(`🔄 迁移会话 ID: ${originalSessionId} -> ${newSessionId}`);
+          }
+          
+          const updatedMessages = session.messages.map(message => {
+            const originalMessageId = message.id;
+            const newMessageId = convertToUUID(message.id);
+            
+            if (originalMessageId !== newMessageId) {
+              hasChanges = true;
+              console.log(`🔄 迁移消息 ID: ${originalMessageId} -> ${newMessageId}`);
+            }
+            
+            return originalMessageId !== newMessageId 
+              ? { ...message, id: newMessageId }
+              : message;
+          });
+          
+          return {
+            ...session,
+            id: newSessionId,
+            messages: updatedMessages
+          };
+        });
+        
+        if (hasChanges) {
+          // 更新当前会话 ID
+          let newCurrentSessionId = state.currentSessionId;
+          if (state.currentSessionId && idMapping.has(state.currentSessionId)) {
+            newCurrentSessionId = idMapping.get(state.currentSessionId)!;
+            console.log(`🔄 更新当前会话 ID: ${state.currentSessionId} -> ${newCurrentSessionId}`);
+          }
+          
+          set({
+            chatSessions: updatedSessions,
+            currentSessionId: newCurrentSessionId
+          });
+          
+          console.log(`✅ ID 迁移完成，共更新 ${updatedSessions.length} 个会话`);
+        }
+        
+        return hasChanges;
       },
       
       addMessage: (sessionId, message) => {
@@ -803,9 +894,9 @@ export const useAppStore = create<AppState>()(
         llmConfigs: state.llmConfigs,
         currentModelId: state.currentModelId,
         aiRoles: state.aiRoles,
-
         userProfiles: state.userProfiles,
         currentUserProfile: state.currentUserProfile,
+        currentUser: state.currentUser, // 添加currentUser到持久化状态
         globalPrompts: state.globalPrompts,
         chatSessions: state.chatSessions,
         currentSessionId: state.currentSessionId,
