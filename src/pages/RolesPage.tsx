@@ -21,12 +21,10 @@ interface RolesPageProps {
 const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
   const {
     aiRoles,
-    currentRoleId,
     globalPrompts,
     addAIRole,
     updateAIRole,
-    deleteAIRole,
-    setCurrentRole
+    deleteAIRole
   } = useAppStore();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -214,10 +212,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
     }
   }, []);
 
-  const handleSetCurrent = (id: string) => {
-    setCurrentRole(id);
-    toast.success('已切换角色');
-  };
+
 
   // 移除getIconComponent，现在使用Avatar组件
 
@@ -251,7 +246,6 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
       <div className="grid gap-6 md:grid-cols-2">
         {aiRoles.map((role) => {
           const isDefault = defaultRoles.includes(role.id);
-          const isCurrent = role.id === currentRoleId;
 
           return (
             <div
@@ -287,10 +281,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
 
               {/* 角色描述 */}
               <div className="mb-4">
-                <h4 className="text-sm font-medium text-base-content/70 mb-2">
-                  描述
-                </h4>
-                <p className="text-sm text-base-content/60 line-clamp-2 overflow-hidden text-ellipsis whitespace-nowrap">
+                <p className="text-sm text-base-content/60 line-clamp-2 overflow-hidden text-ellipsis">
                   {role.description}
                 </p>
               </div>
@@ -315,16 +306,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                     </button>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-base-content/60">默认角色</span>
-                  <input
-                    type="radio"
-                    className="radio radio-xs radio-accent"
-                    checked={isCurrent}
-                    onChange={() => handleSetCurrent(role.id)}
-                    disabled={isCurrent}
-                  />
-                </div>
+
               </div>
               </div>
             </div>

@@ -20,9 +20,12 @@ import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
 import RoleSelector from '../components/RoleSelector';
 import MarkdownRenderer from '../components/MarkdownRenderer';
+import ThinkingProcess from '../components/ThinkingProcess';
 import Avatar from '../components/Avatar';
 import Popconfirm from '../components/Popconfirm';
 import { replaceTemplateVariables } from '../utils/templateUtils';
+import { useAnimatedText } from '../components/AnimatedText';
+import { getDefaultBaseUrl } from '../utils/providerUtils';
 
 const ChatPage: React.FC = () => {
   const { sessionId } = useParams();
@@ -42,7 +45,6 @@ const ChatPage: React.FC = () => {
     aiRoles,
     userProfiles,
     llmConfigs,
-    currentRoleId,
     currentModelId,
     tempSessionId,
     globalPrompts,
@@ -53,11 +55,11 @@ const ChatPage: React.FC = () => {
     deleteTempSession,
     addMessage,
     updateMessage,
+    updateMessageWithReasoning,
     addMessageVersion,
     addMessageVersionWithOriginal,
     switchMessageVersion,
     deleteMessage,
-    setCurrentRole,
     setCurrentModel
   } = useAppStore();
 
@@ -66,8 +68,37 @@ const ChatPage: React.FC = () => {
 
   // 获取当前会话
   const currentSession = chatSessions.find(s => s.id === (sessionId || currentSessionId));
-  // ===== 修复：使用当前会话的角色和模型，而不是全局的 =====
-  const currentRole = currentSession ? aiRoles.find(r => r.id === currentSession.roleId) : aiRoles.find(r => r.id === currentRoleId);
+  // 临时会话和正式会话使用相同的角色获取逻辑
+  const isTemporarySession = tempSessionId === currentSession?.id;
+  
+  // 简化的角色获取逻辑：优先使用会话角色，然后回退到第一个可用角色
+  const getCurrentRole = () => {
+    console.log('🔍 getCurrentRole 调用:', {
+      sessionId: currentSession?.id,
+      sessionRoleId: currentSession?.roleId,
+      aiRolesCount: aiRoles.length,
+      tempSessionId
+    });
+    
+    let role = null;
+    
+    // 优先使用当前会话的roleId
+    if (currentSession?.roleId) {
+      role = aiRoles.find(r => r.id === currentSession.roleId);
+      console.log('🔍 使用会话角色:', role?.name || 'NOT_FOUND');
+    }
+    
+    // 如果会话角色不存在，回退到第一个可用角色
+    if (!role && aiRoles.length > 0) {
+      role = aiRoles[0];
+      console.log('🔍 使用第一个角色:', role?.name || 'NOT_FOUND');
+    }
+    
+    console.log('🔍 最终角色:', role?.name || 'NONE');
+    return role;
+  };
+  
+  const currentRole = getCurrentRole();
   const currentModel = currentSession ? llmConfigs.find(m => m.id === currentSession.modelId) : llmConfigs.find(m => m.id === currentModelId);
 
   // 如果有sessionId参数，设置为当前会话
@@ -79,13 +110,40 @@ const ChatPage: React.FC = () => {
   
   // 组件卸载时清理未使用的临时会话
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
+    const cleanup = () => {
+      // 延迟执行清理逻辑，避免在快速切换时误删会话
+      timeoutId = setTimeout(() => {
+        const state = {
+          tempSessionId,
+          currentSession,
+          currentSessionId
+        };
+        
+        // 只有在确实需要清理时才删除临时会话
+        // 1. 必须存在临时会话ID
+        // 2. 临时会话确实存在
+        // 3. 临时会话没有用户消息
+        // 4. 临时会话不是当前活跃会话（避免删除正在使用的会话）
+        if (state.tempSessionId && 
+            state.currentSession && 
+            state.tempSessionId === state.currentSession.id &&
+            !state.currentSession.messages.some(m => m.role === 'user') &&
+            state.currentSessionId !== state.tempSessionId) {
+          deleteTempSession();
+        }
+      }, 200); // 增加延迟时间，确保状态稳定
+    };
+    
     return () => {
-      // 如果当前会话是临时会话且没有消息，则删除它
-      if (tempSessionId && currentSession && currentSession.messages.length === 0) {
-        deleteTempSession();
+      cleanup();
+      // 清理定时器，避免内存泄漏
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
     };
-  }, [tempSessionId, currentSession, deleteTempSession]);
+  }, []); // 移除依赖项，避免重复注册清理逻辑
 
   // 自动滚动到底部
   useEffect(() => {
@@ -119,34 +177,27 @@ const ChatPage: React.FC = () => {
     }
   }, [message]);
 
+
+
   // 创建新会话
   const navigate = useNavigate();
   
-  const handleNewSession = () => {
-    // 优先使用当前会话的角色和模型，如果没有当前会话则使用全局设置
-    const roleId = currentSession?.roleId || currentRoleId;
-    const modelId = currentSession?.modelId || currentModelId;
-    
-    if (!roleId || !modelId) {
-      toast.error('请先配置AI角色和模型');
-      return;
-    }
-    
-    // 创建新的临时会话，使用当前会话的角色和模型
-    const newSessionId = createTempSession(roleId, modelId);
-    
-    // 导航到新会话页面
-    navigate(`/chat/${newSessionId}`);
-    
-    toast.success('已创建新会话');
-  };
+  // 动态placeholder文本
+  const animatedPlaceholder = useAnimatedText({ 
+    isAnimating: isGenerating, 
+    baseText: '回复中', 
+    staticText: '输入消息...' 
+  });
+  
+
 
   // 发送消息
   const handleSendMessage = async () => {
     if (!message.trim() || isLoading) return;
     
     if (!currentSession) {
-      handleNewSession();
+      // 如果没有当前会话，导航到聊天首页让用户选择角色
+      navigate('/chat');
       return;
     }
 
@@ -175,13 +226,25 @@ const ChatPage: React.FC = () => {
 
     // 添加AI消息占位符
     const aiMessageId = Math.random().toString(36).substr(2, 9);
-    addMessage(currentSession.id, {
+    
+    // 检查当前模型是否支持思考过程
+    const supportsReasoning = currentModel?.model?.includes('deepseek-reasoner') || 
+                             currentModel?.model?.includes('o1') ||
+                             currentModel?.name?.toLowerCase().includes('reasoning');
+    
+    const aiMessage = {
       id: aiMessageId,
-      role: 'assistant',
+      role: 'assistant' as const,
       content: '',
       timestamp: new Date(),
-      isStreaming: true
-    });
+      isStreaming: true,
+      ...(supportsReasoning && {
+        reasoningContent: '',
+        isReasoningComplete: false
+      })
+    };
+    
+    addMessage(currentSession.id, aiMessage);
 
     try {
       // 调用AI API
@@ -260,6 +323,9 @@ const ChatPage: React.FC = () => {
       throw new Error('模型或角色未配置');
     }
 
+    // 关键节点：LLM开始回复
+    console.log('🚀 LLM开始回复');
+
     try {
       // 构建完整的系统提示词
       const systemPrompt = buildSystemPrompt(currentRole, globalPrompts, currentUserProfile);
@@ -287,77 +353,7 @@ const ChatPage: React.FC = () => {
         content: userMessage
       });
 
-      // ===== 添加详细的调试信息 =====
-      if (process.env.NODE_ENV === 'development') {
-        console.log('\n🚀 ===== LLM API 调用详情 =====');
-        console.log('📅 时间:', new Date().toLocaleString());
-        console.log('🔗 会话ID:', sessionId);
-        console.log('💬 消息ID:', messageId);
-        console.log('🤖 当前模型:', currentModel.name, `(${currentModel.provider})`);
-        console.log('🎭 当前角色:', currentRole.name);
-        console.log('👤 当前用户:', currentUserProfile?.name || '未设置');
-        console.log('📊 消息总数:', messages.length);
-        
-        console.log('\n📝 ===== 完整提示词内容 =====');
-        messages.forEach((msg, index) => {
-          console.log(`\n[${index + 1}] ${msg.role.toUpperCase()}:`);
-          console.log('---');
-          console.log(msg.content);
-          console.log('---');
-        });
-        
-        console.log('\n🔧 ===== 系统提示词详情 =====');
-        if (systemPrompt) {
-          console.log('系统提示词长度:', systemPrompt.length, '字符');
-          console.log('系统提示词内容:');
-          console.log('---');
-          console.log(systemPrompt);
-          console.log('---');
-        } else {
-          console.log('❌ 无系统提示词');
-        }
-        
-        console.log('\n📋 ===== 用户输入详情 =====');
-        console.log('原始用户输入:', userMessage);
-        console.log('用户输入长度:', userMessage.length, '字符');
-        
-        console.log('\n📚 ===== 历史消息概览 =====');
-        const historyMessages = currentSession!.messages.filter(m => m.role !== 'assistant' || !m.isStreaming);
-        console.log('历史消息数量:', historyMessages.length);
-        historyMessages.forEach((msg, index) => {
-          const preview = msg.content.length > 50 ? msg.content.substring(0, 50) + '...' : msg.content;
-          console.log(`[${index + 1}] ${msg.role}: ${preview}`);
-        });
-        
-        console.log('\n⚙️ ===== 模型配置详情 =====');
-        console.log('模型名称:', currentModel.model);
-        console.log('温度参数:', currentModel.temperature);
-        console.log('最大令牌:', currentModel.maxTokens);
-        console.log('API地址:', currentModel.baseUrl || '默认地址');
-        if (currentModel.proxyUrl) {
-          console.log('代理地址:', currentModel.proxyUrl);
-        }
-        
-        console.log('\n🎯 ===== 角色配置详情 =====');
-        console.log('角色名称:', currentRole.name);
-        console.log('角色描述:', currentRole.description || '无描述');
-        if (currentRole.globalPromptId) {
-          const globalPrompt = globalPrompts.find(p => p.id === currentRole.globalPromptId);
-          console.log('全局提示词:', globalPrompt?.title || '未找到');
-        }
-        console.log('角色系统提示词长度:', currentRole.systemPrompt?.length || 0, '字符');
-        
-        console.log('\n👥 ===== 用户资料详情 =====');
-        if (currentUserProfile) {
-          console.log('用户名称:', currentUserProfile.name);
-          console.log('用户描述:', currentUserProfile.description || '无描述');
-        } else {
-          console.log('❌ 未设置用户资料');
-        }
-        
-        console.log('\n🌐 ===== API 请求详情 =====');
-      }
-      // ===== 调试信息结束 =====
+      // API调用准备
 
       // 根据不同的provider调用相应的API
       let apiUrl = '';
@@ -366,24 +362,12 @@ const ChatPage: React.FC = () => {
       };
       let body: any = {};
 
-      switch (currentModel.provider) {
-        case 'openai':
-          apiUrl = currentModel.baseUrl || 'https://api.openai.com';
-          if (!apiUrl.endsWith('/v1/chat/completions')) {
-            apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
-          }
-          headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
-          body = {
-            model: currentModel.model,
-            messages,
-            temperature: currentModel.temperature,
-            max_tokens: currentModel.maxTokens,
-            stream: true
-          };
-          break;
 
+
+      switch (currentModel.provider) {
         case 'claude':
-          apiUrl = currentModel.baseUrl || 'https://api.anthropic.com';
+          // Claude使用特殊的API格式
+          apiUrl = currentModel.baseUrl || getDefaultBaseUrl('claude');
           if (!apiUrl.endsWith('/v1/messages')) {
             apiUrl = apiUrl.replace(/\/$/, '') + '/v1/messages';
           }
@@ -403,7 +387,8 @@ const ChatPage: React.FC = () => {
           break;
 
         case 'gemini':
-          apiUrl = currentModel.baseUrl || 'https://generativelanguage.googleapis.com';
+          // Gemini使用特殊的API格式
+          apiUrl = currentModel.baseUrl || getDefaultBaseUrl('gemini');
           if (!apiUrl.includes('/v1beta/models/')) {
             apiUrl = apiUrl.replace(/\/$/, '') + `/v1beta/models/${currentModel.model}:streamGenerateContent?key=${currentModel.apiKey}`;
           }
@@ -426,8 +411,8 @@ const ChatPage: React.FC = () => {
           break;
 
         default:
-          // 自定义provider，使用OpenAI兼容格式
-          apiUrl = currentModel.baseUrl || '';
+          // 默认使用OpenAI兼容格式 (适用于 openai, kimi, deepseek, custom 等)
+          apiUrl = currentModel.baseUrl || getDefaultBaseUrl(currentModel.provider);
           if (!apiUrl.endsWith('/v1/chat/completions')) {
             apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
           }
@@ -446,14 +431,7 @@ const ChatPage: React.FC = () => {
         apiUrl = currentModel.proxyUrl;
       }
 
-      // ===== 添加 API 请求体调试信息 =====
-      if (process.env.NODE_ENV === 'development') {
-        console.log('请求URL:', apiUrl);
-        console.log('请求头:', JSON.stringify(headers, null, 2));
-        console.log('请求体:', JSON.stringify(body, null, 2));
-        console.log('===============================\n');
-      }
-      // ===== API 请求体调试信息结束 =====
+      // API请求准备完成
 
       // 清理之前的请求并创建新的 AbortController
       cleanupRequest();
@@ -478,6 +456,7 @@ const ChatPage: React.FC = () => {
 
       const decoder = new TextDecoder();
       let currentContent = '';
+      let currentReasoningContent = '';
 
       try {
         while (true) {
@@ -495,26 +474,69 @@ const ChatPage: React.FC = () => {
               try {
                 const parsed = JSON.parse(data);
                 let content = '';
+                let reasoningContent = '';
+
+                // 简化的API响应日志
 
                 // 根据不同provider解析响应
                 if (currentModel.provider === 'openai' || currentModel.provider === 'custom') {
                   content = parsed.choices?.[0]?.delta?.content || '';
+                  // 检查是否是DeepSeek的reasoning模型响应
+                  reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || '';
+                  
+                  // OpenAI/Custom解析结果
+                } else if (currentModel.provider === 'kimi') {
+                  content = parsed.choices?.[0]?.delta?.content || '';
+                  // Kimi解析结果
+                } else if (currentModel.provider === 'deepseek') {
+                  content = parsed.choices?.[0]?.delta?.content || '';
+                  // 检查是否是DeepSeek的reasoning模型响应
+                  reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || '';
+                  // DeepSeek解析结果
                 } else if (currentModel.provider === 'claude') {
                   if (parsed.type === 'content_block_delta') {
                     content = parsed.delta?.text || '';
                   }
+                  // Claude解析结果
                 } else if (currentModel.provider === 'gemini') {
                   content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                  // Gemini解析结果
                 }
 
-                // 调试日志
-                if (content && process.env.NODE_ENV === 'development') {
-                  console.log('Received content:', content);
+                // 关键节点：检测到内容开始
+                if ((content || reasoningContent) && process.env.NODE_ENV === 'development') {
+                  if (content && !currentContent) {
+                    console.log('📝 正文内容开始输出');
+                  }
+                  if (reasoningContent && !currentReasoningContent) {
+                    console.log('🧠 思考过程开始');
+                  }
                 }
 
-                if (content) {
-                  currentContent += content;
-                  updateMessage(sessionId, messageId, currentContent);
+                // 更新消息内容
+                if (content || reasoningContent) {
+                  const beforeContent = currentContent;
+                  const beforeReasoning = currentReasoningContent;
+                  
+                  // 检测到正文内容开始时，立即标记思考过程完成
+                  const isFirstContent = content && !currentContent;
+                  
+                  if (content) {
+                    currentContent += content;
+                  }
+                  if (reasoningContent) {
+                    currentReasoningContent += reasoningContent;
+                  }
+                  
+                  // 内容累积更新
+                  updateMessageWithReasoning(
+                    sessionId, 
+                    messageId, 
+                    currentContent || undefined,
+                    currentReasoningContent || undefined,
+                    true,
+                    isFirstContent // 如果是第一次收到正文内容，立即标记思考过程完成
+                  );
                 }
               } catch (e) {
                 // 忽略JSON解析错误
@@ -527,8 +549,17 @@ const ChatPage: React.FC = () => {
         reader.releaseLock();
       }
 
-      // 移除流式标记
-      updateMessage(sessionId, messageId, currentContent, false);
+      // 关键节点：流式响应完成
+      console.log('🏁 正文完成');
+      
+      updateMessageWithReasoning(
+        sessionId, 
+        messageId, 
+        currentContent || undefined,
+        currentReasoningContent || undefined,
+        false,
+        true
+      );
       
       // 请求完成后清理 AbortController
       abortControllerRef.current = null;
@@ -649,33 +680,7 @@ const ChatPage: React.FC = () => {
       throw new Error('模型未配置');
     }
 
-    // ===== 添加重新生成的详细调试信息 =====
-    console.log('\n🔄 ===== LLM API 重新生成调用详情 =====');
-    console.log('📅 时间:', new Date().toLocaleString());
-    console.log('🤖 当前模型:', currentModel.name, `(${currentModel.provider})`);
-    console.log('🎭 当前角色:', currentRole?.name || '未设置');
-    console.log('👤 当前用户:', currentUserProfile?.name || '未设置');
-    console.log('📊 重新生成消息总数:', messages.length);
-    
-    console.log('\n📝 ===== 重新生成完整提示词内容 =====');
-    messages.forEach((msg, index) => {
-      console.log(`\n[${index + 1}] ${msg.role.toUpperCase()}:`);
-      console.log('---');
-      console.log(msg.content);
-      console.log('---');
-    });
-    
-    console.log('\n⚙️ ===== 重新生成模型配置详情 =====');
-    console.log('模型名称:', currentModel.model);
-    console.log('温度参数:', currentModel.temperature);
-    console.log('最大令牌:', currentModel.maxTokens);
-    console.log('API地址:', currentModel.baseUrl || '默认地址');
-    if (currentModel.proxyUrl) {
-      console.log('代理地址:', currentModel.proxyUrl);
-    }
-    
-    console.log('\n🌐 ===== 重新生成 API 请求详情 =====');
-    // ===== 重新生成调试信息结束 =====
+    // 重新生成API调用
 
     // 根据不同的provider调用相应的API
     let apiUrl = '';
@@ -860,11 +865,18 @@ const ChatPage: React.FC = () => {
 
 
       {/* 消息列表 */}
-      <div className="flex-1 overflow-y-auto p-4 pb-10 space-y-4 gradient-mask-b [--gradient-mask-padding:2rem]">
+      <div className="flex-1 overflow-y-auto p-4 pb-10 space-y-4 gradient-mask-y [--gradient-mask-padding:1rem] md:[--gradient-mask-padding:2rem]">
         <div className="max-w-6xl mx-auto">
         {currentSession?.messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[calc(100vh-500px)] text-base-content/60">
-            <h3 className="text-black/40 text-xl font-medium mb-2">Hello，我是 {currentRole?.name}</h3>
+            {/* 添加加载状态检查和默认值 */}
+            {aiRoles.length === 0 ? (
+              <h3 className="text-black/40 text-xl font-medium mb-2">正在加载角色信息...</h3>
+            ) : (
+              <h3 className="text-black/40 text-xl font-medium mb-2">
+                Hello，我是 {currentRole?.name || '智能助手'}
+              </h3>
+            )}
           </div>
         ) : (
           currentSession?.messages.map((msg) => (
@@ -887,9 +899,13 @@ const ChatPage: React.FC = () => {
                     if (!messageRole && currentSession?.roleId) {
                       messageRole = aiRoles.find(r => r.id === currentSession.roleId);
                     }
-                    // 最后fallback到当前角色
+                    // 然后fallback到当前角色
                     if (!messageRole) {
                       messageRole = currentRole;
+                    }
+                    // 最后fallback到第一个可用角色
+                    if (!messageRole && aiRoles.length > 0) {
+                      messageRole = aiRoles[0];
                     }
                     return (
                       <Avatar
@@ -922,6 +938,7 @@ const ChatPage: React.FC = () => {
                 <div
                   className={cn(
                     'chat-bubble max-w-xs lg:max-w-md xl:max-w-lg cursor-pointer md:cursor-default',
+                    'min-h-fit h-auto flex flex-col',
                     msg.role === 'user'
                       ? 'chat-bubble-accent'
                       : ''
@@ -933,6 +950,14 @@ const ChatPage: React.FC = () => {
                     }
                   }}
                 >
+                  {/* 显示思考过程 - 对AI消息且支持思考过程时显示 */}
+                   {msg.role === 'assistant' && (msg.reasoningContent !== undefined) && (
+                     <ThinkingProcess 
+                       content={msg.reasoningContent}
+                       isComplete={msg.isReasoningComplete || false}
+                     />
+                   )}
+                  
                   <MarkdownRenderer content={replaceTemplateVariables(
                     msg.content,
                     currentUserProfile?.name || '用户',
@@ -945,7 +970,7 @@ const ChatPage: React.FC = () => {
                 
                 {/* 操作按钮组 - hover时显示或移动端点击显示 */}
                 <div className={cn(
-                  'absolute flex gap-1 p-1 bg-white/40 rounded-md transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-md transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
                   'opacity-0 group-hover:opacity-100', // 桌面端hover显示
                   'md:opacity-0 md:group-hover:opacity-100', // 桌面端确保hover效果
                   visibleActionButtons === msg.id ? 'opacity-100' : '', // 移动端点击显示
@@ -1113,7 +1138,7 @@ const ChatPage: React.FC = () => {
                 </div>
                 {/* 版本切换按钮组 - hover时显示或移动端点击显示 */}
                 <div className={cn(
-                  'absolute flex gap-1 p-1 bg-white/40 rounded-md transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-md transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
                   'opacity-0 group-hover:opacity-100', // 桌面端hover显示
                   'md:opacity-0 md:group-hover:opacity-100', // 桌面端确保hover效果
                   visibleActionButtons === msg.id ? 'opacity-100' : '', // 移动端点击显示
@@ -1174,7 +1199,7 @@ const ChatPage: React.FC = () => {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息..."
+            placeholder={animatedPlaceholder}
             className="textarea textarea-ghost w-full resize-none focus:outline-none"
             rows={1}
             style={{ minHeight: '40px', maxHeight: '120px' }}
@@ -1221,14 +1246,7 @@ const ChatPage: React.FC = () => {
               </ul>
               </div>
             </div>
-            {/* 新建会话按钮 */}
-            <button
-              onClick={handleNewSession}
-              className="btn btn-ghost btn-sm"
-              title="新建会话"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
+
           </div>
           
           {/* 右下角按钮组 */}

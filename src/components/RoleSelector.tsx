@@ -12,7 +12,6 @@ const RoleSelector: React.FC = () => {
     aiRoles,
     llmConfigs,
     currentModelId,
-    setCurrentRole,
     setCurrentModel,
     createTempSession,
     addMessage
@@ -29,16 +28,30 @@ const RoleSelector: React.FC = () => {
       return;
     }
 
-    // 设置当前角色
-    setCurrentRole(roleId);
+    console.log('🔍 handleRoleSelect 开始:', {
+      roleId,
+      currentModelId,
+      enabledModels: enabledModels.map(m => m.id)
+    });
 
-    // 如果没有选择模型，使用第一个可用模型
-    if (!currentModelId || !enabledModels.find(m => m.id === currentModelId)) {
-      setCurrentModel(enabledModels[0].id);
-    }
+    // 确定要使用的模型ID
+    const modelIdToUse = currentModelId && enabledModels.find(m => m.id === currentModelId) 
+      ? currentModelId 
+      : enabledModels[0].id;
 
-    // 创建临时会话
-    const sessionId = createTempSession(roleId, currentModelId || enabledModels[0].id);
+    console.log('🔍 确定使用的模型:', modelIdToUse);
+
+    // 设置当前模型（异步操作）
+    setCurrentModel(modelIdToUse);
+
+    // 创建临时会话（使用确定的参数，不依赖可能还未更新的全局状态）
+    const sessionId = createTempSession(roleId, modelIdToUse);
+    
+    console.log('🔍 创建会话:', {
+      sessionId,
+      roleId,
+      modelId: modelIdToUse
+    });
     
     // 如果角色有开场白，添加当前选择的开场白为第一条消息
     const selectedRole = aiRoles.find(role => role.id === roleId);

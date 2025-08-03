@@ -10,7 +10,7 @@ import avatar03 from '../assets/avatar/avatar-03.png';
 export interface LLMConfig {
   id: string;
   name: string;
-  provider: 'openai' | 'claude' | 'gemini' | 'custom';
+  provider: 'openai' | 'claude' | 'gemini' | 'kimi' | 'deepseek' | 'custom';
   apiKey: string;
   baseUrl?: string;
   proxyUrl?: string;
@@ -65,6 +65,8 @@ export interface ChatMessage {
   userProfileId?: string; // 对于user消息，存储用户资料ID；对于assistant消息，可以为空
   versions?: string[]; // 消息的多个版本内容
   currentVersionIndex?: number; // 当前显示的版本索引
+  reasoningContent?: string; // DeepSeek等模型的思考过程内容
+  isReasoningComplete?: boolean; // 思考过程是否完成
 }
 
 // 聊天会话接口
@@ -87,7 +89,6 @@ interface AppState {
   
   // AI角色
   aiRoles: AIRole[];
-  currentRoleId: string | null;
   
   // 用户资料
   userProfiles: UserProfile[];
@@ -116,7 +117,6 @@ interface AppState {
   addAIRole: (role: Omit<AIRole, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateAIRole: (id: string, role: Partial<AIRole>) => void;
   deleteAIRole: (id: string) => void;
-  setCurrentRole: (id: string) => void;
   
   // 全局提示词相关
   addGlobalPrompt: (prompt: Omit<GlobalPrompt, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -135,6 +135,7 @@ interface AppState {
   setCurrentSession: (id: string) => void;
   addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'> & { id?: string }) => void;
   updateMessage: (sessionId: string, messageId: string, content: string, isStreaming?: boolean) => void;
+  updateMessageWithReasoning: (sessionId: string, messageId: string, content?: string, reasoningContent?: string, isStreaming?: boolean, isReasoningComplete?: boolean) => void;
   regenerateMessage: (sessionId: string, messageId: string) => Promise<void>;
   addMessageVersion: (sessionId: string, messageId: string, newContent: string) => void;
   addMessageVersionWithOriginal: (sessionId: string, messageId: string, originalContent: string, newContent: string) => void;
@@ -204,7 +205,6 @@ export const useAppStore = create<AppState>()(
       llmConfigs: [],
       currentModelId: null,
       aiRoles: defaultRoles,
-      currentRoleId: 'default-assistant',
       userProfiles: [],
       currentUserProfile: null,
       globalPrompts: [],
@@ -241,7 +241,19 @@ export const useAppStore = create<AppState>()(
       },
       
       setCurrentModel: (id) => {
+        const state = get();
         set({ currentModelId: id });
+        
+        // 如果有当前会话，同时更新会话的模型ID
+        if (state.currentSessionId) {
+          set((state) => ({
+            chatSessions: state.chatSessions.map(s => 
+              s.id === state.currentSessionId 
+                ? { ...s, modelId: id }
+                : s
+            )
+          }));
+        }
       },
       
       // AI角色相关actions
@@ -267,13 +279,8 @@ export const useAppStore = create<AppState>()(
       
       deleteAIRole: (id) => {
         set((state) => ({
-          aiRoles: state.aiRoles.filter(r => r.id !== id),
-          currentRoleId: state.currentRoleId === id ? 'default-assistant' : state.currentRoleId
+          aiRoles: state.aiRoles.filter(r => r.id !== id)
         }));
-      },
-      
-      setCurrentRole: (id) => {
-        set({ currentRoleId: id });
       },
       
       // 用户资料相关actions
@@ -392,11 +399,12 @@ export const useAppStore = create<AppState>()(
       },
       
       deleteTempSession: () => {
-        const { tempSessionId, chatSessions } = get();
+        const { tempSessionId, currentSessionId } = get();
         if (tempSessionId) {
           set((state) => ({
             chatSessions: state.chatSessions.filter(s => s.id !== tempSessionId),
-            currentSessionId: null,
+            // 只有当要删除的临时会话确实是当前会话时，才清空currentSessionId
+            currentSessionId: currentSessionId === tempSessionId ? null : currentSessionId,
             tempSessionId: null
           }));
         }
@@ -439,8 +447,9 @@ export const useAppStore = create<AppState>()(
         
         set({ 
           currentSessionId: id,
-          currentRoleId: newSession?.roleId || state.currentRoleId,
-          currentModelId: newSession?.modelId || state.currentModelId
+          // 只有当会话的modelId确实存在时才更新全局状态
+          // 避免因为时序问题导致全局状态被undefined覆盖
+          currentModelId: newSession?.modelId ? newSession.modelId : state.currentModelId
         });
       },
       
@@ -489,6 +498,37 @@ export const useAppStore = create<AppState>()(
               : s
           )
         }));
+      },
+
+      updateMessageWithReasoning: (sessionId, messageId, content, reasoningContent, isStreaming, isReasoningComplete) => {
+        
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === sessionId 
+              ? {
+                  ...s,
+                  messages: s.messages.map(m => 
+                    m.id === messageId ? { 
+                      ...m, 
+                      ...(content !== undefined && { content }),
+                      ...(reasoningContent !== undefined && { reasoningContent }),
+                      ...(isStreaming !== undefined && { isStreaming }),
+                      ...(isReasoningComplete !== undefined && { isReasoningComplete })
+                    } : m
+                  ),
+                  updatedAt: new Date()
+                }
+              : s
+          )
+        }));
+        
+        // 输出简洁的状态变化日志
+        if (isReasoningComplete) {
+          console.log('✅ 思考过程完成');
+        }
+        if (!isStreaming) {
+          console.log('🏁 内容输出完成');
+        }
       },
 
       regenerateMessage: async (sessionId, messageId) => {
@@ -633,7 +673,7 @@ export const useAppStore = create<AppState>()(
           globalPrompts: state.globalPrompts,
           chatSessions: state.chatSessions,
           currentModelId: state.currentModelId,
-          currentRoleId: state.currentRoleId,
+
           currentUserProfile: state.currentUserProfile,
           theme: state.theme,
           exportedAt: new Date().toISOString(),
@@ -689,7 +729,7 @@ export const useAppStore = create<AppState>()(
             globalPrompts,
             chatSessions,
             currentModelId: data.currentModelId || null,
-            currentRoleId: data.currentRoleId || 'default-assistant',
+
             currentUserProfile: data.currentUserProfile || null,
             theme: data.theme || 'light'
           });
@@ -706,7 +746,7 @@ export const useAppStore = create<AppState>()(
           llmConfigs: [],
           currentModelId: null,
           aiRoles: defaultRoles,
-          currentRoleId: 'default-assistant',
+
           userProfiles: [],
           currentUserProfile: null,
           globalPrompts: [],
@@ -763,7 +803,7 @@ export const useAppStore = create<AppState>()(
         llmConfigs: state.llmConfigs,
         currentModelId: state.currentModelId,
         aiRoles: state.aiRoles,
-        currentRoleId: state.currentRoleId,
+
         userProfiles: state.userProfiles,
         currentUserProfile: state.currentUserProfile,
         globalPrompts: state.globalPrompts,

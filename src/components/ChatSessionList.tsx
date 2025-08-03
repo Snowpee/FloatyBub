@@ -94,13 +94,16 @@ const ChatSessionList: React.FC = () => {
     return llmConfigs.find(m => m.id === modelId)?.name || '未知模型';
   };
 
-  // 过滤掉没有消息的临时会话
+  // 完全过滤掉临时会话，使其不在侧边栏显示
+  // 同时确保只有包含用户消息的会话才会显示
   const displaySessions = chatSessions.filter(session => {
-    // 如果是临时会话且没有消息，则不显示
-    if (tempSessionId === session.id && session.messages.length === 0) {
+    // 如果是临时会话，则不显示
+    if (tempSessionId === session.id) {
       return false;
     }
-    return true;
+    // 只显示包含至少一条用户消息的会话
+    const hasUserMessage = session.messages.some(message => message.role === 'user');
+    return hasUserMessage;
   });
   
   if (displaySessions.length === 0) {
@@ -115,17 +118,23 @@ const ChatSessionList: React.FC = () => {
 
   return (
     <div className="space-y-2 p-2">
-      {displaySessions.slice(0, 20).map((session) => (
+      {displaySessions.slice(0, 20).map((session, index) => (
         <Link
           key={session.id}
           to={`/chat/${session.id}`}
           onClick={() => setCurrentSession(session.id)}
           className={cn(
-            'group block p-3 rounded-lg border transition-all duration-200 hover:shadow-sm',
+            'group block p-3 rounded-lg border transition-all duration-300 hover:shadow-sm',
+            'opacity-0 translate-y-2 animate-fade-in',
             activeSessionId === session.id
               ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700'
               : 'bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:hover:border-gray-600'
           )}
+          style={{
+            animationDelay: `${index * 50}ms`,
+            animationDuration: '400ms',
+            animationFillMode: 'forwards'
+          }}
         >
           {/* 会话标题 */}
           <div className="flex items-center justify-between mb-2">

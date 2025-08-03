@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Settings, Users, Database, History, FileText, UserCircle, Volume2, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Settings, Users, Database, History, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import ConfigPage from '../pages/ConfigPage';
 import RolesPage from '../pages/RolesPage';
@@ -20,11 +20,50 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultTab = 'config' }) => {
   const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
   const [showList, setShowList] = useState(true); // 移动端是否显示列表视图
+  const [isClosing, setIsClosing] = useState(false); // 控制关闭动画
+  const [shouldRender, setShouldRender] = useState(isOpen); // 控制组件渲染
+  const [isVisible, setIsVisible] = useState(false); // 控制弹窗可见性
 
   // 当 defaultTab 改变时更新 activeTab
-  React.useEffect(() => {
+  useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab]);
+
+  // 处理弹窗显示/隐藏动画
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true);
+      setIsClosing(false);
+      // 延迟一帧开始入场动画，确保初始状态正确
+      const timer = setTimeout(() => {
+        setIsVisible(true);
+      }, 10);
+      return () => clearTimeout(timer);
+    } else if (shouldRender) {
+      // 检测是否为移动端
+      const isMobile = window.innerWidth < 768;
+      
+      if (isMobile) {
+        setIsClosing(true);
+        setIsVisible(false);
+        // 等待动画完成后隐藏组件
+        const timer = setTimeout(() => {
+          setShouldRender(false);
+          setIsClosing(false);
+        }, 300);
+        return () => clearTimeout(timer);
+      } else {
+        // 桌面端：设置关闭状态并等待透明度动画完成
+        setIsClosing(true);
+        setIsVisible(false);
+        const timer = setTimeout(() => {
+          setShouldRender(false);
+          setIsClosing(false);
+        }, 200); // 与透明度动画时间匹配
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isOpen, shouldRender]);
 
   const tabs = [
     {
@@ -73,8 +112,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ConfigPage;
 
-  if (!isOpen) return null;
-
   // 移动端处理函数
   const handleMobileTabClick = (tabId: TabType) => {
     setActiveTab(tabId);
@@ -86,9 +123,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
   };
 
   const handleClose = () => {
-    setShowList(true); // 重置到列表视图
-    onClose();
+    // 检测是否为移动端
+    const isMobile = window.innerWidth < 768;
+    
+    if (isMobile) {
+      // 移动端：设置动画状态并延迟关闭
+      setShowList(true); // 重置到列表视图
+      setIsClosing(true);
+      setTimeout(() => {
+        onClose();
+      }, 50);
+    } else {
+      // 桌面端：直接调用onClose，动画由useEffect处理
+      onClose();
+    }
   };
+
+  if (!shouldRender) {
+    return null;
+  }
 
   return (
     <div className={cn(
@@ -96,26 +149,43 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       // 桌面端：居中显示
       "md:flex md:items-center md:justify-center",
       // 移动端：顶部预留1rem
-      "pt-4 md:pt-0",
-      // 动画效果
-      "animate-in fade-in duration-200"
+      "pt-4 md:pt-0"
     )}>
       {/* 背景遮罩 */}
       <div 
-        className="modal-backdrop absolute inset-0 bg-black/50 animate-in fade-in duration-200" 
+        className={cn(
+          "modal-backdrop absolute inset-0 bg-black/50",
+          // 桌面端保留透明动画
+          "md:animate-in md:fade-in md:duration-200",
+          // 移动端透明度动画
+          "transition-opacity duration-200 ease-out",
+          isClosing ? "opacity-0" : "opacity-100"
+        )}
         onClick={handleClose}
       />
       
       {/* 弹窗内容 */}
-      <div className={cn(
-        "hero-modal relative bg-base-100 shadow-xl flex overflow-hidden",
-        // 桌面端：居中弹窗
-        "md:rounded-lg md:w-full md:max-w-6xl md:h-[800px] md:max-h-[calc(100vh-2rem)] md:mx-4",
-        // 移动端：全屏减去顶部预留空间
-        "w-full h-full",
-        // 动画效果
-        "animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 md:slide-in-from-bottom-0"
-      )}>
+      <div 
+        className={cn(
+          "hero-modal relative bg-base-100 shadow-xl flex overflow-hidden",
+          // 桌面端：居中弹窗
+          "md:rounded-lg md:w-full md:max-w-6xl md:h-[800px] md:max-h-[calc(100vh-2rem)] md:mx-4",
+          // 移动端：全屏减去顶部预留空间
+          "w-full h-full",
+          // 桌面端透明度和位移动画
+          "md:transition-all md:duration-200 md:ease-out",
+          // 移动端滑入滑出动画 - 使用更平滑的缓动函数
+          "transition-transform duration-200 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]",
+          // 桌面端透明度和位移控制 - 使用isVisible状态实现淡入淡出和上下弹入弹出
+          isVisible && !isClosing 
+            ? "md:opacity-100 md:translate-y-0" 
+            : "md:opacity-0 md:translate-y-2",
+          // 移动端动画状态控制
+          isVisible && !isClosing
+            ? "translate-y-0"                     // 可见状态：正常位置
+            : "translate-y-full md:translate-y-2" // 隐藏状态：移动端在屏幕下方，桌面端稍微下方
+        )}
+      >
         {/* 左侧导航栏 */}
         <div className="w-64 bg-base-100 border-r border-base-300 flex-shrink-0 hidden md:flex flex-col">
           {/* 标题栏 */}
@@ -179,19 +249,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
                             <Icon className="h-5 w-5 text-primary" />
                           </div>
                           <div className="flex-1">
-                            <div className="font-medium text-base-content">{tab.name}</div>
-                            <div className="text-sm text-base-content/60">
-                              {tab.id === 'config' && '配置AI模型和API设置'}
-                              {tab.id === 'roles' && '管理AI角色卡片'}
-                              {tab.id === 'userProfiles' && '设置用户角色信息'}
-                              {tab.id === 'globalPrompts' && '管理全局提示词模板'}
-                              {tab.id === 'voice' && '配置语音合成设置'}
-                              {tab.id === 'data' && '数据导入导出管理'}
-                              {tab.id === 'history' && '聊天历史记录管理'}
-                            </div>
+                            <div className="font-medium text-base text-base-content">{tab.name}</div>
                           </div>
-                          <div className="text-base-content/40">
-                            <ArrowLeft className="h-4 w-4 rotate-180" />
+                          <div className="text-base-content">
+                            <ChevronLeft className="h-4 w-4 rotate-180" />
                           </div>
                         </button>
                       </li>
@@ -208,7 +269,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
                   onClick={handleBackToList}
                   className="btn btn-ghost btn-sm btn-circle"
                 >
-                  <ArrowLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4" />
                 </button>
                 <h2 className="text-lg font-semibold text-base-content flex-1">
                   {tabs.find(tab => tab.id === activeTab)?.name}

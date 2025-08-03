@@ -69,6 +69,20 @@
   /* backdrop-filter: blur(0.125rem); */
 }
 
+code:not(pre > code)  {
+  white-space: pre-wrap;      /* 保留空格和换行，但允许自动换行 */
+  word-break: break-all;      /* 单词太长时强制断开 */
+  overflow-x: auto;           /* 超出时可横向滚动 */
+  box-sizing: border-box;     /* 防止padding撑破 */
+  max-width: 100%;            /* 不超过父容器宽度 */
+}
+.dropdown {
+  .dropdown-content {
+    @apply bg-base-100;
+    border-radius: var(--radius-box);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1), 0 0 0 var(--border) color-mix(in oklab, var(--color-base-content) 5%, #0000);
+  }
+}
 
 /* 
 =====
@@ -105,7 +119,20 @@ dialog .modal-box {
   &:focus-within {
     border-color: color-mix(in oklab, var(--color-base-content) 30%, #0000);
   }
+  .textarea {
+    border: none;
+    outline: none;
+    &[disabled] {
+      background-color: var(--color-base-100);
+    }
+  }
 }
+/* 思考过程 */
+.thinking-process {
+  border-radius: calc(var(--radius-field) - 1rem);
+}
+
+/* 通用渐变 mask */
 .gradient-mask-y {
   mask: linear-gradient(0deg, transparent 0%, #000 var(--gradient-mask-padding, 1rem), #000  calc(100% - var(--gradient-mask-padding, 1rem)), transparent 100%);
 }
@@ -158,31 +185,11 @@ dialog .modal-box {
 }
 
 
-/* 动画效果 */
+/* 自定义动画效果 */
 @keyframes fade-in {
   from {
     opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes zoom-in-95 {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes slide-in-from-bottom-4 {
-  from {
-    opacity: 0;
-    transform: translateY(1rem);
+    transform: translateY(0.5rem);
   }
   to {
     opacity: 1;
@@ -190,39 +197,8 @@ dialog .modal-box {
   }
 }
 
-.animate-in {
-  animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.fade-in {
-  animation-name: fade-in;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.zoom-in-95 {
-  animation-name: zoom-in-95;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.slide-in-from-bottom-4 {
-  animation-name: slide-in-from-bottom-4;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.duration-200 {
-  animation-duration: 200ms;
-}
-
-.duration-300 {
-  animation-duration: 300ms;
-}
-
-/* 桌面端不使用底部滑入动画 */
-@media (min-width: 768px) {
-  .md\:slide-in-from-bottom-0 {
-    animation-name: zoom-in-95;
-  }
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
 }
 
 /* 隐藏 TRAE SOLO 徽章 */

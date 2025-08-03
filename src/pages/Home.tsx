@@ -13,7 +13,6 @@ const Home: React.FC = () => {
     llmConfigs,
     aiRoles,
     chatSessions,
-    currentRoleId,
     currentModelId
   } = useAppStore();
 
@@ -29,7 +28,7 @@ const Home: React.FC = () => {
 
   return (
     <div 
-      className="min-h-[calc(100vh-4rem)] bg-base-200"
+      className="min-h-[calc(100vh-4rem)] bg-base-100"
       style={{
         backgroundImage: `radial-gradient(circle at 30% 60%, var(--color-info) -200%, transparent 30%), radial-gradient(circle at 70% 50%, var(--color-warning) -200%, transparent 30%)`
       }}
@@ -46,7 +45,7 @@ const Home: React.FC = () => {
             <p className="text-xl md:text-2xl mb-8">
               一个轻量的 LLM 聊天框架
             </p>
-            {hasConfigs && currentRoleId && currentModelId ? (
+            {hasConfigs && aiRoles.length > 0 ? (
               <button
                 onClick={handleQuickStart}
                 className="btn btn-outline btn-accent btn-lg"
