@@ -11,11 +11,13 @@ import {
   MoreHorizontal,
   Pin,
   Palette,
-  EyeOff
+  EyeOff,
+  Edit3
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Popconfirm from './Popconfirm';
 import SettingsModal from './SettingsModal';
+import Avatar from './Avatar';
 
 type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data' | 'history';
 
@@ -31,9 +33,10 @@ const Layout: React.FC = () => {
     chatSessions,
     setCurrentSession,
     deleteChatSession,
+    updateChatSession,
     hideSession,
     createTempSession,
-
+    aiRoles,
     currentModelId,
     tempSessionId,
     deleteTempSession
@@ -42,6 +45,10 @@ const Layout: React.FC = () => {
   // 设置弹窗状态
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState<TabType>('config');
+  
+  // 重命名状态
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
+  const [renamingTitle, setRenamingTitle] = useState('');
   
   // 从URL中获取当前对话ID
   const currentSessionId = location.pathname.startsWith('/chat/') 
@@ -165,6 +172,11 @@ const Layout: React.FC = () => {
     return lastUserMessage?.content || '暂无消息';
   };
 
+  // 根据roleId获取AI角色信息
+  const getAIRole = (roleId: string) => {
+    return aiRoles.find(role => role.id === roleId);
+  };
+
   const deleteSession = (sessionId: string) => {
     deleteChatSession(sessionId);
     
@@ -251,7 +263,7 @@ const Layout: React.FC = () => {
 
           {/* 历史对话列表 */}
           <div className="flex-1 overflow-y-auto p-4 gradient-mask-y [--gradient-mask-padding:1rem]">
-            <div className="space-y-2">
+            <div className="space-y-1">
               {recentSessions.length === 0 ? (
                 <div className="text-center py-8">
                   <MessageCircle className="h-8 w-8 text-base-content/40 mx-auto mb-2" />
@@ -280,9 +292,14 @@ const Layout: React.FC = () => {
                         : "hover:bg-base-200"
                     )}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-base-content truncate mb-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center flex-1 min-w-0 gap-2">
+                        <Avatar
+                          name={getAIRole(session.roleId)?.name || '未知角色'}
+                          avatar={getAIRole(session.roleId)?.avatar}
+                          size="sm"
+                        />
+                        <h4 className="text-sm font-normal text-base-content truncate">
                           {session.title}
                         </h4>
                       </div>
@@ -314,6 +331,68 @@ const Layout: React.FC = () => {
                               <Pin className="h-4 w-4" />
                               置顶
                             </button>
+                          </li>
+                          <li>
+                            <Popconfirm
+                              title="重命名对话"
+                              description={
+                                <div className="">
+                                  <input
+                                    type="text"
+                                    value={renamingSessionId === session.id ? renamingTitle : session.title}
+                                    onChange={(e) => {
+                                      if (renamingSessionId === session.id) {
+                                        setRenamingTitle(e.target.value);
+                                      } else {
+                                        setRenamingSessionId(session.id);
+                                        setRenamingTitle(e.target.value);
+                                      }
+                                    }}
+                                    className="input w-full p-2 text-sm"
+                                    placeholder="输入新的对话标题..."
+                                  />
+                                </div>
+                              }
+                              onConfirm={() => {
+                                if (renamingTitle.trim()) {
+                                  updateChatSession(session.id, { title: renamingTitle.trim() });
+                                  setRenamingSessionId(null);
+                                  setRenamingTitle('');
+                                  toast.success('对话已重命名');
+                                }
+                              }}
+                              onCancel={() => {
+                                setRenamingSessionId(null);
+                                setRenamingTitle('');
+                              }}
+                              onOpen={() => {
+                                // Popconfirm显示时立即关闭dropdown
+                                const dropdownElement = document.querySelector('.dropdown.dropdown-end');
+                                if (dropdownElement) {
+                                  const button = dropdownElement.querySelector('button[tabindex="0"]') as HTMLElement;
+                                  button?.blur();
+                                }
+                                (document.activeElement as HTMLElement)?.blur();
+                              }}
+                              onClose={() => {
+                                // 关闭dropdown
+                                const dropdownElement = document.querySelector('.dropdown.dropdown-end');
+                                if (dropdownElement) {
+                                  const button = dropdownElement.querySelector('button[tabindex="0"]') as HTMLElement;
+                                  button?.blur();
+                                }
+                                (document.activeElement as HTMLElement)?.blur();
+                              }}
+                              placement="right"
+                              okText="确认"
+                              cancelText="取消"
+                              getPopupContainer={() => sessionRefs.current[session.id]?.current || undefined}
+                            >
+                              <button className="text-sm w-full text-left flex items-center">
+                                <Edit3 className="h-4 w-4 mr-2" />
+                                重命名
+                              </button>
+                            </Popconfirm>
                           </li>
                           <li>
                             <button

@@ -60,7 +60,11 @@ const ChatPage: React.FC = () => {
     addMessageVersionWithOriginal,
     switchMessageVersion,
     deleteMessage,
-    setCurrentModel
+    setCurrentModel,
+    generateSessionTitle,
+    markSessionNeedsTitle,
+    checkSessionNeedsTitle,
+    removeSessionNeedsTitle
   } = useAppStore();
 
   // 获取启用的模型
@@ -222,6 +226,10 @@ const ChatPage: React.FC = () => {
       role: 'user',
       content: userMessage,
       timestamp: new Date()
+    }, () => {
+      // 临时会话转为正式会话后，标记需要生成标题
+      markSessionNeedsTitle(currentSession.id);
+      console.log('🏷️ 会话已标记需要生成标题:', currentSession.id);
     });
 
     // 添加AI消息占位符
@@ -561,6 +569,21 @@ const ChatPage: React.FC = () => {
         true
       );
       
+      // 检查是否需要生成标题
+      if (checkSessionNeedsTitle(sessionId) && currentModel) {
+        console.log('🎯 AI回复完成，开始生成会话标题');
+        generateSessionTitle(sessionId, currentModel)
+          .then(() => {
+            console.log('✅ 会话标题生成成功');
+            removeSessionNeedsTitle(sessionId);
+          })
+          .catch(error => {
+            console.error('❌ 生成会话标题失败:', error);
+            // 即使失败也要清除标记，避免重复尝试
+            removeSessionNeedsTitle(sessionId);
+          });
+      }
+      
       // 请求完成后清理 AbortController
       abortControllerRef.current = null;
       setIsGenerating(false);
@@ -897,6 +920,21 @@ const ChatPage: React.FC = () => {
       true
     );
     
+    // 检查是否需要生成标题（重新生成时也可能需要）
+    if (checkSessionNeedsTitle(sessionId) && currentModel) {
+      console.log('🎯 重新生成完成，开始生成会话标题');
+      generateSessionTitle(sessionId, currentModel)
+        .then(() => {
+          console.log('✅ 会话标题生成成功');
+          removeSessionNeedsTitle(sessionId);
+        })
+        .catch(error => {
+          console.error('❌ 生成会话标题失败:', error);
+          // 即使失败也要清除标记，避免重复尝试
+          removeSessionNeedsTitle(sessionId);
+        });
+    }
+    
     // 请求完成后清理 AbortController
     abortControllerRef.current = null;
     setIsGenerating(false);
@@ -1079,7 +1117,7 @@ const ChatPage: React.FC = () => {
                               setEditingContent(e.target.value);
                             }
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-md resize-none text-sm"
+                          className="textarea w-full p-2 resize-none text-sm"
                           rows={3}
                           placeholder="编辑消息内容..."
                         />

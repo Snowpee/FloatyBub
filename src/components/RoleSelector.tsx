@@ -112,7 +112,8 @@ const RoleSelector: React.FC = () => {
   }
 
   return (
-    <div className="h-full max-w-6xl mx-auto p-6 pt-12">
+    <div className="h-full w-full mx-auto p-6 pt-12 bg-base-100">
+      <div className='max-w-6xl'>
       <div className="text-center mb-8">
         <div className="flex items-center justify-center mb-4">
           <Sparkles className="h-8 w-8 text-primary mr-2" />
@@ -171,56 +172,6 @@ const RoleSelector: React.FC = () => {
                   </p>
                 </div>
               </div>
-              
-              {(role.systemPrompt || (role.openingMessages && role.openingMessages.length > 0)) && (
-                <div className="mt-4 pt-4 border-t border-base-300 space-y-2">
-                  {role.openingMessages && role.openingMessages.length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs text-base-content/70 font-medium">开场白:</p>
-                        {role.openingMessages.length > 1 && (
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                switchOpeningMessage(role.id, 'prev');
-                              }}
-                              className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
-                              title="上一个开场白"
-                            >
-                              <ChevronLeft className="h-3 w-3" />
-                            </button>
-                            <span className="text-xs text-gray-500 px-1">
-                              {(roleOpeningIndexes[role.id] || 0) + 1}/{role.openingMessages.length}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                switchOpeningMessage(role.id, 'next');
-                              }}
-                              className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
-                              title="下一个开场白"
-                            >
-                              <ChevronRight className="h-3 w-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-xs text-base-content/60 line-clamp-2">
-                        {role.openingMessages[roleOpeningIndexes[role.id] || 0] || '暂无开场白'}
-                      </p>
-                    </div>
-                  )}
-                  {role.systemPrompt && (
-                    <div>
-                      <p className="text-xs text-base-content/70 font-medium mb-1">系统提示:</p>
-                      <p className="text-xs text-base-content/50 line-clamp-2">
-                        {role.systemPrompt}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         ))}
@@ -236,6 +187,7 @@ const RoleSelector: React.FC = () => {
         >
           创建新角色
         </button>
+      </div>
       </div>
     </div>
   );
