@@ -285,9 +285,6 @@ const Layout: React.FC = () => {
                         <h4 className="text-sm font-medium text-base-content truncate mb-1">
                           {session.title}
                         </h4>
-                        <div className="flex items-center text-xs text-base-content/60 mb-1">
-                          {formatDate(session.updatedAt)}
-                        </div>
                       </div>
                       <div 
                         className="dropdown dropdown-end"
