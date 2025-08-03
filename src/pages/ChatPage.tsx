@@ -652,17 +652,21 @@ const ChatPage: React.FC = () => {
       // 保存原始内容
       const originalContent = currentSession.messages[messageIndex].content;
       
+      // 重置目标消息的状态，确保思考过程能正确展开
+      updateMessageWithReasoning(
+        currentSession.id,
+        messageId,
+        '', // 清空内容
+        '', // 清空思考过程内容
+        true, // 设置为流式状态
+        false // 设置思考过程未完成
+      );
+      
       // 调用AI API生成新内容
-      let newContent = '';
-      await callAIAPIForRegeneration(messages, (content) => {
-        newContent = content;
-        // 实时更新消息内容
-        updateMessage(currentSession.id, messageId, content, true);
-      });
+      const newContent = await callAIAPIForRegeneration(messages, messageId, currentSession.id);
 
       // 完成生成后，添加为新版本（传入原始内容）
       addMessageVersionWithOriginal(currentSession.id, messageId, originalContent, newContent);
-      updateMessage(currentSession.id, messageId, newContent, false);
       
       toast.success('重新生成完成');
     } catch (error) {
@@ -675,7 +679,7 @@ const ChatPage: React.FC = () => {
   };
 
   // 为重新生成调用AI API的函数
-  const callAIAPIForRegeneration = async (messages: any[], onContent: (content: string) => void) => {
+  const callAIAPIForRegeneration = async (messages: any[], messageId: string, sessionId: string) => {
     if (!currentModel) {
       throw new Error('模型未配置');
     }
@@ -799,6 +803,7 @@ const ChatPage: React.FC = () => {
 
     const decoder = new TextDecoder();
     let currentContent = '';
+    let currentReasoningContent = '';
 
     try {
       while (true) {
@@ -816,10 +821,19 @@ const ChatPage: React.FC = () => {
             try {
               const parsed = JSON.parse(data);
               let content = '';
+              let reasoningContent = '';
 
               // 根据不同provider解析响应
               if (currentModel.provider === 'openai' || currentModel.provider === 'custom') {
                 content = parsed.choices?.[0]?.delta?.content || '';
+                // 检查是否是DeepSeek的reasoning模型响应
+                reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || '';
+              } else if (currentModel.provider === 'kimi') {
+                content = parsed.choices?.[0]?.delta?.content || '';
+              } else if (currentModel.provider === 'deepseek') {
+                content = parsed.choices?.[0]?.delta?.content || '';
+                // 检查是否是DeepSeek的reasoning模型响应
+                reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || '';
               } else if (currentModel.provider === 'claude') {
                 if (parsed.type === 'content_block_delta') {
                   content = parsed.delta?.text || '';
@@ -828,9 +842,37 @@ const ChatPage: React.FC = () => {
                 content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
               }
 
-              if (content) {
-                currentContent += content;
-                onContent(currentContent);
+              // 关键节点：检测到内容开始
+              if ((content || reasoningContent) && process.env.NODE_ENV === 'development') {
+                if (content && !currentContent) {
+                  console.log('📝 重新生成：正文内容开始输出');
+                }
+                if (reasoningContent && !currentReasoningContent) {
+                  console.log('🧠 重新生成：思考过程开始');
+                }
+              }
+
+              // 更新消息内容
+              if (content || reasoningContent) {
+                // 检测到正文内容开始时，立即标记思考过程完成
+                const isFirstContent = content && !currentContent;
+                
+                if (content) {
+                  currentContent += content;
+                }
+                if (reasoningContent) {
+                  currentReasoningContent += reasoningContent;
+                }
+                
+                // 内容累积更新
+                updateMessageWithReasoning(
+                  sessionId, 
+                  messageId, 
+                  currentContent || undefined,
+                  currentReasoningContent || undefined,
+                  true,
+                  isFirstContent // 如果是第一次收到正文内容，立即标记思考过程完成
+                );
               }
             } catch (e) {
               // 忽略JSON解析错误
@@ -843,8 +885,23 @@ const ChatPage: React.FC = () => {
       reader.releaseLock();
     }
 
+    // 关键节点：流式响应完成
+    console.log('🏁 重新生成完成');
+    
+    updateMessageWithReasoning(
+      sessionId, 
+      messageId, 
+      currentContent || undefined,
+      currentReasoningContent || undefined,
+      false,
+      true
+    );
+    
     // 请求完成后清理 AbortController
     abortControllerRef.current = null;
+    setIsGenerating(false);
+
+    return currentContent;
   };
 
   // 处理键盘事件

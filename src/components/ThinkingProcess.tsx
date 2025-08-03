@@ -31,7 +31,22 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({
 
   // 简化的内容显示逻辑
   useEffect(() => {
-    // 如果已经完成，立即显示完整内容
+    // 如果内容为空且未完成，重置所有状态（重新生成时的情况）
+    if (!content && !isComplete) {
+      if (animationRef.current) {
+        clearTimeout(animationRef.current);
+        animationRef.current = null;
+      }
+      isAnimatingRef.current = false;
+      setIsTyping(false);
+      setDisplayedContent('');
+      setHasStartedAnimation(false);
+      currentIndexRef.current = 0;
+      console.log('🔄 思考状态重置，准备新的思考过程');
+      return;
+    }
+
+    // 如果已经完成，立即停止动画并显示完整内容
     if (isComplete) {
       if (animationRef.current) {
         clearTimeout(animationRef.current);
@@ -40,7 +55,7 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({
       isAnimatingRef.current = false;
       setIsTyping(false);
       setDisplayedContent(content);
-      console.log('✅ 思考完成，显示完整内容');
+      console.log('✅ 思考完成，立即显示完整内容');
       return;
     }
 
@@ -54,12 +69,21 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({
         setIsTyping(true);
         currentIndexRef.current = 0;
         setDisplayedContent('');
+        setIsExpanded(true); // 确保思考框展开
       }
 
       // 确保动画正在运行
       if (!animationRef.current && isAnimatingRef.current) {
         const animate = () => {
+          // 检查是否应该停止动画（完成状态或动画被停止）
           if (!isAnimatingRef.current || isComplete) {
+            if (isComplete) {
+              // 立即显示完整内容并停止动画
+              isAnimatingRef.current = false;
+              setIsTyping(false);
+              setDisplayedContent(content);
+              console.log('⚡ 思考过程立即完成');
+            }
             return;
           }
 
@@ -101,6 +125,21 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({
       }
     };
   }, [content, isComplete, hasStartedAnimation]);
+
+  // 监听isComplete变化，立即停止动画
+  useEffect(() => {
+    if (isComplete && isAnimatingRef.current) {
+      // 立即停止动画并显示完整内容
+      if (animationRef.current) {
+        clearTimeout(animationRef.current);
+        animationRef.current = null;
+      }
+      isAnimatingRef.current = false;
+      setIsTyping(false);
+      setDisplayedContent(content);
+      console.log('🚀 检测到完成状态，立即停止打字动画');
+    }
+  }, [isComplete, content]);
 
   // 组件卸载时清理
   useEffect(() => {
