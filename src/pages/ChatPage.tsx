@@ -23,9 +23,11 @@ import MarkdownRenderer from '../components/MarkdownRenderer';
 import ThinkingProcess from '../components/ThinkingProcess';
 import Avatar from '../components/Avatar';
 import Popconfirm from '../components/Popconfirm';
+import AudioWaveform from '../components/AudioWaveform';
 import { replaceTemplateVariables } from '../utils/templateUtils';
 import { useAnimatedText } from '../components/AnimatedText';
 import { getDefaultBaseUrl } from '../utils/providerUtils';
+import { playVoice, stopCurrentVoice, addVoiceStateListener, getVoiceState } from '../utils/voiceUtils';
 
 const ChatPage: React.FC = () => {
   const { sessionId } = useParams();
@@ -35,6 +37,7 @@ const ChatPage: React.FC = () => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [visibleActionButtons, setVisibleActionButtons] = useState<string | null>(null);
+  const [voicePlayingState, setVoicePlayingState] = useState(getVoiceState());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -49,6 +52,7 @@ const ChatPage: React.FC = () => {
     tempSessionId,
     globalPrompts,
     currentUserProfile,
+    voiceSettings,
     setCurrentSession,
     createChatSession,
     createTempSession,
@@ -181,6 +185,19 @@ const ChatPage: React.FC = () => {
     }
   }, [message]);
 
+  // 监听语音播放状态
+  useEffect(() => {
+    const unsubscribe = addVoiceStateListener(setVoicePlayingState);
+    return unsubscribe;
+  }, []);
+
+  // 页面卸载时停止语音播放
+  useEffect(() => {
+    return () => {
+      stopCurrentVoice();
+    };
+  }, []);
+
 
 
   // 创建新会话
@@ -192,6 +209,18 @@ const ChatPage: React.FC = () => {
     baseText: '回复中', 
     staticText: '输入消息...' 
   });
+
+  // 处理朗读消息
+  const handleReadMessage = async (messageId: string, content: string, messageRole?: any | null) => {
+    try {
+      // 确定使用的角色（优先使用消息的角色，然后是当前角色）
+      const roleToUse = messageRole || currentRole;
+      await playVoice(messageId, content, roleToUse, voiceSettings);
+    } catch (error) {
+      console.error('朗读失败:', error);
+      toast.error(`朗读失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
   
 
 
@@ -614,6 +643,7 @@ const ChatPage: React.FC = () => {
     cleanupRequest();
     setIsGenerating(false);
     setIsLoading(false);
+    stopCurrentVoice(); // 停止语音播放
     toast.info('已停止生成');
   };
 
@@ -1033,7 +1063,7 @@ const ChatPage: React.FC = () => {
                 <div
                   className={cn(
                     'chat-bubble max-w-xs lg:max-w-md xl:max-w-lg cursor-pointer md:cursor-default',
-                    'min-h-fit h-auto flex flex-col',
+                    'min-h-fit h-auto flex flex-col relative',
                     msg.role === 'user'
                       ? 'chat-bubble-accent'
                       : ''
@@ -1045,6 +1075,13 @@ const ChatPage: React.FC = () => {
                     }
                   }}
                 >
+                  {/* 音频波纹 - 仅在AI消息播放时显示在右上角 */}
+                  {msg.role === 'assistant' && voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id && (
+                    <div className="absolute -top-1 -right-1 z-20">
+                      <AudioWaveform className="bg-base-100 rounded-full p-1 shadow-sm" />
+                    </div>
+                  )}
+                  
                   {/* 显示思考过程 - 对AI消息且支持思考过程时显示 */}
                    {msg.role === 'assistant' && (msg.reasoningContent !== undefined) && (
                      <ThinkingProcess 
@@ -1165,14 +1202,39 @@ const ChatPage: React.FC = () => {
                   {/* 朗读按钮 - 仅对AI消息显示 */}
                   {msg.role === 'assistant' && (
                     <button
-                      className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
-                      title="朗读"
-                      onClick={() => {
-                        // TODO: 实现朗读功能
-                        console.log('朗读消息:', msg.id);
+                      className={cn(
+                        "p-1 rounded transition-colors",
+                        voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id
+                          ? "text-primary hover:bg-primary/10"
+                          : "text-gray-500 hover:bg-black/10"
+                      )}
+                      title={
+                        voicePlayingState.isGenerating && voicePlayingState.currentMessageId === msg.id
+                          ? "正在生成语音..."
+                          : voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id
+                          ? "停止朗读"
+                          : "朗读"
+                      }
+                      onClick={async () => {
+                        // 获取消息对应的角色
+                        let messageRole = null;
+                        if (msg.roleId) {
+                          messageRole = aiRoles.find(r => r.id === msg.roleId);
+                        }
+                        try {
+                          await handleReadMessage(msg.id, msg.content, messageRole);
+                        } catch (error) {
+                          // 错误已在handleReadMessage中处理，这里不需要额外处理
+                        }
                       }}
                     >
-                      <Volume2 className="h-4 w-4 " />
+                      {voicePlayingState.isGenerating && voicePlayingState.currentMessageId === msg.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id ? (
+                        <Square className="h-4 w-4" />
+                      ) : (
+                        <Volume2 className="h-4 w-4" />
+                      )}
                     </button>
                   )}
                   

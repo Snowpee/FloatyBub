@@ -8,7 +8,9 @@ import {
   FileText,
   AlertTriangle,
   CheckCircle,
-  Info
+  Info,
+  FileOutput,
+  FileInput
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
@@ -223,7 +225,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
         <div className="card bg-base-100 shadow-sm border border-base-300">
           <div className="card-body">
             <h2 className="card-title text-base-content flex items-center">
-              <Download className="h-5 w-5 mr-2" />
+              <FileOutput className="h-5 w-5 mr-2" />
               导出数据
             </h2>
             <p className="text-base-content/70 mb-4">
@@ -233,7 +235,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
               onClick={handleExport}
               className="btn btn-primary w-full"
             >
-              <Download className="h-4 w-4 mr-2" />
+              <FileOutput className="h-4 w-4 mr-2" />
               导出数据
             </button>
           </div>
@@ -243,7 +245,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
         <div className="card bg-base-100 shadow-sm border border-base-300">
           <div className="card-body">
             <h2 className="card-title text-base-content flex items-center">
-              <Upload className="h-5 w-5 mr-2" />
+              <FileInput className="h-5 w-5 mr-2" />
               导入数据
             </h2>
             <p className="text-base-content/70 mb-4">
@@ -273,7 +275,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
                 disabled={!importFile || isImporting}
                 className="btn btn-success w-full"
               >
-                <Upload className="h-4 w-4 mr-2" />
+                <FileInput className="h-4 w-4 mr-2" />
                 {isImporting ? '导入中...' : '导入数据'}
               </button>
             </div>

@@ -4,6 +4,8 @@
 
 > 使用 [TRAE SOLO](https://trae.ai) 开发
 
+> [查看 Demo](https://floatybub.vercel.app/)
+
 ## ✨ 功能特性
 
 ### 🎯 核心功能

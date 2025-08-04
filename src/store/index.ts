@@ -30,6 +30,7 @@ export interface AIRole {
   currentOpeningIndex?: number; // 当前显示的开场白索引
   avatar?: string;
   globalPromptId?: string; // 关联的全局提示词ID
+  voiceModelId?: string; // 角色专属语音模型ID
   createdAt: Date;
   updatedAt: Date;
 }
@@ -81,6 +82,27 @@ export interface ChatSession {
   isHidden?: boolean; // 是否从侧边栏隐藏
 }
 
+// 语音设置接口
+export interface VoiceSettings {
+  provider: 'fish-audio' | 'other';
+  apiUrl: string;
+  apiKey: string;
+  readingMode: 'all' | 'dialogue-only';
+  customModels: VoiceModel[];
+  defaultVoiceModelId?: string;
+}
+
+// 语音模型接口
+export interface VoiceModel {
+  id: string;
+  name: string;
+  description?: string;
+  author?: string;
+  tags?: string[];
+  userNote?: string;
+  isPreset?: boolean;
+}
+
 // 应用状态接口
 interface AppState {
   // LLM配置
@@ -106,6 +128,9 @@ interface AppState {
   // UI状态
   theme: 'light' | 'dark' | 'cupcake' | 'floaty';
   sidebarOpen: boolean;
+  
+  // 语音设置
+  voiceSettings: VoiceSettings | null;
   
   // Actions
   // LLM配置相关
@@ -159,6 +184,9 @@ interface AppState {
   setTheme: (theme: 'light' | 'dark' | 'cupcake' | 'floaty') => void;
   toggleSidebar: () => void;
   
+  // 语音设置相关
+  setVoiceSettings: (settings: VoiceSettings | null) => void;
+  
   // 数据导入导出
   exportData: () => string;
   importData: (data: string) => boolean;
@@ -167,6 +195,47 @@ interface AppState {
 
 // 生成唯一ID
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+// 从localStorage加载语音设置
+const loadVoiceSettingsFromStorage = (): VoiceSettings => {
+  // 预设的语音模型
+  const presetModels: VoiceModel[] = [
+    { id: '59cb5986671546eaa6ca8ae6f29f6d22', name: '央视配音', description: '专业新闻播报风格', isPreset: true },
+    { id: 'faccba1a8ac54016bcfc02761285e67f', name: '电台女声', description: '温柔电台主播风格', isPreset: true }
+  ];
+  
+  // 默认语音设置
+  const defaultSettings: VoiceSettings = {
+    provider: 'fish-audio',
+    apiUrl: 'https://api.fish.audio',
+    apiKey: '',
+    readingMode: 'all',
+    customModels: presetModels,
+    defaultVoiceModelId: presetModels[0]?.id
+  };
+  
+  try {
+    const savedSettings = localStorage.getItem('voiceSettingsPage');
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+      const customModels = parsed.customModels || [];
+      const allModels = [...presetModels, ...customModels.filter((m: VoiceModel) => !m.isPreset)];
+      
+      return {
+        provider: parsed.provider || defaultSettings.provider,
+        apiUrl: parsed.apiUrl || defaultSettings.apiUrl,
+        apiKey: parsed.apiKey || defaultSettings.apiKey,
+        readingMode: parsed.readingMode || defaultSettings.readingMode,
+        customModels: allModels,
+        defaultVoiceModelId: parsed.defaultVoiceModelId || defaultSettings.defaultVoiceModelId
+      };
+    }
+  } catch (error) {
+    console.error('加载语音设置失败:', error);
+  }
+  
+  return defaultSettings;
+};
 
 // 默认AI角色
 const defaultRoles: AIRole[] = [
@@ -221,6 +290,7 @@ export const useAppStore = create<AppState>()(
       sessionsNeedingTitle: new Set(),
       theme: 'floaty',
       sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
+      voiceSettings: loadVoiceSettingsFromStorage(),
       
       // LLM配置相关actions
       addLLMConfig: (config) => {
@@ -448,6 +518,10 @@ export const useAppStore = create<AppState>()(
           
           console.log('🔧 模型提供商:', llmConfig.provider);
           
+          // 检查是否为thinking模型
+          const isThinkingModel = llmConfig.model?.includes('reasoner') || llmConfig.model?.includes('thinking');
+          console.log('🧠 是否为thinking模型:', isThinkingModel, '模型名称:', llmConfig.model);
+          
           // 根据不同provider构建请求
           switch (llmConfig.provider) {
             case 'openai':
@@ -462,7 +536,9 @@ export const useAppStore = create<AppState>()(
                 model: llmConfig.model,
                 messages: [{ role: 'user', content: titlePrompt }],
                 temperature: 0.3,
-                max_tokens: 20
+                max_tokens: 20,
+                // 对于thinking模型，使用流式调用以获取完整内容
+                stream: isThinkingModel
               };
               break;
               
@@ -511,8 +587,76 @@ export const useAppStore = create<AppState>()(
             return;
           }
           
-          const result = await response.json();
-          console.log('📦 API响应数据:', result);
+          let result: any;
+          
+          // 处理流式响应（thinking模型）
+          if (isThinkingModel && body.stream) {
+            console.log('🌊 处理thinking模型的流式响应');
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+            let content = '';
+            let reasoning_content = '';
+            
+            if (reader) {
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  
+                  const chunk = decoder.decode(value);
+                  const lines = chunk.split('\n');
+                  
+                  for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                      const data = line.slice(6).trim();
+                      if (data === '[DONE]') continue;
+                      
+                      try {
+                        const parsed = JSON.parse(data);
+                        const delta = parsed.choices?.[0]?.delta;
+                        
+                        if (delta?.content) {
+                          content += delta.content;
+                        }
+                        if (delta?.reasoning_content) {
+                          reasoning_content += delta.reasoning_content;
+                        }
+                      } catch (e) {
+                        // 忽略解析错误
+                      }
+                    }
+                  }
+                }
+              } finally {
+                reader.releaseLock();
+              }
+            }
+            
+            // 构造类似非流式响应的结果格式
+            result = {
+              choices: [{
+                message: {
+                  role: 'assistant',
+                  content: content,
+                  reasoning_content: reasoning_content
+                }
+              }]
+            };
+            
+            console.log('🌊 流式响应解析完成:', {
+              content: content,
+              reasoning_content: reasoning_content.substring(0, 100) + '...'
+            });
+          } else {
+            // 非流式响应
+            result = await response.json();
+            console.log('📦 API响应数据:', result);
+          }
+          
+          // 添加详细的choices结构调试
+          if (result.choices && result.choices[0]) {
+            console.log('🔍 choices[0]完整结构:', JSON.stringify(result.choices[0], null, 2));
+          }
           
           let generatedTitle = '';
           
@@ -520,13 +664,80 @@ export const useAppStore = create<AppState>()(
           if (llmConfig.provider === 'claude') {
             generatedTitle = result.content?.[0]?.text || '';
           } else {
-            generatedTitle = result.choices?.[0]?.message?.content || '';
+            // 标准OpenAI格式
+            const choice = result.choices?.[0];
+            if (choice) {
+              // 对于thinking模型，优先使用content字段（实际回复内容）
+              // reasoning_content包含思考过程，不适合作为标题
+              generatedTitle = choice.message?.content || '';
+              
+              console.log('🔍 提取到的content内容:', generatedTitle);
+              console.log('🧠 reasoning_content内容长度:', choice.message?.reasoning_content?.length || 0);
+              
+              // 如果是thinking模型且通过流式获取到了content，应该有内容
+              if (isThinkingModel && !generatedTitle) {
+                console.warn('⚠️ thinking模型的content字段仍为空，可能流式解析有问题');
+                // 作为最后的备选，可以尝试从reasoning_content中提取简短的关键词
+                // 但这不是理想的解决方案
+                const reasoningContent = choice.message?.reasoning_content || '';
+                if (reasoningContent) {
+                  // 尝试提取关键词或短语作为标题
+                  const keywordMatch = reasoningContent.match(/(?:关于|讨论|询问|请求|问题|话题)[：:]?\s*([^。，！？\n]{2,15})/);
+                  if (keywordMatch) {
+                    generatedTitle = keywordMatch[1].trim();
+                    console.log('📝 从reasoning_content提取关键词作为标题:', generatedTitle);
+                  }
+                }
+              }
+              
+              // 如果仍然没有标题，尝试其他字段（非thinking模型的兼容性处理）
+              if (!generatedTitle && choice.message && !isThinkingModel) {
+                const messageKeys = Object.keys(choice.message).filter(key => 
+                  key !== 'reasoning_content' && key !== 'role'
+                );
+                console.log('🔍 message对象的其他字段:', messageKeys);
+                
+                for (const key of messageKeys) {
+                  if (typeof choice.message[key] === 'string' && choice.message[key].trim()) {
+                    generatedTitle = choice.message[key];
+                    console.log(`📝 从字段 ${key} 提取到内容:`, generatedTitle);
+                    break;
+                  }
+                }
+              }
+            }
           }
           
           console.log('🏷️ 原始生成的标题:', generatedTitle);
           
           // 清理和验证标题
           generatedTitle = generatedTitle.trim().replace(/["']/g, '');
+          
+          // 智能截取标题，确保长度在20字符以内
+          if (generatedTitle.length > 20) {
+            console.log('📏 标题过长，开始智能截取');
+            
+            // 去除常见的冗余描述
+            generatedTitle = generatedTitle
+              .replace(/^首先，?/, '')
+              .replace(/^用户要求我?/, '')
+              .replace(/根据对话内容生成一个简短的对话标题[。，]?/, '')
+              .replace(/对话内容是[：:]?/, '')
+              .replace(/\n+/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            
+            // 如果仍然过长，直接截取前20个字符
+            if (generatedTitle.length > 20) {
+              generatedTitle = generatedTitle.substring(0, 20);
+            }
+            
+            // 如果截取后为空或太短，使用默认标题
+            if (generatedTitle.length < 2) {
+              generatedTitle = '新对话';
+            }
+          }
+          
           console.log('✨ 清理后的标题:', generatedTitle);
           
           if (generatedTitle && generatedTitle.length <= 20) {
@@ -837,6 +1048,11 @@ export const useAppStore = create<AppState>()(
         set((state) => ({ sidebarOpen: !state.sidebarOpen }));
       },
       
+      // 语音设置相关actions
+      setVoiceSettings: (settings) => {
+        set({ voiceSettings: settings });
+      },
+      
       // 数据导入导出actions
       exportData: () => {
         const state = get();
@@ -985,7 +1201,8 @@ export const useAppStore = create<AppState>()(
         currentSessionId: state.currentSessionId,
         tempSessionId: state.tempSessionId,
         theme: state.theme,
-        sidebarOpen: state.sidebarOpen
+        sidebarOpen: state.sidebarOpen,
+        voiceSettings: state.voiceSettings
       }),
       storage: {
         getItem: (name) => {

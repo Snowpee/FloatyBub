@@ -24,7 +24,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
     globalPrompts,
     addAIRole,
     updateAIRole,
-    deleteAIRole
+    deleteAIRole,
+    voiceSettings
   } = useAppStore();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -43,7 +44,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
     openingMessages: [''],
     currentOpeningIndex: 0,
     avatar: '',
-    globalPromptId: ''
+    globalPromptId: '',
+    voiceModelId: ''
   });
 
   // 移除roleIcons，现在使用Avatar组件
@@ -62,7 +64,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
       openingMessages: role.openingMessages || [''],
       currentOpeningIndex: role.currentOpeningIndex || 0,
       avatar: role.avatar,
-      globalPromptId: role.globalPromptId || ''
+      globalPromptId: role.globalPromptId || '',
+      voiceModelId: role.voiceModelId || ''
     });
     setEditingId(role.id);
     setIsEditing(true);
@@ -82,7 +85,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
       openingMessages: [''],
       currentOpeningIndex: 0,
       avatar: generateRandomAvatar(),
-      globalPromptId: ''
+      globalPromptId: '',
+      voiceModelId: ''
     });
     setEditingId(null);
     setIsEditing(true);
@@ -138,7 +142,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
           openingMessages: [''],
           currentOpeningIndex: 0,
           avatar: '',
-          globalPromptId: ''
+          globalPromptId: '',
+          voiceModelId: ''
         });
       };
       
@@ -359,6 +364,23 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                   className="textarea textarea-bordered w-full"
                   placeholder="简要描述这个角色的特点和用途"
                 />
+                
+                <label className="label">专属语音模型（可选）</label>
+                <select
+                  value={formData.voiceModelId || ''}
+                  onChange={(e) => setFormData({ ...formData, voiceModelId: e.target.value || undefined })}
+                  className="select select-bordered w-full"
+                >
+                  <option value="">使用默认语音模型</option>
+                  {voiceSettings?.customModels?.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name} {model.isPreset ? '(预设)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="label text-base-content/60 text-sm mt-1">
+                  为此角色设置专属语音，未设置时将使用默认语音模型
+                </p>
               </fieldset>
 
               {/* 提示词配置 */}
