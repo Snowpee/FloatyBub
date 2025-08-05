@@ -80,6 +80,7 @@ export interface ChatSession {
   createdAt: Date;
   updatedAt: Date;
   isHidden?: boolean; // 是否从侧边栏隐藏
+  isPinned?: boolean; // 是否置顶
 }
 
 // 语音设置接口
@@ -159,6 +160,8 @@ interface AppState {
   deleteChatSession: (id: string) => void;
   hideSession: (id: string) => void;
   showSession: (id: string) => void;
+  pinSession: (id: string) => void;
+  unpinSession: (id: string) => void;
   setCurrentSession: (id: string) => void;
   addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'> & { id?: string }, onTempSessionSaved?: (sessionId: string) => void) => void;
   updateMessage: (sessionId: string, messageId: string, content: string, isStreaming?: boolean) => void;
@@ -802,6 +805,22 @@ export const useAppStore = create<AppState>()(
         }));
       },
       
+      pinSession: (id) => {
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === id ? { ...s, isPinned: true, updatedAt: new Date() } : s
+          )
+        }));
+      },
+      
+      unpinSession: (id) => {
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === id ? { ...s, isPinned: false, updatedAt: new Date() } : s
+          )
+        }));
+      },
+      
       setCurrentSession: (id) => {
         const state = get();
         const newSession = state.chatSessions.find(s => s.id === id);
@@ -1260,3 +1279,9 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
+
+// 在开发环境中将store暴露到window对象，方便测试数据生成器使用
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  (window as any).useAppStore = useAppStore;
+  console.log('🔧 开发模式：useAppStore已暴露到window对象');
+}

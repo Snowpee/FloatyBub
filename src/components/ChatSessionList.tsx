@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { MessageCircle, Calendar, User, Bot, Trash2, MoreVertical } from 'lucide-react';
@@ -10,7 +10,15 @@ const ChatSessionList: React.FC = () => {
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const [showDeleteMenu, setShowDeleteMenu] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadingTriggerRef = useRef<HTMLDivElement>(null);
+  
+  const ITEMS_PER_PAGE = 50;
   const {
     chatSessions,
     aiRoles,
@@ -94,9 +102,8 @@ const ChatSessionList: React.FC = () => {
     return llmConfigs.find(m => m.id === modelId)?.name || '未知模型';
   };
 
-  // 完全过滤掉临时会话，使其不在侧边栏显示
-  // 同时确保只有包含用户消息的会话才会显示
-  const displaySessions = chatSessions.filter(session => {
+  // 过滤会话数据
+  const filteredSessions = chatSessions.filter(session => {
     // 如果是临时会话，则不显示
     if (tempSessionId === session.id) {
       return false;
@@ -106,7 +113,60 @@ const ChatSessionList: React.FC = () => {
     return hasUserMessage;
   });
   
-  if (displaySessions.length === 0) {
+  // 计算当前显示的会话
+  const displaySessions = filteredSessions.slice(0, currentPage * ITEMS_PER_PAGE);
+  const totalSessions = filteredSessions.length;
+  
+  // 更新hasMore状态
+  useEffect(() => {
+    setHasMore(displaySessions.length < totalSessions);
+  }, [displaySessions.length, totalSessions]);
+  
+  // 加载更多数据
+  const loadMore = useCallback(() => {
+    if (isLoading || !hasMore) return;
+    
+    setIsLoading(true);
+    // 模拟异步加载延迟
+    setTimeout(() => {
+      setCurrentPage(prev => prev + 1);
+      setIsLoading(false);
+    }, 200);
+  }, [isLoading, hasMore]);
+  
+  // 设置Intersection Observer
+  useEffect(() => {
+    if (!loadingTriggerRef.current) return;
+    
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        const target = entries[0];
+        if (target.isIntersecting && hasMore && !isLoading) {
+          loadMore();
+        }
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: '100px', // 提前100px开始加载
+        threshold: 0.1
+      }
+    );
+    
+    observerRef.current.observe(loadingTriggerRef.current);
+    
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [loadMore, hasMore, isLoading]);
+  
+  // 重置分页当会话数据变化时
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [chatSessions.length]);
+  
+  if (filteredSessions.length === 0) {
     return (
       <div className="p-4 text-center text-gray-500 dark:text-gray-400">
         <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -117,8 +177,16 @@ const ChatSessionList: React.FC = () => {
   }
 
   return (
-    <div className="space-y-2 p-2">
-      {displaySessions.slice(0, 20).map((session, index) => (
+    <div 
+      ref={scrollContainerRef}
+      className="space-y-2 p-2 h-full overflow-y-auto"
+      style={{
+        scrollBehavior: 'smooth'
+      }}
+    >
+      {displaySessions.map((session, index) => {
+        // 使用React.memo优化的会话项组件
+        const SessionItem = React.memo(({ session, index }: { session: any, index: number }) => (
         <Link
           key={session.id}
           to={`/chat/${session.id}`}
@@ -130,11 +198,11 @@ const ChatSessionList: React.FC = () => {
               ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700'
               : 'bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:hover:border-gray-600'
           )}
-          style={{
-            animationDelay: `${index * 50}ms`,
-            animationDuration: '400ms',
-            animationFillMode: 'forwards'
-          }}
+            style={{
+              animationDelay: `${(index % ITEMS_PER_PAGE) * 20}ms`, // 减少动画延迟
+              animationDuration: '300ms',
+              animationFillMode: 'forwards'
+            }}
         >
           {/* 会话标题 */}
           <div className="flex items-center justify-between mb-2">
@@ -198,15 +266,37 @@ const ChatSessionList: React.FC = () => {
             </span>
           </div>
         </Link>
-      ))}
+        ));
+        
+        return <SessionItem key={session.id} session={session} index={index} />;
+      })}
       
-      {displaySessions.length > 20 && (
-        <Link
-          to="/history"
-          className="block p-3 text-center text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors"
+      {/* 加载触发器和加载状态 */}
+      {hasMore && (
+        <div 
+          ref={loadingTriggerRef}
+          className="flex items-center justify-center py-4"
         >
-          查看更多历史记录 ({displaySessions.length - 20}+)
-        </Link>
+          {isLoading ? (
+            <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              <span className="text-xs">加载中...</span>
+            </div>
+          ) : (
+            <div className="text-xs text-gray-400">
+              滚动加载更多
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* 加载完成提示 */}
+      {!hasMore && displaySessions.length > ITEMS_PER_PAGE && (
+        <div className="text-center py-4">
+          <span className="text-xs text-gray-400">
+            已显示全部 {totalSessions} 条记录
+          </span>
+        </div>
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 # TODO:
 
-- [x] 1: 修复store中voiceSettings的持久化配置，将其添加到partialize中 (priority: High)
-- [x] 2: 在store初始化时从localStorage自动加载语音设置 (priority: High)
-- [x] 3: 确保VoiceSettingsPage与store状态同步 (priority: Medium)
-- [x] 4: 添加语音设置的默认值初始化逻辑 (priority: Medium)
-- [x] 5: 测试修复后的语音播放功能 (priority: Low)
+- [x] add-pinned-field-to-store: 在 store 中为会话数据模型添加 isPinned 字段和相关方法 (priority: High)
+- [x] update-sorting-logic: 修改 Layout.tsx 中的排序逻辑，让置顶会话排在最前面 (priority: High)
+- [x] add-pin-icon-ui: 在置顶按钮左边添加图钉图标显示置顶状态 (priority: Medium)
+- [x] implement-pin-toggle: 实现点击置顶按钮切换会话置顶状态的功能 (priority: Medium)
+- [x] test-pin-functionality: 测试置顶功能是否正常工作，包括排序和UI显示 (priority: Low)

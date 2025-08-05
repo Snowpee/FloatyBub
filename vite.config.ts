@@ -6,13 +6,7 @@ import { traeBadgePlugin } from 'vite-plugin-trae-solo-badge';
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [
-    react({
-      babel: {
-        plugins: mode === 'development' ? [
-          'react-dev-locator',
-        ] : [],
-      },
-    }),
+    react(),
     tsconfigPaths()
   ],
   server: {

@@ -705,15 +705,25 @@ const ChatPage: React.FC = () => {
       // 保存原始内容
       const originalContent = currentSession.messages[messageIndex].content;
       
-      // 重置目标消息的状态，确保思考过程能正确展开
-      updateMessageWithReasoning(
-        currentSession.id,
-        messageId,
-        '', // 清空内容
-        '', // 清空思考过程内容
-        true, // 设置为流式状态
-        false // 设置思考过程未完成
-      );
+      // 检查当前模型是否支持思考过程
+      const supportsReasoning = currentModel.name?.toLowerCase().includes('deepseek-reasoner') || 
+                               currentModel.name?.toLowerCase().includes('o1') || 
+                               currentModel.name?.toLowerCase().includes('reasoning');
+      
+      // 重置目标消息的状态，根据模型能力决定是否设置思考过程字段
+      if (supportsReasoning) {
+        updateMessageWithReasoning(
+          currentSession.id,
+          messageId,
+          '', // 清空内容
+          '', // 清空思考过程内容
+          true, // 设置为流式状态
+          false // 设置思考过程未完成
+        );
+      } else {
+        // 对于不支持思考的模型，只更新基本消息内容
+        updateMessage(currentSession.id, messageId, '', true);
+      }
       
       // 调用AI API生成新内容
       const newContent = await callAIAPIForRegeneration(messages, messageId, currentSession.id);
@@ -1082,8 +1092,8 @@ const ChatPage: React.FC = () => {
                     </div>
                   )}
                   
-                  {/* 显示思考过程 - 对AI消息且支持思考过程时显示 */}
-                   {msg.role === 'assistant' && (msg.reasoningContent !== undefined) && (
+                  {/* 显示思考过程 - 对AI消息且有实际思考内容时显示 */}
+                   {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
                      <ThinkingProcess 
                        content={msg.reasoningContent}
                        isComplete={msg.isReasoningComplete || false}
