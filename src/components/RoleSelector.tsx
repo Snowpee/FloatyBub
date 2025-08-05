@@ -113,7 +113,7 @@ const RoleSelector: React.FC = () => {
 
   return (
     <div className="h-full w-full mx-auto p-6 pt-12 bg-base-100">
-      <div className='max-w-6xl'>
+      <div className='max-w-6xl mx-auto'>
       <div className="text-center mb-8">
         <div className="flex items-center justify-center mb-4">
           <Sparkles className="h-8 w-8 text-primary mr-2" />
