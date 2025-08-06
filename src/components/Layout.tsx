@@ -238,7 +238,7 @@ const Layout: React.FC = () => {
           closeSidebarOnMobile();
         }}
         className={cn(
-          "chat-list p-3 m-1 transition-colors group block",
+          "chat-list p-3 m-1 transition-colors group block group",
           isActive 
             ? "bg-base-300" 
             : "hover:bg-base-200"
@@ -256,11 +256,11 @@ const Layout: React.FC = () => {
               {session.title}
             </h4>
             {session.isPinned && (
-              <Pin className="h-3 w-3 text-base-content/50 flex-shrink-0" />
+              <Pin className="h-3 w-3 text-base-content/50 flex-shrink-0 mr-1" />
             )}
           </div>
           <div 
-            className="dropdown dropdown-end"
+            className="dropdown dropdown-end md:hidden group-hover:block"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -450,6 +450,8 @@ const Layout: React.FC = () => {
           'w-64 bg-base-100 border-base-300/50 border-r-[length:var(--border)]  transition-all duration-200 ease-in-out flex-shrink-0',
           // 移动端：固定定位
           'fixed lg:fixed z-40 h-full lg:h-screen',
+          // PWA 安全区
+          'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]',
           // 显示控制：移动端和桌面端都根据sidebarOpen状态控制
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}>
@@ -595,12 +597,12 @@ const Layout: React.FC = () => {
 
       {/* 主内容区域 */}
       <div className={cn(
-        "flex flex-col flex-1 min-h-screen transition-all duration-200 ease-in-out h-screen",
+        "flex flex-col flex-1 min-h-screen transition-all duration-200 ease-in-out h-screen bg-base-100",
         // 在桌面端根据侧边栏状态调整左边距
         sidebarOpen ? "lg:ml-64" : "lg:ml-0"
       )}>
         {/* 顶部栏 */}
-        <header className="bg-base-100 bg-opacity-90">
+        <header className="bg-base-100 bg-opacity-90 pt-[env(safe-area-inset-top)]">
           <div className="relative flex items-center h-16 px-4">
             {/* 左侧按钮 */}
             <div className="flex items-center space-x-4">
@@ -674,6 +676,8 @@ const Layout: React.FC = () => {
                            onClick={() => {
                              hideSession(currentSession.id);
                              toast.success('对话已从列表中隐藏');
+                             // 导航到 chat 路由
+                             navigate('/chat');
                              // 关闭dropdown
                              (document.activeElement as HTMLElement)?.blur();
                            }}
@@ -727,7 +731,9 @@ const Layout: React.FC = () => {
         </header>
 
         {/* 页面内容 */}
-        <main className="flex-1 overflow-y-scroll">
+        <main className={cn("flex-1 overflow-y-scroll", {
+          'pb-[env(safe-area-inset-bottom)]': isMobile,
+        })}>
           <Outlet />
         </main>
       </div>

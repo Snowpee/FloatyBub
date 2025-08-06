@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => ({
     tsconfigPaths()
   ],
   server: {
-    host: 'localhost',
+    host: '0.0.0.0',
     port: 5173
   }
 }))

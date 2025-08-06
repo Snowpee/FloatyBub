@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import {
@@ -45,23 +45,27 @@ const Home: React.FC = () => {
             <p className="text-xl md:text-2xl mb-8">
               一个轻量的 LLM 聊天框架
             </p>
-            {hasConfigs && aiRoles.length > 0 ? (
-              <button
-                onClick={handleQuickStart}
-                className="btn btn-outline btn-accent btn-lg"
-              >
-                <MessageCircle className="h-5 w-5" />
-                开始聊天
-              </button>
-            ) : (
-              <button
-                onClick={() => window.location.hash = '#setting/config'}
-                className="btn btn-primary btn-lg"
-              >
-                <Settings className="h-5 w-5" />
-                配置模型
-              </button>
-            )}
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+              {hasConfigs && aiRoles.length > 0 ? (
+                <button
+                  onClick={handleQuickStart}
+                  className="btn btn-outline btn-accent btn-lg"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  开始聊天
+                </button>
+              ) : (
+                <button
+                  onClick={() => window.location.hash = '#setting/config'}
+                  className="btn btn-primary btn-lg"
+                >
+                  <Settings className="h-5 w-5" />
+                  配置模型
+                </button>
+              )}
+              
+
+            </div>
           </div>
         </div>
       </div>
@@ -80,6 +84,8 @@ const Home: React.FC = () => {
           </div>
         )}
       </div>
+      
+
     </div>
   );
 };
