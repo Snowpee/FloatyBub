@@ -106,6 +106,131 @@ export interface Database {
           created_at?: string
         }
       }
+      llm_configs: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          provider: string
+          model: string
+          config: Record<string, any>
+          is_default: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          provider: string
+          model: string
+          config?: Record<string, any>
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          provider?: string
+          model?: string
+          config?: Record<string, any>
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      ai_roles: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          prompt: string
+          avatar: string | null
+          settings: Record<string, any>
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          prompt: string
+          avatar?: string | null
+          settings?: Record<string, any>
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          prompt?: string
+          avatar?: string | null
+          settings?: Record<string, any>
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      global_prompts: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          content: string
+          category: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          content: string
+          category?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          content?: string
+          category?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      voice_settings: {
+        Row: {
+          id: string
+          user_id: string
+          provider: string
+          model: string
+          config: Record<string, any>
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          provider?: string
+          model?: string
+          config?: Record<string, any>
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          provider?: string
+          model?: string
+          config?: Record<string, any>
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

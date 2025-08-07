@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Settings, Users, Database, History, FileText, UserCircle, Volume2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { SyncStatusIndicator } from '../components/SyncStatusIndicator';
+import { DatabaseConnectionIndicator } from '../components/DatabaseConnectionIndicator';
 import ConfigPage from './ConfigPage';
 import RolesPage from './RolesPage';
 import UserProfilesPage from './UserProfilesPage';
@@ -66,7 +68,8 @@ const SettingsPage: React.FC = () => {
       {/* 标签栏 */}
       <div className="bg-base-100 shadow-sm">
         <div className="px-6">
-          <div className="tabs tabs-bordered" role="tablist">
+          <div className="flex items-center justify-between">
+            <div className="tabs tabs-bordered" role="tablist">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -86,6 +89,13 @@ const SettingsPage: React.FC = () => {
                 </button>
               );
             })}
+            </div>
+            
+            {/* 状态指示器 */}
+            <div className="flex items-center gap-4">
+              <DatabaseConnectionIndicator size="sm" />
+              <SyncStatusIndicator size="sm" />
+            </div>
           </div>
         </div>
       </div>

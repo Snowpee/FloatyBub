@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { convertAvatarForExport, convertAvatarFromImport } from '../utils/avatarUtils';
+import { dataSyncService } from '../services/DataSyncService';
+import { supabase } from '../lib/supabase';
 
 // 导入默认头像
 import avatar01 from '../assets/avatar/avatar-01.png';
@@ -230,6 +232,24 @@ const convertToUUID = (oldId: string): string => {
   return generateId();
 };
 
+// 数据同步辅助函数
+const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings', data: any) => {
+  try {
+    // 检查用户是否已登录
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+
+      return;
+    }
+    
+    // 添加到同步队列
+    await dataSyncService.queueSync(type, data);
+
+  } catch (error) {
+
+  }
+};
+
 // 从localStorage加载语音设置
 const loadVoiceSettingsFromStorage = (): VoiceSettings => {
   // 预设的语音模型
@@ -336,14 +356,26 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           llmConfigs: [...state.llmConfigs, newConfig]
         }));
+        // 自动同步到云端
+        queueDataSync('llm_config', newConfig);
       },
       
       updateLLMConfig: (id, config) => {
-        set((state) => ({
-          llmConfigs: state.llmConfigs.map(c => 
-            c.id === id ? { ...c, ...config } : c
-          )
-        }));
+        let updatedConfig: LLMConfig | null = null;
+        set((state) => {
+          const newConfigs = state.llmConfigs.map(c => {
+            if (c.id === id) {
+              updatedConfig = { ...c, ...config };
+              return updatedConfig;
+            }
+            return c;
+          });
+          return { llmConfigs: newConfigs };
+        });
+        // 自动同步到云端
+        if (updatedConfig) {
+          queueDataSync('llm_config', updatedConfig);
+        }
       },
       
       deleteLLMConfig: (id) => {
@@ -380,14 +412,26 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           aiRoles: [...state.aiRoles, newRole]
         }));
+        // 自动同步到云端
+        queueDataSync('ai_role', newRole);
       },
       
       updateAIRole: (id, role) => {
-        set((state) => ({
-          aiRoles: state.aiRoles.map(r => 
-            r.id === id ? { ...r, ...role, updatedAt: new Date() } : r
-          )
-        }));
+        let updatedRole: AIRole | null = null;
+        set((state) => {
+          const newRoles = state.aiRoles.map(r => {
+            if (r.id === id) {
+              updatedRole = { ...r, ...role, updatedAt: new Date() };
+              return updatedRole;
+            }
+            return r;
+          });
+          return { aiRoles: newRoles };
+        });
+        // 自动同步到云端
+        if (updatedRole) {
+          queueDataSync('ai_role', updatedRole);
+        }
       },
       
       deleteAIRole: (id) => {
@@ -444,14 +488,26 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           globalPrompts: [...state.globalPrompts, newPrompt]
         }));
+        // 自动同步到云端
+        queueDataSync('global_prompt', newPrompt);
       },
       
       updateGlobalPrompt: (id, prompt) => {
-        set((state) => ({
-          globalPrompts: state.globalPrompts.map(p => 
-            p.id === id ? { ...p, ...prompt, updatedAt: new Date() } : p
-          )
-        }));
+        let updatedPrompt: GlobalPrompt | null = null;
+        set((state) => {
+          const newPrompts = state.globalPrompts.map(p => {
+            if (p.id === id) {
+              updatedPrompt = { ...p, ...prompt, updatedAt: new Date() };
+              return updatedPrompt;
+            }
+            return p;
+          });
+          return { globalPrompts: newPrompts };
+        });
+        // 自动同步到云端
+        if (updatedPrompt) {
+          queueDataSync('global_prompt', updatedPrompt);
+        }
       },
       
       deleteGlobalPrompt: (id) => {
@@ -1163,6 +1219,10 @@ export const useAppStore = create<AppState>()(
       // 语音设置相关actions
       setVoiceSettings: (settings) => {
         set({ voiceSettings: settings });
+        // 自动同步到云端
+        if (settings) {
+          queueDataSync('voice_settings', settings);
+        }
       },
       
       // 数据导入导出actions

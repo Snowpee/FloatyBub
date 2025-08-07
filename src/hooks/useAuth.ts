@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { useAppStore } from '../store'
+import { useDataSync } from './useDataSync'
 
 export interface AuthState {
   user: User | null
@@ -25,38 +26,124 @@ export function useAuth(): AuthState & AuthActions {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
-  const { setCurrentUser } = useAppStore()
+  const { 
+    setCurrentUser 
+  } = useAppStore()
+  const { pullFromCloud } = useDataSync()
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastSyncUserIdRef = useRef<string | null>(null)
   const lastAuthEventRef = useRef<{ event: string; userId: string | null; timestamp: number } | null>(null)
+  
+  // 组件挂载状态标志
+  let isComponentMounted = true
+
+  // 云端数据同步重试函数
+  const syncCloudDataWithRetry = useCallback(async (user: any, maxRetries = 3) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 [useAuth] 云端数据同步尝试 ${attempt}/${maxRetries}...`)
+        
+        // 验证用户状态
+        if (!user || !user.id) {
+          console.warn('⚠️ [useAuth] 用户状态无效，跳过云端数据同步')
+          return
+        }
+        
+        const cloudData = await pullFromCloud(user)
+        
+        // 智能合并AI角色：保留默认角色，添加云端自定义角色
+        const currentState = useAppStore.getState()
+        let mergedAiRoles = currentState.aiRoles
+        
+        if (cloudData.aiRoles && cloudData.aiRoles.length > 0) {
+          const defaultRoleIds = ['default-assistant', 'code-expert', 'creative-writer']
+          const defaultRoles = currentState.aiRoles.filter(role => defaultRoleIds.includes(role.id))
+          const cloudCustomRoles = cloudData.aiRoles.filter(role => !defaultRoleIds.includes(role.id))
+          mergedAiRoles = [...defaultRoles, ...cloudCustomRoles]
+        }
+        
+        useAppStore.setState({
+          ...currentState,
+          ...(cloudData.llmConfigs && { llmConfigs: cloudData.llmConfigs }),
+          aiRoles: mergedAiRoles,
+          ...(cloudData.globalPrompts && { globalPrompts: cloudData.globalPrompts }),
+          ...(cloudData.voiceSettings && { voiceSettings: cloudData.voiceSettings })
+        })
+        
+        console.log('✅ [useAuth] 云端数据同步成功')
+        return // 成功后退出重试循环
+        
+      } catch (error: any) {
+        console.warn(`⚠️ [useAuth] 云端数据同步失败 (尝试 ${attempt}/${maxRetries}):`, error.message)
+        
+        // 判断是否为可重试的错误
+        const isRetryableError = 
+          error.message?.includes('用户未登录') ||
+          error.message?.includes('fetch') || 
+          error.message?.includes('network') ||
+          error.message?.includes('timeout') ||
+          error.message?.includes('connection') ||
+          error.code === 'PGRST301' ||
+          error.status === 503 ||
+          error.status === 502 ||
+          error.status === 504
+        
+        if (attempt < maxRetries && isRetryableError) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000) // 指数退避，最大5秒
+          console.log(`⏳ [useAuth] ${delay}ms 后重试云端数据同步...`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+        } else {
+          console.warn('⚠️ [useAuth] 云端数据同步最终失败，将使用本地默认数据')
+          break
+        }
+      }
+    }
+  }, [pullFromCloud])
 
   useEffect(() => {
     console.log('🔄 [useAuth] Hook 初始化')
-    let retryCount = 0
-    const maxRetries = 3
+    const maxRetries = 5
     const retryDelay = 1000 // 1秒
+    let isComponentMounted = true
 
-    // 获取初始会话（带重试机制）
+    // 获取初始会话（改进的重试机制）
     const getInitialSession = async (attempt = 1) => {
+      if (!isComponentMounted) return
+      
       try {
         console.log(`🔄 [useAuth] 尝试获取会话 (${attempt}/${maxRetries})...`)
-        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        // 添加超时控制
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Session fetch timeout')), 10000)
+        })
+        
+        const sessionPromise = supabase.auth.getSession()
+        const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]) as any
+        
+        if (!isComponentMounted) return
         
         if (error) {
           console.error('[useAuth] Error getting session:', error)
           
-          // 如果是网络错误且还有重试次数，则重试
-          if (attempt < maxRetries && (error.message.includes('fetch') || error.message.includes('network'))) {
-            console.log(`⏳ [useAuth] ${retryDelay}ms 后重试...`)
-            setTimeout(() => getInitialSession(attempt + 1), retryDelay)
+          // 如果还有重试次数，则重试
+          if (attempt < maxRetries) {
+            console.log(`⏳ [useAuth] ${retryDelay * attempt}ms 后重试...`)
+            setTimeout(() => getInitialSession(attempt + 1), retryDelay * attempt)
             return
           }
           
+          // 最后一次尝试失败，设置错误状态但不阻止应用运行
+          console.warn('[useAuth] 所有重试都失败，将以未登录状态运行')
           setError(error.message)
+          setSession(null)
+          setUser(null)
+          setCurrentUser(null)
         } else {
           console.log('✅ [useAuth] 会话获取成功:', session?.user?.email || '未登录')
           setSession(session)
           setUser(session?.user ?? null)
+          setError(null) // 清除之前的错误
           
           if (session?.user) {
             // 检查store中是否已有用户数据，避免重复同步
@@ -64,7 +151,9 @@ export function useAuth(): AuthState & AuthActions {
             if (!currentUser || currentUser.id !== session.user.id) {
               await syncUserProfile(session.user)
             } else {
-              console.log('✅ [useAuth] 用户数据已存在，跳过同步')
+              console.log('✅ [useAuth] 用户数据已存在，跳过用户资料同步')
+              // 即使用户资料已存在，也要尝试同步云端数据（带重试机制）
+              await syncCloudDataWithRetry(session.user)
             }
           } else {
             // 确保清除用户状态
@@ -72,29 +161,48 @@ export function useAuth(): AuthState & AuthActions {
           }
         }
       } catch (err) {
+        if (!isComponentMounted) return
+        
         console.error('[useAuth] Error in getInitialSession:', err)
         
-        // 如果是网络错误且还有重试次数，则重试
+        // 如果还有重试次数，则重试
         if (attempt < maxRetries) {
-          console.log(`⏳ [useAuth] ${retryDelay}ms 后重试...`)
-          setTimeout(() => getInitialSession(attempt + 1), retryDelay)
+          console.log(`⏳ [useAuth] ${retryDelay * attempt}ms 后重试...`)
+          setTimeout(() => getInitialSession(attempt + 1), retryDelay * attempt)
           return
         }
         
+        // 最后一次尝试失败
+        console.warn('[useAuth] 所有重试都失败，将以未登录状态运行')
         setError('Failed to get session')
+        setSession(null)
+        setUser(null)
+        setCurrentUser(null)
       } finally {
-        // 只有在最后一次尝试时才设置 loading 为 false
-        if (attempt >= maxRetries || retryCount === 0) {
+        // 确保在所有情况下都设置 loading 为 false
+        if (isComponentMounted && (attempt >= maxRetries || !error)) {
           setLoading(false)
         }
       }
     }
 
-    getInitialSession()
+    // 延迟执行，确保组件完全挂载
+    const initTimer = setTimeout(() => {
+      if (isComponentMounted) {
+        getInitialSession()
+      }
+    }, 100)
 
-    // 监听认证状态变化（优化日志输出）
+    // 清理函数
+    return () => {
+      isComponentMounted = false
+      clearTimeout(initTimer)
+    }
+    // 监听认证状态变化（改进的处理逻辑）
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!isComponentMounted) return
+        
         const currentUserId = session?.user?.id || null
         const now = Date.now()
         
@@ -109,177 +217,200 @@ export function useAuth(): AuthState & AuthActions {
           lastAuthEventRef.current = { event, userId: currentUserId, timestamp: now }
         }
         
+        // 更新认证状态
         setSession(session)
         setUser(session?.user ?? null)
-        setLoading(false)
         setError(null) // 清除之前的错误
+        
+        // 对于TOKEN_REFRESHED事件，不需要重新同步用户数据
+        if (event === 'TOKEN_REFRESHED' && session?.user) {
+          console.log('🔄 [useAuth] Token已刷新，保持现有用户状态')
+          setLoading(false)
+          return
+        }
         
         if (session?.user) {
           // 检查store中是否已有用户数据，避免重复同步
           const { currentUser } = useAppStore.getState()
-          if (!currentUser || currentUser.id !== session.user.id || event === 'SIGNED_IN') {
-            await syncUserProfile(session.user)
+          const shouldSync = !currentUser || 
+                           currentUser.id !== session.user.id || 
+                           event === 'SIGNED_IN' ||
+                           event === 'INITIAL_SESSION'
+          
+          if (shouldSync) {
+            try {
+              await syncUserProfile(session.user)
+            } catch (error) {
+              console.error('[useAuth] 用户资料同步失败:', error)
+              // 即使同步失败，也要设置基本用户信息
+              setCurrentUser({
+                id: session.user.id,
+                name: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
+                email: session.user.email || '',
+                avatar: session.user.user_metadata?.avatar_url || '',
+                preferences: {}
+              })
+            }
           } else {
-            console.log('✅ [useAuth] 用户数据已存在，跳过同步')
+            console.log('✅ [useAuth] 用户数据已存在，跳过用户资料同步')
+            // 即使用户资料已存在，也要尝试同步云端数据（带重试机制）
+            await syncCloudDataWithRetry(session.user)
           }
         } else {
+          // 用户登出，清除所有状态
+          console.log('🔄 [useAuth] 用户已登出，清除状态')
           setCurrentUser(null)
         }
+        
+        setLoading(false)
       }
     )
 
     return () => {
         console.log('🧹 [useAuth] Hook 清理')
+        isComponentMounted = false
         subscription.unsubscribe()
         // 清理防抖定时器
         if (syncTimeoutRef.current) {
           clearTimeout(syncTimeoutRef.current)
         }
       }
-    }, []) // 空依赖数组，确保只在组件挂载时执行一次
+  }, []) // 空依赖数组，确保只在组件挂载时执行一次
 
-  // 同步用户资料到本地状态（带重试机制和防抖）
-  const syncUserProfile = useCallback(async (user: User, attempt = 1) => {
-    // 防抖机制：如果是同一个用户且在短时间内多次调用，则取消之前的调用
+  // 同步用户资料到本地状态（改进的错误处理和重试机制）
+  const syncUserProfile = useCallback(async (user: User) => {
+    // 防抖：如果短时间内多次调用，取消之前的调用
     if (syncTimeoutRef.current) {
       clearTimeout(syncTimeoutRef.current)
     }
     
-    // 如果是同一个用户，延迟执行以避免重复调用
-    if (lastSyncUserIdRef.current === user.id && attempt === 1) {
-      syncTimeoutRef.current = setTimeout(() => {
-        syncUserProfile(user, attempt)
-      }, 300) // 300ms 防抖延迟
-      return
-    }
-    
-    lastSyncUserIdRef.current = user.id
-    const maxRetries = 3
-    const retryDelay = 1000
-    
-    try {
-      // 减少重复日志输出：只在第一次尝试或重试时输出日志
-      if (attempt === 1 || attempt > 1) {
-        const shouldLog = Math.random() < 0.3 // 30%的概率输出日志
-        if (shouldLog) {
-          console.log(`🔄 同步用户资料 (${attempt}/${maxRetries})...`, user.email)
-        }
-      }
+    syncTimeoutRef.current = setTimeout(async () => {
+      if (!isComponentMounted) return
       
-      // 查询用户资料
-      const { data: profile, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('Error fetching user profile:', error)
-        
-        // 如果是网络错误且还有重试次数，则重试
-        if (attempt < maxRetries && (error.message.includes('fetch') || error.message.includes('network'))) {
-          console.log(`⏳ ${retryDelay}ms 后重试同步用户资料...`)
-          setTimeout(() => syncUserProfile(user, attempt + 1), retryDelay)
-          return
-        }
-        
-        // 如果查询失败，使用基本用户信息作为后备
-        console.log('📝 使用基本用户信息作为后备')
-        setCurrentUser({
-          id: user.id,
-          name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
-          email: user.email || '',
-          avatar: user.user_metadata?.avatar_url || '',
-          preferences: {}
-        })
-        return
-      }
-
-      // 如果没有用户资料，创建一个
-      if (!profile) {
-        console.log('📝 创建新用户资料...')
-        const { error: insertError } = await supabase
-          .from('user_profiles')
-          .insert({
-            user_id: user.id,
-            display_name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
-            avatar_url: user.user_metadata?.avatar_url || null,
-            preferences: {}
-          })
-
-        if (insertError) {
-          console.error('Error creating user profile:', insertError)
+      const maxRetries = 5
+      let retryCount = 0
+      
+      while (retryCount < maxRetries) {
+        try {
+          console.log(`🔄 [useAuth] 同步用户资料 (尝试 ${retryCount + 1}/${maxRetries}):`, user.email)
           
-          // 如果创建失败，使用基本用户信息作为后备
-          console.log('📝 创建失败，使用基本用户信息作为后备')
-          setCurrentUser({
-            id: user.id,
-            name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
-            email: user.email || '',
-            avatar: user.user_metadata?.avatar_url || '',
-            preferences: {}
-          })
-          return
+          // 检查数据库连接状态
+          const { data: healthCheck } = await supabase
+            .from('user_profiles')
+            .select('count')
+            .limit(1)
+            .single()
+          
+          // 首先尝试获取现有的用户资料
+          const { data: existingProfile, error: fetchError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single()
+          
+          if (fetchError && fetchError.code !== 'PGRST116') {
+            throw fetchError
+          }
+          
+          let userProfile
+          
+          if (!existingProfile) {
+            // 如果用户资料不存在，创建新的
+            console.log('📝 [useAuth] 创建新用户资料')
+            const newProfile = {
+              user_id: user.id,
+              display_name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
+              avatar: user.user_metadata?.avatar_url || '',
+              preferences: {}
+            }
+            
+            const { data: createdProfile, error: createError } = await supabase
+              .from('user_profiles')
+              .insert([newProfile])
+              .select()
+              .single()
+            
+            if (createError) throw createError
+            userProfile = createdProfile
+          } else {
+            // 如果用户资料已存在，更新必要的字段
+            console.log('🔄 [useAuth] 更新现有用户资料')
+            const updatedProfile = {
+              display_name: user.user_metadata?.display_name || existingProfile.display_name,
+              avatar: user.user_metadata?.avatar_url || existingProfile.avatar,
+              updated_at: new Date().toISOString()
+            }
+            
+            const { data: updated, error: updateError } = await supabase
+              .from('user_profiles')
+              .update(updatedProfile)
+              .eq('user_id', user.id)
+              .select()
+              .single()
+            
+            if (updateError) throw updateError
+            userProfile = updated
+          }
+          
+          // 更新本地状态
+          if (isComponentMounted) {
+            setCurrentUser({
+              id: userProfile.id || userProfile.user_id,
+              name: userProfile.display_name || userProfile.name,
+              avatar: userProfile.avatar,
+              preferences: userProfile.preferences || {}
+            })
+            console.log('✅ [useAuth] 用户资料同步成功:', userProfile.display_name || userProfile.name)
+            
+            // 同步云端数据到本地（带重试机制）
+            await syncCloudDataWithRetry(user)
+          }
+          return // 成功后退出重试循环
+          
+        } catch (error: any) {
+          retryCount++
+          console.error(`❌ [useAuth] 用户资料同步失败 (尝试 ${retryCount}/${maxRetries}):`, error.message)
+          
+          // 判断是否为可重试的错误
+          const isRetryableError = 
+            error.message?.includes('fetch') || 
+            error.message?.includes('network') ||
+            error.message?.includes('timeout') ||
+            error.message?.includes('connection') ||
+            error.code === 'PGRST301' || // PostgreSQL connection error
+            error.code === 'PGRST204' || // No rows returned (temporary)
+            error.code === 'PGRST000' || // Generic database error
+            error.status === 503 ||      // Service unavailable
+            error.status === 502 ||      // Bad gateway
+            error.status === 504         // Gateway timeout
+          
+          if (retryCount < maxRetries && isRetryableError) {
+            const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 8000) // 指数退避，最大8秒
+            console.log(`⏳ [useAuth] ${delay}ms 后重试...`)
+            await new Promise(resolve => setTimeout(resolve, delay))
+          } else {
+            // 所有重试都失败了，使用基本用户信息作为后备
+            console.warn('⚠️ [useAuth] 用户资料同步失败，使用基本信息')
+            if (isComponentMounted) {
+              setCurrentUser({
+              id: user.id,
+              name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
+              avatar: user.user_metadata?.avatar_url || '',
+              preferences: {}
+            })
+            }
+            
+            // 如果是权限错误，设置特定的错误状态
+            if (error.message?.includes('permission') || error.code === 'PGRST301') {
+              console.error('🚫 [useAuth] 数据库权限错误，可能需要检查RLS策略')
+              setError('数据库访问权限错误，请联系管理员')
+            }
+            break
+          }
         }
-
-        // 重新获取创建的资料
-        const { data: newProfile } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .single()
-
-        if (newProfile) {
-          console.log('✅ 用户资料创建并同步成功')
-          setCurrentUser({
-            id: newProfile.id,
-            name: newProfile.display_name || 'User',
-            email: user.email || '',
-            avatar: newProfile.avatar_url || '',
-            preferences: newProfile.preferences || {}
-          })
-        } else {
-          // 如果重新获取失败，使用基本信息
-          console.log('📝 重新获取失败，使用基本用户信息')
-          setCurrentUser({
-            id: user.id,
-            name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
-            email: user.email || '',
-            avatar: user.user_metadata?.avatar_url || '',
-            preferences: {}
-          })
-        }
-      } else {
-        console.log('✅ 用户资料同步成功')
-        setCurrentUser({
-          id: profile.id,
-          name: profile.display_name || 'User',
-          email: user.email || '',
-          avatar: profile.avatar_url || '',
-          preferences: profile.preferences || {}
-        })
       }
-    } catch (err) {
-      console.error('Error syncing user profile:', err)
-      
-      // 如果是网络错误且还有重试次数，则重试
-      if (attempt < maxRetries && (err instanceof Error && (err.message.includes('fetch') || err.message.includes('network')))) {
-        console.log(`⏳ ${retryDelay}ms 后重试同步用户资料...`)
-        setTimeout(() => syncUserProfile(user, attempt + 1), retryDelay)
-        return
-      }
-      
-      // 如果所有重试都失败，使用基本用户信息作为后备
-      console.log('📝 同步失败，使用基本用户信息作为后备')
-      setCurrentUser({
-        id: user.id,
-        name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
-        email: user.email || '',
-        avatar: user.user_metadata?.avatar_url || '',
-        preferences: {}
-      })
-    }
-  }, [setCurrentUser]) // useCallback 依赖项
+    }, 300) // 300ms 防抖延迟
+  }, [])
 
   const signUp = async (email: string, password: string, displayName?: string) => {
     setLoading(true)

@@ -21,15 +21,7 @@ export function UserAvatar({ onOpenSettings }: UserAvatarProps) {
   // 确保在有认证用户但没有currentUser时显示基本信息
   const displayUser = currentUser || user
   
-  // 添加调试日志
-  console.log('🔄 [UserAvatar] 组件渲染', {
-    hasUser: !!user,
-    hasCurrentUser: !!currentUser,
-    hasDisplayUser: !!displayUser,
-    authLoading,
-    userEmail: user?.email,
-    currentUserName: currentUser?.name
-  })
+
 
   // 生成头像背景色
   const getAvatarColor = (name: string) => {
