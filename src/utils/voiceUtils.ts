@@ -435,6 +435,7 @@ export const generateVoiceAudio = async (
           reference_id: voiceModel.id,
           format: 'mp3',
           mp3_bitrate: 128,
+          model: voiceSettings.modelVersion || 'speech-1.6',
           fish_audio_key: voiceSettings.apiKey
         })
       });

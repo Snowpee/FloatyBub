@@ -120,10 +120,10 @@ export const isValidImageUrl = (url: string): boolean => {
     return true;
   }
   
-  // 检查是否为Vite导入的图片资源（以/src/assets开头或包含常见图片扩展名）
+  // 检查是否包含常见图片扩展名（包括Vite处理后的资源）
   const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
   const hasImageExtension = imageExtensions.some(ext => url.toLowerCase().includes(ext));
-  if (url.startsWith('/src/assets') || hasImageExtension) {
+  if (hasImageExtension) {
     return true;
   }
   
@@ -173,4 +173,88 @@ export const validateImageFile = (file: File): { valid: boolean; error?: string 
   }
   
   return { valid: true };
+};
+
+// 头像路径映射表，用于导出时转换为标识符
+const avatarPathMap = new Map([
+  [avatar01, 'avatar-01'],
+  [avatar02, 'avatar-02'],
+  [avatar03, 'avatar-03'],
+  [avatar20, 'avatar-20'],
+  [avatar21, 'avatar-21'],
+  [avatar22, 'avatar-22'],
+  [avatar23, 'avatar-23'],
+  [avatar24, 'avatar-24'],
+  [avatar25, 'avatar-25'],
+  [avatar26, 'avatar-26'],
+  [avatar27, 'avatar-27'],
+  [avatar28, 'avatar-28'],
+  [avatar29, 'avatar-29'],
+  [avatar30, 'avatar-30']
+]);
+
+// 标识符到头像路径的反向映射表
+const avatarIdMap = new Map([
+  ['avatar-01', avatar01],
+  ['avatar-02', avatar02],
+  ['avatar-03', avatar03],
+  ['avatar-20', avatar20],
+  ['avatar-21', avatar21],
+  ['avatar-22', avatar22],
+  ['avatar-23', avatar23],
+  ['avatar-24', avatar24],
+  ['avatar-25', avatar25],
+  ['avatar-26', avatar26],
+  ['avatar-27', avatar27],
+  ['avatar-28', avatar28],
+  ['avatar-29', avatar29],
+  ['avatar-30', avatar30]
+]);
+
+// 将头像路径转换为可导出的格式
+export const convertAvatarForExport = (avatarPath?: string): string | undefined => {
+  if (!avatarPath) return undefined;
+  
+  // 如果是base64图片，直接返回
+  if (avatarPath.startsWith('data:image/')) {
+    return avatarPath;
+  }
+  
+  // 如果是本地头像，转换为标识符
+  const avatarId = avatarPathMap.get(avatarPath);
+  if (avatarId) {
+    return `local:${avatarId}`;
+  }
+  
+  // 如果是外部URL，直接返回
+  if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+    return avatarPath;
+  }
+  
+  // 其他情况返回undefined，避免无效路径
+  return undefined;
+};
+
+// 将导出的头像格式转换回实际路径
+export const convertAvatarFromImport = (exportedAvatar?: string): string | undefined => {
+  if (!exportedAvatar) return undefined;
+  
+  // 如果是base64图片，直接返回
+  if (exportedAvatar.startsWith('data:image/')) {
+    return exportedAvatar;
+  }
+  
+  // 如果是本地头像标识符，转换为实际路径
+  if (exportedAvatar.startsWith('local:')) {
+    const avatarId = exportedAvatar.replace('local:', '');
+    return avatarIdMap.get(avatarId);
+  }
+  
+  // 如果是外部URL，直接返回
+  if (exportedAvatar.startsWith('http://') || exportedAvatar.startsWith('https://')) {
+    return exportedAvatar;
+  }
+  
+  // 其他情况返回undefined
+  return undefined;
 };

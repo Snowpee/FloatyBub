@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, Play, Square, RefreshCw, Settings, Plus, Trash2, Save, Activity, X, Database } from 'lucide-react';
+import { Volume2, Play, Square, RefreshCw, Settings, Plus, Trash2, Activity, X, Database } from 'lucide-react';
 import { toast } from '../hooks/useToast';
 import { useAppStore } from '../store';
 import { getCacheStats, clearAllCache } from '../utils/voiceUtils';
@@ -21,6 +21,7 @@ interface VoiceSettings {
   readingMode: 'all' | 'dialogue-only';
   customModels: VoiceModel[];
   defaultVoiceModelId?: string;
+  modelVersion: string;
 }
 
 interface VoiceSettingsPageProps {
@@ -35,16 +36,11 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
     apiUrl: 'https://api.fish.audio',
     apiKey: '',
     readingMode: 'all',
-    customModels: []
+    customModels: [],
+    modelVersion: 'speech-1.6'
   });
   
-  const [tempSettings, setTempSettings] = useState<VoiceSettings>({
-    provider: 'fish-audio',
-    apiUrl: 'https://api.fish.audio',
-    apiKey: '',
-    readingMode: 'all',
-    customModels: []
-  });
+
   
   const [models, setModels] = useState<VoiceModel[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
@@ -99,7 +95,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
     
     // 优先从store获取语音设置
     if (voiceSettings) {
-      loadedSettings = voiceSettings;
+      loadedSettings = { ...voiceSettings, modelVersion: voiceSettings.modelVersion || 'speech-1.6' };
     } else {
       // 如果store中没有，尝试从localStorage加载
       const savedSettings = localStorage.getItem('voiceSettingsPage');
@@ -108,33 +104,45 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
           const parsed = JSON.parse(savedSettings);
           const customModels = parsed.customModels || [];
           const allModels = [...presetModels, ...customModels.filter((m: VoiceModel) => !m.isPreset)];
-          loadedSettings = { ...settings, ...parsed, customModels: allModels };
+          loadedSettings = { ...settings, ...parsed, customModels: allModels, modelVersion: parsed.modelVersion || 'speech-1.6' };
           // 同步到store
           setVoiceSettings(loadedSettings);
         } catch (error) {
           console.error('加载语音设置失败:', error);
-          loadedSettings = { ...settings, customModels: presetModels };
-          setVoiceSettings(loadedSettings);
+          loadedSettings = { ...settings, customModels: presetModels, modelVersion: 'speech-1.6' };
+        setVoiceSettings(loadedSettings);
         }
       } else {
         // 使用默认设置
-        loadedSettings = { ...settings, customModels: presetModels };
+        loadedSettings = { ...settings, customModels: presetModels, modelVersion: 'speech-1.6' };
         setVoiceSettings(loadedSettings);
       }
     }
     
     setSettings(loadedSettings);
-    setTempSettings(loadedSettings);
     refreshCacheStats();
   }, [voiceSettings]);
 
   // 解析模型ID或网址
   const parseModelInput = (input: string): string => {
-    if (input.includes('fish.audio/zh-CN/m/')) {
+    // 支持多种Fish Audio URL格式
+    if (input.includes('fish.audio') && input.includes('/m/')) {
       const match = input.match(/\/m\/([a-f0-9]+)\/?/);
       return match ? match[1] : input;
     }
     return input;
+  };
+
+  // 保存设置到store和localStorage
+  const saveSettings = (newSettings: VoiceSettings) => {
+    try {
+      localStorage.setItem('voiceSettingsPage', JSON.stringify(newSettings));
+      setSettings(newSettings);
+      setVoiceSettings(newSettings);
+    } catch (error) {
+      console.error('保存设置失败:', error);
+      toast.error('保存设置失败');
+    }
   };
 
   // 检查API健康状态和密钥有效性
@@ -164,7 +172,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
       setApiStatus('offline');
     }
     
-    if (tempSettings.apiKey.trim()) {
+    if (settings.apiKey.trim()) {
       try {
         const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
         const response = await fetch(`${apiBaseUrl}/api/validate-key`, {
@@ -174,8 +182,8 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
             'x-api-key': import.meta.env.VITE_API_SECRET || ''
           },
           body: JSON.stringify({
-            apiKey: tempSettings.apiKey,
-            apiUrl: tempSettings.apiUrl
+            apiKey: settings.apiKey,
+            apiUrl: settings.apiUrl
           })
         });
         
@@ -211,17 +219,12 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
   const fetchModelInfo = async (modelId: string): Promise<VoiceModel | null> => {
     try {
       const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
-      const response = await fetch(`${apiBaseUrl}/api/model-info`, {
-        method: 'POST',
+      const response = await fetch(`${apiBaseUrl}/api/model-info/${encodeURIComponent(modelId)}`, {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_API_SECRET || ''
-        },
-        body: JSON.stringify({
-          modelId,
-          apiKey: tempSettings.apiKey,
-          apiUrl: tempSettings.apiUrl
-        })
+          'x-api-key': import.meta.env.VITE_API_SECRET || '',
+          'fish-audio-key': settings.apiKey
+        }
       });
       
       if (response.ok) {
@@ -230,7 +233,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
           id: modelId,
           name: data.title || `模型 ${modelId.slice(0, 8)}`,
           description: data.description || '',
-          author: data.author || '',
+          author: data.author?.nickname || data.author || '',
           tags: data.tags || []
         };
       }
@@ -258,8 +261,9 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
         },
         body: JSON.stringify({
           text: '这是一个语音测试，用来试听当前语音模型的效果。',
-          fish_audio_key: tempSettings.apiKey,
-          reference_id: modelId
+          fish_audio_key: settings.apiKey,
+          reference_id: modelId,
+          model: settings.modelVersion || 'speech-1.6'
         })
       });
 
@@ -310,7 +314,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
 
     const modelId = parseModelInput(newModelInput.trim());
     
-    if (tempSettings.customModels.some(m => m.id === modelId)) {
+    if (settings.customModels.some(m => m.id === modelId)) {
       toast.error('该模型已存在');
       return;
     }
@@ -325,10 +329,11 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
           userNote: newModelNote.trim() || undefined
         };
         
-        setTempSettings({
-          ...tempSettings,
-          customModels: [...tempSettings.customModels, newModel]
-        });
+        const newSettings = {
+          ...settings,
+          customModels: [...settings.customModels, newModel]
+        };
+        saveSettings(newSettings);
         
         toast.success(`已添加模型: ${newModel.name}`);
         closeAddModelModal();
@@ -339,10 +344,11 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
           userNote: newModelNote.trim() || undefined
         };
         
-        setTempSettings({
-          ...tempSettings,
-          customModels: [...tempSettings.customModels, fallbackModel]
-        });
+        const newSettings = {
+          ...settings,
+          customModels: [...settings.customModels, fallbackModel]
+        };
+        saveSettings(newSettings);
         
         toast.success(`已添加模型: ${fallbackModel.name}`);
         closeAddModelModal();
@@ -357,11 +363,12 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
 
   // 删除自定义模型
   const removeCustomModel = (modelId: string) => {
-    setTempSettings({
-      ...tempSettings,
-      customModels: tempSettings.customModels.filter(m => m.id !== modelId),
-      defaultVoiceModelId: tempSettings.defaultVoiceModelId === modelId ? undefined : tempSettings.defaultVoiceModelId
-    });
+    const newSettings = {
+      ...settings,
+      customModels: settings.customModels.filter(m => m.id !== modelId),
+      defaultVoiceModelId: settings.defaultVoiceModelId === modelId ? undefined : settings.defaultVoiceModelId
+    };
+    saveSettings(newSettings);
     toast.success('模型已删除');
   };
 
@@ -379,18 +386,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
     modalRef.current?.close();
   };
 
-  // 保存设置
-  const handleSaveSettings = () => {
-    try {
-      localStorage.setItem('voiceSettingsPage', JSON.stringify(tempSettings));
-      setSettings(tempSettings);
-      setVoiceSettings(tempSettings);
-      toast.success('设置已保存');
-    } catch (error) {
-      console.error('保存设置失败:', error);
-      toast.error('保存设置失败');
-    }
-  };
+
 
   return (
     <div className="p-6 max-w-6xl mx-auto md:pt-0">
@@ -407,8 +403,11 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
         <label className="select w-full md:w-1/2 ml-auto">
           <span className="label md:!hidden">语音供应商</span>
           <select 
-            value={tempSettings.provider}
-            onChange={(e) => setTempSettings({ ...tempSettings, provider: e.target.value as 'fish-audio' | 'other' })}
+            value={settings.provider}
+            onChange={(e) => {
+              const newSettings = { ...settings, provider: e.target.value as 'fish-audio' | 'other' };
+              saveSettings(newSettings);
+            }}
           >
             <option value="fish-audio">Fish Audio</option>
             <option value="other">其它</option>
@@ -416,7 +415,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
         </label>
       </div>
       
-      {tempSettings.provider === 'other' && (
+      {settings.provider === 'other' && (
         <div className="alert alert-warning my-4">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -426,7 +425,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
       )}
 
       {/* API 配置 */}
-      {tempSettings.provider === 'fish-audio' && (
+      {settings.provider === 'fish-audio' && (
         <div className="card mt-4">
           <div className="card-body">
             <h3 className="font-medium text-base mb-2">API 配置</h3>
@@ -438,8 +437,11 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
                   <input
                     type="url"
                     className="w-full"
-                    value={tempSettings.apiUrl}
-                    onChange={(e) => setTempSettings({ ...tempSettings, apiUrl: e.target.value })}
+                    value={settings.apiUrl}
+                    onChange={(e) => {
+                      const newSettings = { ...settings, apiUrl: e.target.value };
+                      saveSettings(newSettings);
+                    }}
                     placeholder="https://api.fish.audio"
                   />
                 </label>
@@ -452,8 +454,11 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
                   <input
                     type="password"
                     className="w-full"
-                    value={tempSettings.apiKey}
-                    onChange={(e) => setTempSettings({ ...tempSettings, apiKey: e.target.value })}
+                    value={settings.apiKey}
+                    onChange={(e) => {
+                      const newSettings = { ...settings, apiKey: e.target.value };
+                      saveSettings(newSettings);
+                    }}
                     placeholder="输入你的 Fish Audio API 密钥"
                   />
                 </label>
@@ -513,7 +518,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
       )}
 
       {/* 自定义模型管理 */}
-      {tempSettings.provider === 'fish-audio' && (
+      {settings.provider === 'fish-audio' && (
         <div className="card my-4">
           <div className="card-body">
             <h3 className="font-medium text-base mb-4">语音模型管理</h3>
@@ -531,7 +536,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
 
             {/* 模型列表 */}
             <div className="space-y-4">
-              {tempSettings.customModels.map((model) => (
+              {settings.customModels.map((model) => (
                 <div key={model.id} className="card bg-base-100 p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
@@ -540,7 +545,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
                         {model.isPreset && (
                           <span className="badge badge-neutral badge-sm">预设</span>
                         )}
-                        {tempSettings.defaultVoiceModelId === model.id && (
+                        {settings.defaultVoiceModelId === model.id && (
                           <span className="badge badge-primary badge-sm">默认</span>
                         )}
                       </div>
@@ -559,46 +564,47 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
                           ))}
                         </div>
                       )}
-                      <p className="text-xs text-base-content/50 font-mono">ID: {model.id}</p>
+                      <p className="text-xs text-base-content/50 font-mono">{model.id}</p>
                     </div>
-                    <div className="flex items-center gap-2 ml-4">
-                      {playingVoiceId === model.id ? (
-                        <button
-                          className="btn btn-warning btn-sm"
-                          onClick={stopVoice}
-                        >
-                          <Square className="h-4 w-4" />
-                        </button>
-                      ) : (
-                        <button
-                          className="btn btn-neutral btn-sm"
-                          onClick={() => testVoice(model.id)}
-                        >
-                          <Play className="h-4 w-4" />
-                        </button>
-                      )}
 
-                      {!model.isPreset && (
-                        <button
-                          className="btn btn-error btn-sm"
-                          onClick={() => removeCustomModel(model.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
                   </div>
                   {/* 用户备注 */}
                   <div className="mt-3">
-                    <div className="text-sm text-base-content/70 min-h-[2rem] flex items-center px-3 py-2 bg-base-200/50 rounded-md border border-base-300">
-                      {model.userNote || '暂无备注'}
+                    <div className="text-sm text-base-content/70 flex items-center rounded-md">
+                      {model.userNote || ''}
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2 mr-4">
+                    {playingVoiceId === model.id ? (
+                      <button
+                        className="btn btn-warning btn-sm"
+                        onClick={stopVoice}
+                      >
+                        <Square className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-neutral btn-sm"
+                        onClick={() => testVoice(model.id)}
+                      >
+                        <Play className="h-4 w-4" />
+                      </button>
+                    )}
+
+                    {!model.isPreset && (
+                      <button
+                        className="btn btn-error btn-sm"
+                        onClick={() => removeCustomModel(model.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
             
-            {tempSettings.customModels.length === 0 && (
+            {settings.customModels.length === 0 && (
               <div className="text-center py-8 text-base-content/60">
                 <Volume2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>暂无语音模型，请添加模型开始使用</p>
@@ -614,17 +620,20 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
           <h2 className="card-title mb-4">朗读设置</h2>
           
           {/* 默认语音模型选择 */}
-          <div className="form-control flex hero-fieldset">
+          <div className="form-control flex hero-fieldset mb-2">
             <p className="hero-label-md text-base mb-4 hidden md:block">默认语音</p>
             <label className="select w-full md:w-1/2 ml-auto">
               <span className="label block md:!hidden">默认语音</span>
               <select 
                 className="select select-bordered w-full"
-                value={tempSettings.defaultVoiceModelId || ''}
-                onChange={(e) => setTempSettings({ ...tempSettings, defaultVoiceModelId: e.target.value || undefined })}
+                value={settings.defaultVoiceModelId || ''}
+                onChange={(e) => {
+                  const newSettings = { ...settings, defaultVoiceModelId: e.target.value || undefined };
+                  saveSettings(newSettings);
+                }}
               >
                 <option value="">请选择默认语音模型</option>
-                {tempSettings.customModels.map((model) => (
+                {settings.customModels.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.name} {model.isPreset ? '(预设)' : ''}
                   </option>
@@ -632,12 +641,26 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
               </select>
             </label>
           </div>
-          <label className="label mt-1">
-            <span className="label-text-alt text-base-content/60">
-              角色未设置专属语音时将使用此模型
-            </span>
-          </label>
           
+          {/* 模型版本选择 */}
+          <div className="form-control flex hero-fieldset">
+            <p className="hero-label-md text-base mb-4 hidden md:block">模型版本</p>
+            <label className="select w-full md:w-1/2 ml-auto">
+              <span className="label block md:!hidden">模型版本</span>
+              <select 
+                className="select select-bordered w-full"
+                value={settings.modelVersion || 'speech-1.6'}
+                onChange={(e) => {
+                  const newSettings = { ...settings, modelVersion: e.target.value };
+                  saveSettings(newSettings);
+                }}
+              >
+                <option value="speech-1.5">speech-1.5</option>
+                <option value="speech-1.6">speech-1.6</option>
+                <option value="s1">s1</option>
+              </select>
+            </label>
+          </div>
 
         </div>
       </div>
@@ -694,16 +717,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
         </div>
       </div>
 
-      {/* 保存按钮 */}
-      <div className="flex justify-end">
-        <button
-          className="btn btn-primary"
-          onClick={handleSaveSettings}
-        >
-          <Save className="h-4 w-4 mr-2" />
-          保存设置
-        </button>
-      </div>
+
 
       {/* 添加模型弹窗 */}
       <dialog ref={modalRef} className="modal">
@@ -762,7 +776,11 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
               className="btn btn-primary"
               disabled={isAddingModel || !newModelInput.trim()}
             >
-              <Plus className="h-4 w-4" />
+              {isAddingModel ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
               {isAddingModel ? '添加中...' : '添加模型'}
             </button>
           </div>

@@ -11,8 +11,8 @@ module.exports = async (req, res) => {
   
   // 设置 CORS 头
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, fish-audio-key');
 
   // 处理 OPTIONS 请求
   if (req.method === 'OPTIONS') {
@@ -20,10 +20,10 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // 只允许 POST 请求
-  if (req.method !== 'POST') {
+  // 只允许 GET 请求
+  if (req.method !== 'GET') {
     console.warn(`[${timestamp}] 模型信息 API 不支持的请求方法: ${req.method}`);
-    return res.status(405).json({ error: '只允许 POST 请求' });
+    return res.status(405).json({ error: '只允许 GET 请求' });
   }
 
   // API 密钥验证
@@ -41,17 +41,19 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // 从请求体获取参数
-    const { model_id, fish_audio_key } = req.body;
+    // 从查询参数获取modelId (Vercel会将路径参数转换为查询参数)
+    const { modelId } = req.query;
+    // 从请求头获取fish_audio_key
+    const fish_audio_key = req.headers['fish-audio-key'];
     
     console.log(`[${timestamp}] 模型信息请求参数:`, {
-      model_id: model_id ? model_id.substring(0, 8) + '...' : null,
+      modelId: modelId ? modelId.substring(0, 8) + '...' : null,
       hasApiKey: !!fish_audio_key
     });
     
-    if (!model_id) {
-      console.warn(`[${timestamp}] 模型信息请求失败：缺少 model_id 参数`);
-      return res.status(400).json({ error: '缺少必需的 model_id 参数' });
+    if (!modelId) {
+      console.warn(`[${timestamp}] 模型信息请求失败：缺少 modelId 参数`);
+      return res.status(400).json({ error: '缺少必需的 modelId 参数' });
     }
 
     if (!fish_audio_key) {
@@ -59,11 +61,11 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: '缺少必需的 fish_audio_key 参数' });
     }
 
-    console.log(`[${timestamp}] 开始获取模型信息: ${model_id.substring(0, 8)}...`);
+    console.log(`[${timestamp}] 开始获取模型信息: ${modelId.substring(0, 8)}...`);
 
     const response = await axios({
       method: 'GET',
-      url: `${FISH_AUDIO_BASE_URL}/model/${model_id}`,
+      url: `${FISH_AUDIO_BASE_URL}/model/${modelId}`,
       headers: {
         'Authorization': `Bearer ${fish_audio_key}`
       },
@@ -71,7 +73,7 @@ module.exports = async (req, res) => {
     });
 
     console.log(`[${timestamp}] 模型信息获取成功:`, {
-      model_id: model_id.substring(0, 8) + '...',
+      modelId: modelId.substring(0, 8) + '...',
       status: response.status,
       title: response.data?.title || '未知'
     });
@@ -92,7 +94,7 @@ module.exports = async (req, res) => {
       });
       
       if (error.response.status === 404) {
-        console.warn(`[${timestamp}] 模型不存在: ${req.body.model_id}`);
+        console.warn(`[${timestamp}] 模型不存在: ${modelId}`);
         return res.status(404).json({
           error: '模型不存在',
           details: '找不到指定的模型ID'

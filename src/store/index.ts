@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { convertAvatarForExport, convertAvatarFromImport } from '../utils/avatarUtils';
 
 // 导入默认头像
 import avatar01 from '../assets/avatar/avatar-01.png';
@@ -91,6 +92,7 @@ export interface VoiceSettings {
   readingMode: 'all' | 'dialogue-only';
   customModels: VoiceModel[];
   defaultVoiceModelId?: string;
+  modelVersion?: string;
 }
 
 // 语音模型接口
@@ -1075,15 +1077,34 @@ export const useAppStore = create<AppState>()(
       // 数据导入导出actions
       exportData: () => {
         const state = get();
+        
+        // 转换AI角色中的头像路径
+        const aiRoles = state.aiRoles.map(role => ({
+          ...role,
+          avatar: convertAvatarForExport(role.avatar)
+        }));
+        
+        // 转换用户资料中的头像路径
+        const userProfiles = state.userProfiles.map(profile => ({
+          ...profile,
+          avatar: convertAvatarForExport(profile.avatar)
+        }));
+        
+        // 转换当前用户资料中的头像路径
+        const currentUserProfile = state.currentUserProfile ? {
+          ...state.currentUserProfile,
+          avatar: convertAvatarForExport(state.currentUserProfile.avatar)
+        } : null;
+        
         const exportData = {
           llmConfigs: state.llmConfigs,
-          aiRoles: state.aiRoles,
-          userProfiles: state.userProfiles,
+          aiRoles,
+          userProfiles,
           globalPrompts: state.globalPrompts,
           chatSessions: state.chatSessions,
           currentModelId: state.currentModelId,
-
-          currentUserProfile: state.currentUserProfile,
+          currentUserProfile,
+          voiceSettings: state.voiceSettings,
           theme: state.theme,
           exportedAt: new Date().toISOString(),
           version: '1.0'
@@ -1101,15 +1122,17 @@ export const useAppStore = create<AppState>()(
             return false;
           }
           
-          // 恢复Date对象
+          // 恢复Date对象并转换头像路径
           const aiRoles = data.aiRoles.map((role: any) => ({
             ...role,
+            avatar: convertAvatarFromImport(role.avatar),
             createdAt: new Date(role.createdAt || Date.now()),
             updatedAt: new Date(role.updatedAt || Date.now())
           }));
           
           const userProfiles = (data.userProfiles || []).map((profile: any) => ({
             ...profile,
+            avatar: convertAvatarFromImport(profile.avatar),
             createdAt: new Date(profile.createdAt || Date.now()),
             updatedAt: new Date(profile.updatedAt || Date.now())
           }));
@@ -1130,6 +1153,12 @@ export const useAppStore = create<AppState>()(
             }))
           }));
           
+          // 转换当前用户资料的头像路径
+          const currentUserProfile = data.currentUserProfile ? {
+            ...data.currentUserProfile,
+            avatar: convertAvatarFromImport(data.currentUserProfile.avatar)
+          } : null;
+          
           // 更新状态
           set({
             llmConfigs: data.llmConfigs,
@@ -1138,8 +1167,8 @@ export const useAppStore = create<AppState>()(
             globalPrompts,
             chatSessions,
             currentModelId: data.currentModelId || null,
-
-            currentUserProfile: data.currentUserProfile || null,
+            currentUserProfile,
+            voiceSettings: data.voiceSettings || null,
             theme: data.theme || 'light'
           });
           

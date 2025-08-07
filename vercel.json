@@ -8,9 +8,16 @@
     },
     "api/models.js": {
       "maxDuration": 10
+    },
+    "api/model-info.js": {
+      "maxDuration": 15
     }
   },
   "rewrites": [
+    {
+      "source": "/api/model-info/([^/]+)",
+      "destination": "/api/model-info?modelId=$1"
+    },
     {
       "source": "/api/(.*)",
       "destination": "/api/$1"

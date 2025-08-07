@@ -378,7 +378,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                     </option>
                   ))}
                 </select>
-                <p className="label text-base-content/60 text-sm mt-1">
+                <p className="text-base-content/60 text-sm mt-1">
                   为此角色设置专属语音，未设置时将使用默认语音模型
                 </p>
               </fieldset>
