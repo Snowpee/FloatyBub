@@ -232,7 +232,7 @@ app.post('/api/validate-key', apiKeyAuth, async (req, res) => {
       headers: {
         'Authorization': `Bearer ${apiKey}`
       },
-      timeout: 10000
+      timeout: 20000
     });
 
     console.log(`[${timestamp}] Fish Audio API 密钥验证成功 - 状态码: ${response.status}`);
@@ -275,20 +275,21 @@ app.post('/api/validate-key', apiKeyAuth, async (req, res) => {
   }
 });
 
-// 获取Fish Audio模型信息
-app.post('/api/fish-model', apiKeyAuth, async (req, res) => {
+// 获取Fish Audio模型信息 (别名端点)
+app.get('/api/model-info/:modelId', apiKeyAuth, async (req, res) => {
   const timestamp = new Date().toISOString();
   const clientIP = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
   
   try {
-    const { model_id, fish_audio_key } = req.body;
+    const { modelId } = req.params;
+    const fish_audio_key = req.headers['fish-audio-key'];
 
-    console.log(`[${timestamp}] 获取模型信息请求 - IP: ${clientIP}, 模型ID: ${model_id}`);
+    console.log(`[${timestamp}] 获取模型信息请求 - IP: ${clientIP}, 模型ID: ${modelId}`);
     console.log(`[${timestamp}] API Key 状态: ${fish_audio_key ? '已提供' : '未提供'}`);
 
-    if (!model_id) {
+    if (!modelId) {
       console.warn(`[${timestamp}] 模型信息请求失败 - 缺少模型ID`);
-      return res.status(400).json({ error: '缺少必需的 model_id 参数' });
+      return res.status(400).json({ error: '缺少必需的 modelId 参数' });
     }
 
     if (!fish_audio_key) {
@@ -297,7 +298,7 @@ app.post('/api/fish-model', apiKeyAuth, async (req, res) => {
     }
 
     // 使用正确的Fish Audio API URL格式
-    const apiUrl = `https://api.fish.audio/model/${model_id}`;
+    const apiUrl = `https://api.fish.audio/model/${modelId}`;
     console.log(`[${timestamp}] 调用 Fish Audio API - URL: ${apiUrl}`);
     
     const response = await axios({
@@ -324,7 +325,7 @@ app.post('/api/fish-model', apiKeyAuth, async (req, res) => {
       }
       
       if (error.response.status === 404) {
-        console.warn(`[${timestamp}] 模型不存在 - 模型ID: ${req.body.model_id}`);
+        console.warn(`[${timestamp}] 模型不存在 - 模型ID: ${modelId}`);
         return res.status(404).json({
           error: '模型不存在',
           details: '找不到指定的模型ID'
@@ -352,6 +353,8 @@ app.post('/api/fish-model', apiKeyAuth, async (req, res) => {
     });
   }
 });
+
+
 
 // 启动服务器
 app.listen(PORT, () => {

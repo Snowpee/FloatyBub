@@ -23,9 +23,11 @@ import MarkdownRenderer from '../components/MarkdownRenderer';
 import ThinkingProcess from '../components/ThinkingProcess';
 import Avatar from '../components/Avatar';
 import Popconfirm from '../components/Popconfirm';
+import AudioWaveform from '../components/AudioWaveform';
 import { replaceTemplateVariables } from '../utils/templateUtils';
 import { useAnimatedText } from '../components/AnimatedText';
 import { getDefaultBaseUrl } from '../utils/providerUtils';
+import { playVoice, stopCurrentVoice, addVoiceStateListener, getVoiceState } from '../utils/voiceUtils';
 
 const ChatPage: React.FC = () => {
   const { sessionId } = useParams();
@@ -35,6 +37,7 @@ const ChatPage: React.FC = () => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [visibleActionButtons, setVisibleActionButtons] = useState<string | null>(null);
+  const [voicePlayingState, setVoicePlayingState] = useState(getVoiceState());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -49,6 +52,7 @@ const ChatPage: React.FC = () => {
     tempSessionId,
     globalPrompts,
     currentUserProfile,
+    voiceSettings,
     setCurrentSession,
     createChatSession,
     createTempSession,
@@ -60,7 +64,11 @@ const ChatPage: React.FC = () => {
     addMessageVersionWithOriginal,
     switchMessageVersion,
     deleteMessage,
-    setCurrentModel
+    setCurrentModel,
+    generateSessionTitle,
+    markSessionNeedsTitle,
+    checkSessionNeedsTitle,
+    removeSessionNeedsTitle
   } = useAppStore();
 
   // 获取启用的模型
@@ -186,6 +194,19 @@ const ChatPage: React.FC = () => {
     }
   }, [message]);
 
+  // 监听语音播放状态
+  useEffect(() => {
+    const unsubscribe = addVoiceStateListener(setVoicePlayingState);
+    return unsubscribe;
+  }, []);
+
+  // 页面卸载时停止语音播放
+  useEffect(() => {
+    return () => {
+      stopCurrentVoice();
+    };
+  }, []);
+
 
 
   // 创建新会话
@@ -197,6 +218,18 @@ const ChatPage: React.FC = () => {
     baseText: '回复中', 
     staticText: '输入消息...' 
   });
+
+  // 处理朗读消息
+  const handleReadMessage = async (messageId: string, content: string, messageRole?: any | null) => {
+    try {
+      // 确定使用的角色（优先使用消息的角色，然后是当前角色）
+      const roleToUse = messageRole || currentRole;
+      await playVoice(messageId, content, roleToUse, voiceSettings);
+    } catch (error) {
+      console.error('朗读失败:', error);
+      toast.error(`朗读失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
   
 
 
@@ -231,6 +264,10 @@ const ChatPage: React.FC = () => {
       role: 'user',
       content: userMessage,
       timestamp: new Date()
+    }, () => {
+      // 临时会话转为正式会话后，标记需要生成标题
+      markSessionNeedsTitle(currentSession.id);
+      console.log('🏷️ 会话已标记需要生成标题:', currentSession.id);
     });
 
     // 添加AI消息占位符
@@ -570,6 +607,21 @@ const ChatPage: React.FC = () => {
         true
       );
       
+      // 检查是否需要生成标题
+      if (checkSessionNeedsTitle(sessionId) && currentModel) {
+        console.log('🎯 AI回复完成，开始生成会话标题');
+        generateSessionTitle(sessionId, currentModel)
+          .then(() => {
+            console.log('✅ 会话标题生成成功');
+            removeSessionNeedsTitle(sessionId);
+          })
+          .catch(error => {
+            console.error('❌ 生成会话标题失败:', error);
+            // 即使失败也要清除标记，避免重复尝试
+            removeSessionNeedsTitle(sessionId);
+          });
+      }
+      
       // 请求完成后清理 AbortController
       abortControllerRef.current = null;
       setIsGenerating(false);
@@ -600,6 +652,7 @@ const ChatPage: React.FC = () => {
     cleanupRequest();
     setIsGenerating(false);
     setIsLoading(false);
+    stopCurrentVoice(); // 停止语音播放
     toast.info('已停止生成');
   };
 
@@ -661,15 +714,25 @@ const ChatPage: React.FC = () => {
       // 保存原始内容
       const originalContent = currentSession.messages[messageIndex].content;
       
-      // 重置目标消息的状态，确保思考过程能正确展开
-      updateMessageWithReasoning(
-        currentSession.id,
-        messageId,
-        '', // 清空内容
-        '', // 清空思考过程内容
-        true, // 设置为流式状态
-        false // 设置思考过程未完成
-      );
+      // 检查当前模型是否支持思考过程
+      const supportsReasoning = currentModel.name?.toLowerCase().includes('deepseek-reasoner') || 
+                               currentModel.name?.toLowerCase().includes('o1') || 
+                               currentModel.name?.toLowerCase().includes('reasoning');
+      
+      // 重置目标消息的状态，根据模型能力决定是否设置思考过程字段
+      if (supportsReasoning) {
+        updateMessageWithReasoning(
+          currentSession.id,
+          messageId,
+          '', // 清空内容
+          '', // 清空思考过程内容
+          true, // 设置为流式状态
+          false // 设置思考过程未完成
+        );
+      } else {
+        // 对于不支持思考的模型，只更新基本消息内容
+        updateMessage(currentSession.id, messageId, '', true);
+      }
       
       // 调用AI API生成新内容
       const newContent = await callAIAPIForRegeneration(messages, messageId, currentSession.id);
@@ -906,6 +969,21 @@ const ChatPage: React.FC = () => {
       true
     );
     
+    // 检查是否需要生成标题（重新生成时也可能需要）
+    if (checkSessionNeedsTitle(sessionId) && currentModel) {
+      console.log('🎯 重新生成完成，开始生成会话标题');
+      generateSessionTitle(sessionId, currentModel)
+        .then(() => {
+          console.log('✅ 会话标题生成成功');
+          removeSessionNeedsTitle(sessionId);
+        })
+        .catch(error => {
+          console.error('❌ 生成会话标题失败:', error);
+          // 即使失败也要清除标记，避免重复尝试
+          removeSessionNeedsTitle(sessionId);
+        });
+    }
+    
     // 请求完成后清理 AbortController
     abortControllerRef.current = null;
     setIsGenerating(false);
@@ -1004,7 +1082,7 @@ const ChatPage: React.FC = () => {
                 <div
                   className={cn(
                     'chat-bubble max-w-xs lg:max-w-md xl:max-w-lg cursor-pointer md:cursor-default',
-                    'min-h-fit h-auto flex flex-col',
+                    'min-h-fit h-auto flex flex-col relative',
                     msg.role === 'user'
                       ? 'chat-bubble-accent'
                       : ''
@@ -1016,8 +1094,15 @@ const ChatPage: React.FC = () => {
                     }
                   }}
                 >
-                  {/* 显示思考过程 - 对AI消息且支持思考过程时显示 */}
-                   {msg.role === 'assistant' && (msg.reasoningContent !== undefined) && (
+                  {/* 音频波纹 - 仅在AI消息播放时显示在右上角 */}
+                  {msg.role === 'assistant' && voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id && (
+                    <div className="absolute -top-1 -right-1 z-20">
+                      <AudioWaveform className="bg-base-100 rounded-full p-1 shadow-sm" />
+                    </div>
+                  )}
+                  
+                  {/* 显示思考过程 - 对AI消息且有实际思考内容时显示 */}
+                   {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
                      <ThinkingProcess 
                        content={msg.reasoningContent}
                        isComplete={msg.isReasoningComplete || false}
@@ -1088,7 +1173,7 @@ const ChatPage: React.FC = () => {
                               setEditingContent(e.target.value);
                             }
                           }}
-                          className="w-full p-2 border border-gray-300 rounded-md resize-none text-sm"
+                          className="textarea w-full p-2 resize-none text-sm"
                           rows={3}
                           placeholder="编辑消息内容..."
                         />
@@ -1136,14 +1221,39 @@ const ChatPage: React.FC = () => {
                   {/* 朗读按钮 - 仅对AI消息显示 */}
                   {msg.role === 'assistant' && (
                     <button
-                      className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
-                      title="朗读"
-                      onClick={() => {
-                        // TODO: 实现朗读功能
-                        console.log('朗读消息:', msg.id);
+                      className={cn(
+                        "p-1 rounded transition-colors",
+                        voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id
+                          ? "text-primary hover:bg-primary/10"
+                          : "text-gray-500 hover:bg-black/10"
+                      )}
+                      title={
+                        voicePlayingState.isGenerating && voicePlayingState.currentMessageId === msg.id
+                          ? "正在生成语音..."
+                          : voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id
+                          ? "停止朗读"
+                          : "朗读"
+                      }
+                      onClick={async () => {
+                        // 获取消息对应的角色
+                        let messageRole = null;
+                        if (msg.roleId) {
+                          messageRole = aiRoles.find(r => r.id === msg.roleId);
+                        }
+                        try {
+                          await handleReadMessage(msg.id, msg.content, messageRole);
+                        } catch (error) {
+                          // 错误已在handleReadMessage中处理，这里不需要额外处理
+                        }
                       }}
                     >
-                      <Volume2 className="h-4 w-4 " />
+                      {voicePlayingState.isGenerating && voicePlayingState.currentMessageId === msg.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id ? (
+                        <Square className="h-4 w-4" />
+                      ) : (
+                        <Volume2 className="h-4 w-4" />
+                      )}
                     </button>
                   )}
                   

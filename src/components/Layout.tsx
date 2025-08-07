@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { toast } from '../hooks/useToast';
@@ -10,9 +10,11 @@ import {
   Trash2,
   MoreHorizontal,
   Pin,
+  PinOff,
   Palette,
   EyeOff,
-  LogIn
+  LogIn,
+  Edit3
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Popconfirm from './Popconfirm';
@@ -20,6 +22,8 @@ import SettingsModal from './SettingsModal';
 import { useAuth } from '../hooks/useAuth';
 import { UserAvatar } from './auth/UserAvatar';
 import { AuthModal } from './auth/AuthModal';
+import Avatar from './Avatar';
+import VirtualScrollContainer from './VirtualScrollContainer';
 
 type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data' | 'history';
 
@@ -28,6 +32,10 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, setTheme, currentUser } = useAppStore();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // 虚拟滚动配置
+  const ITEM_HEIGHT = 44; // 每个聊天项目的固定高度（px）
   const {
     sidebarOpen,
     toggleSidebar,
@@ -35,9 +43,12 @@ const Layout: React.FC = () => {
     chatSessions,
     setCurrentSession,
     deleteChatSession,
+    updateChatSession,
     hideSession,
+    pinSession,
+    unpinSession,
     createTempSession,
-
+    aiRoles,
     currentModelId,
     tempSessionId,
     deleteTempSession
@@ -50,6 +61,10 @@ const Layout: React.FC = () => {
   // 设置弹窗状态
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState<TabType>('config');
+  
+  // 重命名状态
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
+  const [renamingTitle, setRenamingTitle] = useState('');
   
   // 从URL中获取当前对话ID
   const currentSessionId = location.pathname.startsWith('/chat/') 
@@ -123,8 +138,8 @@ const Layout: React.FC = () => {
 
   // 移除navigation数组，不再需要
 
-  // 显示最近的对话（只显示未隐藏的对话，过滤掉临时对话和没有用户消息的对话）
-  const recentSessions = chatSessions
+  // 过滤会话数据
+  const filteredSessions = chatSessions
     .filter(session => {
       // 过滤掉隐藏的对话
       if (session.isHidden) {
@@ -138,26 +153,40 @@ const Layout: React.FC = () => {
       const hasUserMessage = session.messages.some(message => message.role === 'user');
       return hasUserMessage;
     })
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-    .slice(0, 20);
+    .sort((a, b) => {
+      // 首先按置顶状态排序，置顶的在前面
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      
+      // 如果置顶状态相同，按创建时间降序排序
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  
+  // 所有会话数据，用于虚拟滚动
+  const allSessions = filteredSessions;
+  const totalSessions = filteredSessions.length;
+  
 
+  
   // 为每个对话创建ref的映射
   const sessionRefs = useRef<Record<string, React.RefObject<HTMLAnchorElement>>>({});
   
   // 确保每个对话都有对应的ref
-  recentSessions.forEach(session => {
+  allSessions.forEach(session => {
     if (!sessionRefs.current[session.id]) {
       sessionRefs.current[session.id] = React.createRef<HTMLAnchorElement>();
     }
   });
   
   // 清理不存在的对话的ref
-  const existingSessionIds = new Set(recentSessions.map(s => s.id));
+  const existingSessionIds = new Set(allSessions.map(s => s.id));
   Object.keys(sessionRefs.current).forEach(sessionId => {
     if (!existingSessionIds.has(sessionId)) {
       delete sessionRefs.current[sessionId];
     }
   });
+
+
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('zh-CN', {
@@ -171,6 +200,11 @@ const Layout: React.FC = () => {
   const getMessagePreview = (messages: any[]) => {
     const lastUserMessage = messages.filter(m => m.role === 'user').pop();
     return lastUserMessage?.content || '暂无消息';
+  };
+
+  // 根据roleId获取AI角色信息
+  const getAIRole = (roleId: string) => {
+    return aiRoles.find(role => role.id === roleId);
   };
 
   const deleteSession = (sessionId: string) => {
@@ -195,6 +229,198 @@ const Layout: React.FC = () => {
       toggleSidebar();
     }
   };
+
+  // 渲染单个聊天项目的函数
+  const renderChatItem = useCallback((session: any, index: number, isVisible: boolean) => {
+    const isActive = session.id === currentSessionId;
+    const linkRef = sessionRefs.current[session.id];
+    
+    return (
+      <Link
+        ref={linkRef}
+        key={session.id}
+        to={`/chat/${session.id}`}
+        onClick={() => {
+          setCurrentSession(session.id);
+          // 在移动端自动关闭侧边栏
+          closeSidebarOnMobile();
+        }}
+        className={cn(
+          "chat-list p-3 m-1 transition-colors group block group",
+          isActive 
+            ? "bg-base-300" 
+            : "hover:bg-base-200"
+        )}
+        style={{ height: ITEM_HEIGHT }}
+      >
+        <div className="flex items-center justify-between h-full">
+          <div className="flex items-center flex-1 min-w-0 gap-2">
+            <Avatar
+              name={getAIRole(session.roleId)?.name || '未知角色'}
+              avatar={getAIRole(session.roleId)?.avatar}
+              size="sm"
+            />
+            <h4 className="text-sm font-normal text-base-content truncate">
+              {session.title}
+            </h4>
+            {session.isPinned && (
+              <Pin className="h-3 w-3 text-base-content/50 flex-shrink-0 mr-1" />
+            )}
+          </div>
+          <div 
+            className="dropdown dropdown-end md:hidden group-hover:block"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <button
+              tabIndex={0}
+              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 btn btn-ghost btn-xs"
+              title="更多操作"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+            <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-32">
+              <li>
+                <button
+                  onClick={() => {
+                    if (session.isPinned) {
+                      unpinSession(session.id);
+                    } else {
+                      pinSession(session.id);
+                    }
+                    // 关闭dropdown
+                    (document.activeElement as HTMLElement)?.blur();
+                  }}
+                  className="text-sm"
+                >
+                  {session.isPinned ? (
+                    <PinOff className="h-4 w-4" />
+                  ) : (
+                    <Pin className="h-4 w-4" />
+                  )}
+                  {session.isPinned ? '取消置顶' : '置顶'}
+                </button>
+              </li>
+              <li>
+                <Popconfirm
+                  title="重命名对话"
+                  description={
+                    <div className="">
+                      <input
+                        type="text"
+                        value={renamingSessionId === session.id ? renamingTitle : session.title}
+                        onChange={(e) => {
+                          if (renamingSessionId === session.id) {
+                            setRenamingTitle(e.target.value);
+                          } else {
+                            setRenamingSessionId(session.id);
+                            setRenamingTitle(e.target.value);
+                          }
+                        }}
+                        className="input w-full p-2 text-sm"
+                        placeholder="输入新的对话标题..."
+                      />
+                    </div>
+                  }
+                  onConfirm={() => {
+                    if (renamingTitle.trim()) {
+                      updateChatSession(session.id, { title: renamingTitle.trim() });
+                      setRenamingSessionId(null);
+                      setRenamingTitle('');
+                      toast.success('对话已重命名');
+                    }
+                  }}
+                  onCancel={() => {
+                    setRenamingSessionId(null);
+                    setRenamingTitle('');
+                  }}
+                  onOpen={() => {
+                    // Popconfirm显示时立即关闭dropdown
+                    const dropdownElement = document.querySelector('.dropdown.dropdown-end');
+                    if (dropdownElement) {
+                      const button = dropdownElement.querySelector('button[tabindex="0"]') as HTMLElement;
+                      button?.blur();
+                    }
+                    (document.activeElement as HTMLElement)?.blur();
+                  }}
+                  onClose={() => {
+                    // 关闭dropdown
+                    const dropdownElement = document.querySelector('.dropdown.dropdown-end');
+                    if (dropdownElement) {
+                      const button = dropdownElement.querySelector('button[tabindex="0"]') as HTMLElement;
+                      button?.blur();
+                    }
+                    (document.activeElement as HTMLElement)?.blur();
+                  }}
+                  placement="right"
+                  okText="确认"
+                  cancelText="取消"
+                  getPopupContainer={() => sessionRefs.current[session.id]?.current || undefined}
+                >
+                  <button className="text-sm w-full text-left flex items-center">
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    重命名
+                  </button>
+                </Popconfirm>
+              </li>
+              <li>
+                <button
+                   onClick={() => {
+                     hideSession(session.id);
+                     toast.success('对话已从列表中隐藏');
+                     // 关闭dropdown
+                     (document.activeElement as HTMLElement)?.blur();
+                   }}
+                   className="text-sm"
+                 >
+                   <EyeOff className="h-4 w-4" />
+                   隐藏对话
+                 </button>
+              </li>
+              <li>
+                <Popconfirm
+                  title="确认删除？"
+                  description={`删除对话后无法恢复`}
+                  onConfirm={() => {
+                    deleteSession(session.id);
+                  }}
+                  onOpen={() => {
+                    // Popconfirm显示时立即关闭dropdown
+                    const dropdownElement = document.querySelector('.dropdown.dropdown-end');
+                    if (dropdownElement) {
+                      const button = dropdownElement.querySelector('button[tabindex="0"]') as HTMLElement;
+                      button?.blur();
+                    }
+                    (document.activeElement as HTMLElement)?.blur();
+                  }}
+                  onClose={() => {
+                    // 关闭dropdown
+                    const dropdownElement = document.querySelector('.dropdown.dropdown-end');
+                    if (dropdownElement) {
+                      const button = dropdownElement.querySelector('button[tabindex="0"]') as HTMLElement;
+                      button?.blur();
+                    }
+                    (document.activeElement as HTMLElement)?.blur();
+                  }}
+                  placement="right"
+                  okText="删除"
+                  cancelText="取消"
+                  getPopupContainer={() => linkRef?.current || undefined}
+                >
+                  <button className="text-sm text-error w-full text-left flex items-center">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    删除
+                  </button>
+                </Popconfirm>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </Link>
+    );
+  }, [currentSessionId, renamingSessionId, renamingTitle, setCurrentSession, closeSidebarOnMobile, getAIRole, updateChatSession, hideSession, deleteSession, sessionRefs, ITEM_HEIGHT]);
 
   const handleNewChat = () => {
     // 导航到聊天页面，让用户选择角色
@@ -227,23 +453,26 @@ const Layout: React.FC = () => {
   return (
     <div className="min-h-screen bg-base-200 flex overflow-y-scroll overflow-x-hidden">
       {/* 侧边栏 */}
-      <div className={cn(
-        'w-64 bg-base-100 border-base-300/50 border-r-[length:var(--border)]  transition-all duration-200 ease-in-out flex-shrink-0',
-        // 移动端：固定定位
-        'fixed lg:fixed z-40 h-full lg:h-screen',
-        // 显示控制：移动端和桌面端都根据sidebarOpen状态控制
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      )}>
+      <div 
+        className={cn(
+          'w-64 bg-base-100 border-base-300/50 border-r-[length:var(--border)]  transition-all duration-200 ease-in-out flex-shrink-0',
+          // 移动端：固定定位
+          'fixed lg:fixed z-40 h-full lg:h-screen',
+          // PWA 安全区
+          'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]',
+          // 显示控制：移动端和桌面端都根据sidebarOpen状态控制
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        )}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between h-16 px-4 box-content">
+          <div className="flex items-center justify-between h-16 px-4 box-content flex-shrink-0">
             <a href="/" className="flex items-center">
               <h1 className="text-xl font-bold text-base-content">Floaty Bub</h1>
             </a>
           </div>
 
           {/* 新建聊天按钮 */}
-          <div className="p-4 pb-0">
+          <div className="p-4 pb-0 flex-shrink-0">
             <button
               onClick={handleNewChat}
               className="btn btn-block"
@@ -257,134 +486,30 @@ const Layout: React.FC = () => {
 
 
 
-          {/* 历史对话列表 */}
-          <div className="flex-1 overflow-y-auto p-4 gradient-mask-y [--gradient-mask-padding:1rem]">
-            <div className="space-y-2">
-              {recentSessions.length === 0 ? (
-                <div className="text-center py-8">
-                  <MessageCircle className="h-8 w-8 text-base-content/40 mx-auto mb-2" />
-                  <p className="text-xs text-base-content/60">
-                    还没有对话记录
-                  </p>
-                </div>
-              ) : (
-                recentSessions.map((session) => {
-                  const isActive = session.id === currentSessionId;
-                  const linkRef = sessionRefs.current[session.id];
-                  return (
-                  <Link
-                    ref={linkRef}
-                    key={session.id}
-                    to={`/chat/${session.id}`}
-                    onClick={() => {
-                      setCurrentSession(session.id);
-                      // 在移动端自动关闭侧边栏
-                      closeSidebarOnMobile();
-                    }}
-                    className={cn(
-                      "chat-list p-3 transition-colors group",
-                      isActive 
-                        ? "bg-base-300" 
-                        : "hover:bg-base-200"
-                    )}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-base-content truncate mb-1">
-                          {session.title}
-                        </h4>
-                      </div>
-                      <div 
-                        className="dropdown dropdown-end"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                      >
-                        <button
-                          tabIndex={0}
-                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 btn btn-ghost btn-xs"
-                          title="更多操作"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                        <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-32">
-                          <li>
-                            <button
-                              onClick={() => {
-                                // TODO: 实现置顶功能
-                                console.log('置顶对话:', session.id);
-                                // 关闭dropdown
-                                (document.activeElement as HTMLElement)?.blur();
-                              }}
-                              className="text-sm"
-                            >
-                              <Pin className="h-4 w-4" />
-                              置顶
-                            </button>
-                          </li>
-                          <li>
-                            <button
-                               onClick={() => {
-                                 hideSession(session.id);
-                                 toast.success('对话已从列表中隐藏');
-                                 // 关闭dropdown
-                                 (document.activeElement as HTMLElement)?.blur();
-                               }}
-                               className="text-sm"
-                             >
-                               <EyeOff className="h-4 w-4" />
-                               隐藏对话
-                             </button>
-                          </li>
-                          <li>
-                            <Popconfirm
-                              title="确认删除？"
-                              description={`删除对话后无法恢复`}
-                              onConfirm={() => {
-                                deleteSession(session.id);
-                              }}
-                              onOpen={() => {
-                                // Popconfirm显示时立即关闭dropdown
-                                const dropdownElement = document.querySelector('.dropdown.dropdown-end');
-                                if (dropdownElement) {
-                                  const button = dropdownElement.querySelector('button[tabindex="0"]') as HTMLElement;
-                                  button?.blur();
-                                }
-                                (document.activeElement as HTMLElement)?.blur();
-                              }}
-                              onClose={() => {
-                                // 关闭dropdown
-                                const dropdownElement = document.querySelector('.dropdown.dropdown-end');
-                                if (dropdownElement) {
-                                  const button = dropdownElement.querySelector('button[tabindex="0"]') as HTMLElement;
-                                  button?.blur();
-                                }
-                                (document.activeElement as HTMLElement)?.blur();
-                              }}
-                              placement="right"
-                              okText="删除"
-                              cancelText="取消"
-                              getPopupContainer={() => linkRef?.current || undefined}
-                            >
-                              <button className="text-sm text-error w-full text-left flex items-center">
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                删除
-                              </button>
-                            </Popconfirm>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </Link>
-                  );
-                })
-              )}
-            </div>
+          {/* 历史对话列表 - 虚拟滚动 */}
+          <div className="chat-lists flex-1 overflow-y-auto gradient-mask-y [--gradient-mask-padding:1rem]">
+            {allSessions.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageCircle className="h-8 w-8 text-base-content/40 mx-auto mb-2" />
+                <p className="text-xs text-base-content/60">
+                  还没有对话记录
+                </p>
+              </div>
+            ) : (
+              <VirtualScrollContainer
+                items={allSessions.map(session => ({ ...session, id: session.id }))}
+                itemHeight={ITEM_HEIGHT}
+                renderItem={renderChatItem}
+                overscan={5}
+                className="rounded-lg h-full"
+              />
+            )}
+            
+
           </div>
 
           {/* 底部操作区 */}
-          <div className="p-4 pt-0">
+          <div className="p-4 pt-0 flex-shrink-0">
             <div className="grid grid-cols-1 gap-2">
               {/* 用户认证区域 */}
               <div className="mb-2">
@@ -499,12 +624,12 @@ const Layout: React.FC = () => {
 
       {/* 主内容区域 */}
       <div className={cn(
-        "flex flex-col flex-1 min-h-screen transition-all duration-200 ease-in-out h-screen",
+        "flex flex-col flex-1 min-h-screen transition-all duration-200 ease-in-out h-screen bg-base-100",
         // 在桌面端根据侧边栏状态调整左边距
         sidebarOpen ? "lg:ml-64" : "lg:ml-0"
       )}>
         {/* 顶部栏 */}
-        <header className="bg-base-100 bg-opacity-90">
+        <header className="bg-base-100 bg-opacity-90 pt-[env(safe-area-inset-top)]">
           <div className="relative flex items-center h-16 px-4">
             {/* 左侧按钮 */}
             <div className="flex items-center space-x-4">
@@ -549,21 +674,28 @@ const Layout: React.FC = () => {
                           (document.activeElement as HTMLElement)?.blur();
                         }}>
                           <Plus className="h-4 w-4" />
-                          新建前角色对话
+                          聊聊新话题
                         </button>
                       </li>
                       <li>
                         <button
                           onClick={() => {
-                            // TODO: 实现置顶功能
-                            console.log('置顶对话:', currentSession.id);
+                            if (currentSession.isPinned) {
+                              unpinSession(currentSession.id);
+                            } else {
+                              pinSession(currentSession.id);
+                            }
                             // 关闭dropdown
                             (document.activeElement as HTMLElement)?.blur();
                           }}
                           className="text-sm"
                         >
-                          <Pin className="h-4 w-4" />
-                          置顶
+                          {currentSession.isPinned ? (
+                            <PinOff className="h-4 w-4" />
+                          ) : (
+                            <Pin className="h-4 w-4" />
+                          )}
+                          {currentSession.isPinned ? '取消置顶' : '置顶'}
                         </button>
                       </li>
                       <li>
@@ -571,6 +703,8 @@ const Layout: React.FC = () => {
                            onClick={() => {
                              hideSession(currentSession.id);
                              toast.success('对话已从列表中隐藏');
+                             // 导航到 chat 路由
+                             navigate('/chat');
                              // 关闭dropdown
                              (document.activeElement as HTMLElement)?.blur();
                            }}
@@ -624,7 +758,9 @@ const Layout: React.FC = () => {
         </header>
 
         {/* 页面内容 */}
-        <main className="flex-1 overflow-y-scroll">
+        <main className={cn("flex-1 overflow-y-scroll", {
+          'pb-[env(safe-area-inset-bottom)]': isMobile,
+        })}>
           <Outlet />
         </main>
       </div>

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { convertAvatarForExport, convertAvatarFromImport } from '../utils/avatarUtils';
 
 // 导入默认头像
 import avatar01 from '../assets/avatar/avatar-01.png';
@@ -30,6 +31,7 @@ export interface AIRole {
   currentOpeningIndex?: number; // 当前显示的开场白索引
   avatar?: string;
   globalPromptId?: string; // 关联的全局提示词ID
+  voiceModelId?: string; // 角色专属语音模型ID
   createdAt: Date;
   updatedAt: Date;
 }
@@ -79,6 +81,29 @@ export interface ChatSession {
   createdAt: Date;
   updatedAt: Date;
   isHidden?: boolean; // 是否从侧边栏隐藏
+  isPinned?: boolean; // 是否置顶
+}
+
+// 语音设置接口
+export interface VoiceSettings {
+  provider: 'fish-audio' | 'other';
+  apiUrl: string;
+  apiKey: string;
+  readingMode: 'all' | 'dialogue-only';
+  customModels: VoiceModel[];
+  defaultVoiceModelId?: string;
+  modelVersion?: string;
+}
+
+// 语音模型接口
+export interface VoiceModel {
+  id: string;
+  name: string;
+  description?: string;
+  author?: string;
+  tags?: string[];
+  userNote?: string;
+  isPreset?: boolean;
 }
 
 // 应用状态接口
@@ -104,10 +129,14 @@ interface AppState {
   chatSessions: ChatSession[];
   currentSessionId: string | null;
   tempSessionId: string | null; // 临时会话ID
+  sessionsNeedingTitle: Set<string>; // 需要生成标题的会话ID集合
   
   // UI状态
   theme: 'light' | 'dark' | 'cupcake' | 'floaty';
   sidebarOpen: boolean;
+  
+  // 语音设置
+  voiceSettings: VoiceSettings | null;
   
   // Actions
   // LLM配置相关
@@ -131,13 +160,16 @@ interface AppState {
   createTempSession: (roleId: string, modelId: string) => string;
   saveTempSession: () => void;
   deleteTempSession: () => void;
+  generateSessionTitle: (sessionId: string, llmConfig: LLMConfig) => Promise<void>;
   updateChatSession: (id: string, session: Partial<ChatSession>) => void;
   deleteChatSession: (id: string) => void;
   hideSession: (id: string) => void;
   showSession: (id: string) => void;
+  pinSession: (id: string) => void;
+  unpinSession: (id: string) => void;
   setCurrentSession: (id: string) => void;
   migrateIdsToUUID: () => boolean;
-  addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'> & { id?: string }) => void;
+  addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'> & { id?: string }, onTempSessionSaved?: (sessionId: string) => void) => void;
   updateMessage: (sessionId: string, messageId: string, content: string, isStreaming?: boolean) => void;
   updateMessageWithReasoning: (sessionId: string, messageId: string, content?: string, reasoningContent?: string, isStreaming?: boolean, isReasoningComplete?: boolean) => void;
   regenerateMessage: (sessionId: string, messageId: string) => Promise<void>;
@@ -145,6 +177,11 @@ interface AppState {
   addMessageVersionWithOriginal: (sessionId: string, messageId: string, originalContent: string, newContent: string) => void;
   switchMessageVersion: (sessionId: string, messageId: string, versionIndex: number) => void;
   deleteMessage: (sessionId: string, messageId: string) => void;
+  
+  // 标题生成相关
+  markSessionNeedsTitle: (sessionId: string) => void;
+  removeSessionNeedsTitle: (sessionId: string) => void;
+  checkSessionNeedsTitle: (sessionId: string) => boolean;
   
   // 用户资料相关
   addUserProfile: (profile: Omit<UserProfile, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -158,6 +195,9 @@ interface AppState {
   // UI相关
   setTheme: (theme: 'light' | 'dark' | 'cupcake' | 'floaty') => void;
   toggleSidebar: () => void;
+  
+  // 语音设置相关
+  setVoiceSettings: (settings: VoiceSettings | null) => void;
   
   // 数据导入导出
   exportData: () => string;
@@ -188,6 +228,47 @@ const convertToUUID = (oldId: string): string => {
   }
   // 为旧格式 ID 生成一个新的 UUID
   return generateId();
+};
+
+// 从localStorage加载语音设置
+const loadVoiceSettingsFromStorage = (): VoiceSettings => {
+  // 预设的语音模型
+  const presetModels: VoiceModel[] = [
+    { id: '59cb5986671546eaa6ca8ae6f29f6d22', name: '央视配音', description: '专业新闻播报风格', isPreset: true },
+    { id: 'faccba1a8ac54016bcfc02761285e67f', name: '电台女声', description: '温柔电台主播风格', isPreset: true }
+  ];
+  
+  // 默认语音设置
+  const defaultSettings: VoiceSettings = {
+    provider: 'fish-audio',
+    apiUrl: 'https://api.fish.audio',
+    apiKey: '',
+    readingMode: 'all',
+    customModels: presetModels,
+    defaultVoiceModelId: presetModels[0]?.id
+  };
+  
+  try {
+    const savedSettings = localStorage.getItem('voiceSettingsPage');
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+      const customModels = parsed.customModels || [];
+      const allModels = [...presetModels, ...customModels.filter((m: VoiceModel) => !m.isPreset)];
+      
+      return {
+        provider: parsed.provider || defaultSettings.provider,
+        apiUrl: parsed.apiUrl || defaultSettings.apiUrl,
+        apiKey: parsed.apiKey || defaultSettings.apiKey,
+        readingMode: parsed.readingMode || defaultSettings.readingMode,
+        customModels: allModels,
+        defaultVoiceModelId: parsed.defaultVoiceModelId || defaultSettings.defaultVoiceModelId
+      };
+    }
+  } catch (error) {
+    console.error('加载语音设置失败:', error);
+  }
+  
+  return defaultSettings;
 };
 
 // 默认AI角色
@@ -241,8 +322,10 @@ export const useAppStore = create<AppState>()(
       chatSessions: [],
       currentSessionId: null,
       tempSessionId: null,
+      sessionsNeedingTitle: new Set(),
       theme: 'floaty',
       sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
+      voiceSettings: loadVoiceSettingsFromStorage(),
       
       // LLM配置相关actions
       addLLMConfig: (config) => {
@@ -433,6 +516,289 @@ export const useAppStore = create<AppState>()(
         set({ tempSessionId: null });
       },
       
+      generateSessionTitle: async (sessionId, llmConfig) => {
+        console.log('🎯 开始生成会话标题');
+        console.log('📋 传入参数:', { sessionId, llmConfig: { ...llmConfig, apiKey: '***' } });
+        
+        const state = get();
+        const session = state.chatSessions.find(s => s.id === sessionId);
+        
+        console.log('🔍 找到的会话:', session ? { id: session.id, title: session.title, messagesCount: session.messages.length } : '未找到');
+        
+        if (!session || session.messages.length === 0) {
+          console.log('❌ 会话不存在或无消息，跳过标题生成');
+          return;
+        }
+        
+        // 获取前几条消息用于生成标题
+        const messagesToAnalyze = session.messages
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .slice(0, 4) // 取前4条消息
+          .map(m => `${m.role === 'user' ? '用户' : 'AI'}：${m.content}`)
+          .join('\n');
+        
+        console.log('📝 分析的消息内容:', messagesToAnalyze);
+        
+        if (!messagesToAnalyze.trim()) {
+          console.log('❌ 没有可分析的消息内容，跳过标题生成');
+          return;
+        }
+        
+        try {
+          // 构建生成标题的请求
+          const titlePrompt = `请根据以下对话内容，生成一个简短的对话标题（不超过10个字）。只返回标题，不要其他内容：\n\n${messagesToAnalyze}`;
+          
+          console.log('💬 构建的提示词:', titlePrompt);
+          
+          let apiUrl = '';
+          let headers: Record<string, string> = {
+            'Content-Type': 'application/json'
+          };
+          let body: any = {};
+          
+          console.log('🔧 模型提供商:', llmConfig.provider);
+          
+          // 检查是否为thinking模型
+          const isThinkingModel = llmConfig.model?.includes('reasoner') || llmConfig.model?.includes('thinking');
+          console.log('🧠 是否为thinking模型:', isThinkingModel, '模型名称:', llmConfig.model);
+          
+          // 根据不同provider构建请求
+          switch (llmConfig.provider) {
+            case 'openai':
+            case 'deepseek':
+            case 'custom':
+              apiUrl = llmConfig.baseUrl || 'https://api.openai.com';
+              if (!apiUrl.endsWith('/v1/chat/completions')) {
+                apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+              }
+              headers['Authorization'] = `Bearer ${llmConfig.apiKey}`;
+              body = {
+                model: llmConfig.model,
+                messages: [{ role: 'user', content: titlePrompt }],
+                temperature: 0.3,
+                max_tokens: 20,
+                // 对于thinking模型，使用流式调用以获取完整内容
+                stream: isThinkingModel
+              };
+              break;
+              
+            case 'claude':
+              apiUrl = llmConfig.baseUrl || 'https://api.anthropic.com';
+              if (!apiUrl.endsWith('/v1/messages')) {
+                apiUrl = apiUrl.replace(/\/$/, '') + '/v1/messages';
+              }
+              headers['x-api-key'] = llmConfig.apiKey;
+              headers['anthropic-version'] = '2023-06-01';
+              body = {
+                model: llmConfig.model,
+                messages: [{ role: 'user', content: titlePrompt }],
+                max_tokens: 20,
+                temperature: 0.3
+              };
+              break;
+              
+            default:
+              console.warn('❌ 不支持的模型provider，跳过标题生成:', llmConfig.provider);
+              return;
+          }
+          
+          // 如果配置了代理URL，使用代理
+          if (llmConfig.proxyUrl) {
+            console.log('🔄 使用代理URL:', llmConfig.proxyUrl);
+            apiUrl = llmConfig.proxyUrl;
+          }
+          
+          console.log('🌐 API请求信息:', {
+            url: apiUrl,
+            headers: { ...headers, Authorization: headers.Authorization ? '***' : undefined, 'x-api-key': headers['x-api-key'] ? '***' : undefined },
+            body
+          });
+          
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+          });
+          
+          console.log('📡 API响应状态:', response.status, response.statusText);
+          
+          if (!response.ok) {
+            console.warn('❌ 生成标题失败:', response.status, response.statusText);
+            return;
+          }
+          
+          let result: any;
+          
+          // 处理流式响应（thinking模型）
+          if (isThinkingModel && body.stream) {
+            console.log('🌊 处理thinking模型的流式响应');
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+            let content = '';
+            let reasoning_content = '';
+            
+            if (reader) {
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  
+                  const chunk = decoder.decode(value);
+                  const lines = chunk.split('\n');
+                  
+                  for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                      const data = line.slice(6).trim();
+                      if (data === '[DONE]') continue;
+                      
+                      try {
+                        const parsed = JSON.parse(data);
+                        const delta = parsed.choices?.[0]?.delta;
+                        
+                        if (delta?.content) {
+                          content += delta.content;
+                        }
+                        if (delta?.reasoning_content) {
+                          reasoning_content += delta.reasoning_content;
+                        }
+                      } catch (e) {
+                        // 忽略解析错误
+                      }
+                    }
+                  }
+                }
+              } finally {
+                reader.releaseLock();
+              }
+            }
+            
+            // 构造类似非流式响应的结果格式
+            result = {
+              choices: [{
+                message: {
+                  role: 'assistant',
+                  content: content,
+                  reasoning_content: reasoning_content
+                }
+              }]
+            };
+            
+            console.log('🌊 流式响应解析完成:', {
+              content: content,
+              reasoning_content: reasoning_content.substring(0, 100) + '...'
+            });
+          } else {
+            // 非流式响应
+            result = await response.json();
+            console.log('📦 API响应数据:', result);
+          }
+          
+          // 添加详细的choices结构调试
+          if (result.choices && result.choices[0]) {
+            console.log('🔍 choices[0]完整结构:', JSON.stringify(result.choices[0], null, 2));
+          }
+          
+          let generatedTitle = '';
+          
+          // 解析响应获取标题
+          if (llmConfig.provider === 'claude') {
+            generatedTitle = result.content?.[0]?.text || '';
+          } else {
+            // 标准OpenAI格式
+            const choice = result.choices?.[0];
+            if (choice) {
+              // 对于thinking模型，优先使用content字段（实际回复内容）
+              // reasoning_content包含思考过程，不适合作为标题
+              generatedTitle = choice.message?.content || '';
+              
+              console.log('🔍 提取到的content内容:', generatedTitle);
+              console.log('🧠 reasoning_content内容长度:', choice.message?.reasoning_content?.length || 0);
+              
+              // 如果是thinking模型且通过流式获取到了content，应该有内容
+              if (isThinkingModel && !generatedTitle) {
+                console.warn('⚠️ thinking模型的content字段仍为空，可能流式解析有问题');
+                // 作为最后的备选，可以尝试从reasoning_content中提取简短的关键词
+                // 但这不是理想的解决方案
+                const reasoningContent = choice.message?.reasoning_content || '';
+                if (reasoningContent) {
+                  // 尝试提取关键词或短语作为标题
+                  const keywordMatch = reasoningContent.match(/(?:关于|讨论|询问|请求|问题|话题)[：:]?\s*([^。，！？\n]{2,15})/);
+                  if (keywordMatch) {
+                    generatedTitle = keywordMatch[1].trim();
+                    console.log('📝 从reasoning_content提取关键词作为标题:', generatedTitle);
+                  }
+                }
+              }
+              
+              // 如果仍然没有标题，尝试其他字段（非thinking模型的兼容性处理）
+              if (!generatedTitle && choice.message && !isThinkingModel) {
+                const messageKeys = Object.keys(choice.message).filter(key => 
+                  key !== 'reasoning_content' && key !== 'role'
+                );
+                console.log('🔍 message对象的其他字段:', messageKeys);
+                
+                for (const key of messageKeys) {
+                  if (typeof choice.message[key] === 'string' && choice.message[key].trim()) {
+                    generatedTitle = choice.message[key];
+                    console.log(`📝 从字段 ${key} 提取到内容:`, generatedTitle);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+          
+          console.log('🏷️ 原始生成的标题:', generatedTitle);
+          
+          // 清理和验证标题
+          generatedTitle = generatedTitle.trim().replace(/["']/g, '');
+          
+          // 智能截取标题，确保长度在20字符以内
+          if (generatedTitle.length > 20) {
+            console.log('📏 标题过长，开始智能截取');
+            
+            // 去除常见的冗余描述
+            generatedTitle = generatedTitle
+              .replace(/^首先，?/, '')
+              .replace(/^用户要求我?/, '')
+              .replace(/根据对话内容生成一个简短的对话标题[。，]?/, '')
+              .replace(/对话内容是[：:]?/, '')
+              .replace(/\n+/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            
+            // 如果仍然过长，直接截取前20个字符
+            if (generatedTitle.length > 20) {
+              generatedTitle = generatedTitle.substring(0, 20);
+            }
+            
+            // 如果截取后为空或太短，使用默认标题
+            if (generatedTitle.length < 2) {
+              generatedTitle = '新对话';
+            }
+          }
+          
+          console.log('✨ 清理后的标题:', generatedTitle);
+          
+          if (generatedTitle && generatedTitle.length <= 20) {
+            console.log('✅ 标题验证通过，开始更新会话');
+            // 更新会话标题
+            set((state) => ({
+              chatSessions: state.chatSessions.map(s => 
+                s.id === sessionId 
+                  ? { ...s, title: generatedTitle, updatedAt: new Date() }
+                  : s
+              )
+            }));
+            console.log('🎉 会话标题更新成功:', generatedTitle);
+          } else {
+            console.log('❌ 标题验证失败:', { title: generatedTitle, length: generatedTitle.length });
+          }
+        } catch (error) {
+          console.error('💥 生成标题时出错:', error);
+        }
+      },
+      
       deleteTempSession: () => {
         const { tempSessionId, currentSessionId } = get();
         if (tempSessionId) {
@@ -472,6 +838,22 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           chatSessions: state.chatSessions.map(s => 
             s.id === id ? { ...s, isHidden: false, updatedAt: new Date() } : s
+          )
+        }));
+      },
+      
+      pinSession: (id) => {
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === id ? { ...s, isPinned: true, updatedAt: new Date() } : s
+          )
+        }));
+      },
+      
+      unpinSession: (id) => {
+        set((state) => ({
+          chatSessions: state.chatSessions.map(s => 
+            s.id === id ? { ...s, isPinned: false, updatedAt: new Date() } : s
           )
         }));
       },
@@ -544,7 +926,7 @@ export const useAppStore = create<AppState>()(
         return hasChanges;
       },
       
-      addMessage: (sessionId, message) => {
+      addMessage: (sessionId, message, onTempSessionSaved) => {
         const state = get();
         const session = state.chatSessions.find(s => s.id === sessionId);
         
@@ -558,8 +940,13 @@ export const useAppStore = create<AppState>()(
         
         // 如果是临时会话的第一条用户消息，将其转为正式会话
         const { tempSessionId } = get();
-        if (tempSessionId === sessionId && message.role === 'user') {
+        const isFirstUserMessage = tempSessionId === sessionId && message.role === 'user';
+        if (isFirstUserMessage) {
           get().saveTempSession();
+          // 调用回调函数，通知ChatPage生成标题
+          if (onTempSessionSaved) {
+            onTempSessionSaved(sessionId);
+          }
         }
         
         set((state) => ({
@@ -704,6 +1091,25 @@ export const useAppStore = create<AppState>()(
         }));
       },
       
+      // 标题生成相关actions
+      markSessionNeedsTitle: (sessionId) => {
+        set((state) => ({
+          sessionsNeedingTitle: new Set([...state.sessionsNeedingTitle, sessionId])
+        }));
+      },
+      
+      removeSessionNeedsTitle: (sessionId) => {
+        set((state) => {
+          const newSet = new Set(state.sessionsNeedingTitle);
+          newSet.delete(sessionId);
+          return { sessionsNeedingTitle: newSet };
+        });
+      },
+      
+      checkSessionNeedsTitle: (sessionId) => {
+        return get().sessionsNeedingTitle.has(sessionId);
+      },
+      
       // UI相关actions
       setTheme: (theme) => {
         console.log('🔧 store.setTheme 开始执行:', {
@@ -754,18 +1160,42 @@ export const useAppStore = create<AppState>()(
         set((state) => ({ sidebarOpen: !state.sidebarOpen }));
       },
       
+      // 语音设置相关actions
+      setVoiceSettings: (settings) => {
+        set({ voiceSettings: settings });
+      },
+      
       // 数据导入导出actions
       exportData: () => {
         const state = get();
+        
+        // 转换AI角色中的头像路径
+        const aiRoles = state.aiRoles.map(role => ({
+          ...role,
+          avatar: convertAvatarForExport(role.avatar)
+        }));
+        
+        // 转换用户资料中的头像路径
+        const userProfiles = state.userProfiles.map(profile => ({
+          ...profile,
+          avatar: convertAvatarForExport(profile.avatar)
+        }));
+        
+        // 转换当前用户资料中的头像路径
+        const currentUserProfile = state.currentUserProfile ? {
+          ...state.currentUserProfile,
+          avatar: convertAvatarForExport(state.currentUserProfile.avatar)
+        } : null;
+        
         const exportData = {
           llmConfigs: state.llmConfigs,
-          aiRoles: state.aiRoles,
-          userProfiles: state.userProfiles,
+          aiRoles,
+          userProfiles,
           globalPrompts: state.globalPrompts,
           chatSessions: state.chatSessions,
           currentModelId: state.currentModelId,
-
-          currentUserProfile: state.currentUserProfile,
+          currentUserProfile,
+          voiceSettings: state.voiceSettings,
           theme: state.theme,
           exportedAt: new Date().toISOString(),
           version: '1.0'
@@ -783,15 +1213,17 @@ export const useAppStore = create<AppState>()(
             return false;
           }
           
-          // 恢复Date对象
+          // 恢复Date对象并转换头像路径
           const aiRoles = data.aiRoles.map((role: any) => ({
             ...role,
+            avatar: convertAvatarFromImport(role.avatar),
             createdAt: new Date(role.createdAt || Date.now()),
             updatedAt: new Date(role.updatedAt || Date.now())
           }));
           
           const userProfiles = (data.userProfiles || []).map((profile: any) => ({
             ...profile,
+            avatar: convertAvatarFromImport(profile.avatar),
             createdAt: new Date(profile.createdAt || Date.now()),
             updatedAt: new Date(profile.updatedAt || Date.now())
           }));
@@ -812,6 +1244,12 @@ export const useAppStore = create<AppState>()(
             }))
           }));
           
+          // 转换当前用户资料的头像路径
+          const currentUserProfile = data.currentUserProfile ? {
+            ...data.currentUserProfile,
+            avatar: convertAvatarFromImport(data.currentUserProfile.avatar)
+          } : null;
+          
           // 更新状态
           set({
             llmConfigs: data.llmConfigs,
@@ -820,8 +1258,8 @@ export const useAppStore = create<AppState>()(
             globalPrompts,
             chatSessions,
             currentModelId: data.currentModelId || null,
-
-            currentUserProfile: data.currentUserProfile || null,
+            currentUserProfile,
+            voiceSettings: data.voiceSettings || null,
             theme: data.theme || 'light'
           });
           
@@ -902,7 +1340,8 @@ export const useAppStore = create<AppState>()(
         currentSessionId: state.currentSessionId,
         tempSessionId: state.tempSessionId,
         theme: state.theme,
-        sidebarOpen: state.sidebarOpen
+        sidebarOpen: state.sidebarOpen,
+        voiceSettings: state.voiceSettings
       }),
       storage: {
         getItem: (name) => {
@@ -960,3 +1399,9 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
+
+// 在开发环境中将store暴露到window对象，方便测试数据生成器使用
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  (window as any).useAppStore = useAppStore;
+  console.log('🔧 开发模式：useAppStore已暴露到window对象');
+}

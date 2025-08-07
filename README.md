@@ -4,10 +4,12 @@
 
 > 使用 [TRAE SOLO](https://trae.ai) 开发
 
+> [查看 Demo](https://floatybub.vercel.app/)
+
 ## ✨ 功能特性
 
 ### 🎯 核心功能
-- **多模型支持**: 支持 OpenAI GPT、Claude、Gemini、通义千问等主流大语言模型
+- **多模型支持**: 支持 ChatGPT、Claude、DeepSeek…等主流大语言模型
 - **流式输出**: 实时显示AI回复，提供流畅的对话体验
 - **智能角色系统**: 支持自定义AI角色、系统提示词和个性化开场白
 - **用户资料管理**: 支持多用户资料切换，个性化对话体验
@@ -40,7 +42,6 @@
 - **状态管理**: Zustand 5
 - **路由管理**: React Router DOM 7
 - **图标库**: Lucide React
-- **通知组件**: Sonner 2
 - **Markdown**: React Markdown + Rehype Highlight
 - **代码高亮**: Highlight.js
 - **语音服务**: Fish Audio TTS API

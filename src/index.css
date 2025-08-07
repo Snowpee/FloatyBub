@@ -201,6 +201,21 @@ dialog .modal-box {
   animation: fade-in 0.4s ease-out forwards;
 }
 
+/* Y方向缩放动画 */
+@keyframes scale-y {
+  0%, 100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-scale-y {
+  animation: scale-y 0.8s cubic-bezier(0.8, 0, 1, 1) infinite;
+  transform-origin: bottom;
+}
+
 /* 隐藏 TRAE SOLO 徽章 */
 #trae-badge-plugin,
 .trae-badge {
