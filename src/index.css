@@ -92,9 +92,10 @@ code:not(pre > code)  {
 .select,
 .input,
 .textarea {
+  border-color: color-mix(in oklab, var(--color-base-content) 10%, #0000);
   &:focus-within {
-    outline: var(--border) solid  color-mix(in oklab, var(--color-base-content) 10%, #0000);
-    border-color: color-mix(in oklab, var(--color-base-content) 50%, #0000);
+    outline: var(--border) solid  color-mix(in oklab, var(--color-primary) 10%, #0000);
+    border-color: color-mix(in oklab, var(--color-primary) 50%, #0000);
   }
 }
 .card {

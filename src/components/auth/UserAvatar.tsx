@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React from 'react'
 import { User, LogOut, Settings, Cloud, CloudOff, Bug } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useUserData } from '../../hooks/useUserData'
@@ -10,9 +10,6 @@ interface UserAvatarProps {
 }
 
 export function UserAvatar({ onOpenSettings }: UserAvatarProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
   
   const { user, loading: authLoading, signOut } = useAuth()
   const { syncing, lastSyncTime, syncError } = useUserData()
@@ -33,37 +30,17 @@ export function UserAvatar({ onOpenSettings }: UserAvatarProps) {
     return colors[index]
   }
 
-  // 点击外部关闭菜单
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        menuRef.current && 
-        !menuRef.current.contains(event.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target as Node)
-      ) {
-        setIsMenuOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
   const handleSignOut = async () => {
-    setIsMenuOpen(false)
     await signOut()
     // 刷新页面以确保状态完全更新
     window.location.reload()
   }
 
   const handleSettings = () => {
-    setIsMenuOpen(false)
     onOpenSettings?.()
   }
 
   const handleDebug = async () => {
-    setIsMenuOpen(false)
     console.log('🐛 手动触发 Supabase 调试...')
     
     // 记录网络环境
@@ -99,9 +76,9 @@ export function UserAvatar({ onOpenSettings }: UserAvatarProps) {
   // 如果正在加载认证状态，显示加载指示器
   if (authLoading) {
     return (
-      <div className="flex items-center space-x-2 p-2 rounded-lg">
-        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
-        <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+      <div className="flex items-center gap-2 p-2">
+        <div className="skeleton w-8 h-8 rounded-full shrink-0" />
+        <div className="skeleton h-4 w-16" />
       </div>
     )
   }
@@ -109,9 +86,9 @@ export function UserAvatar({ onOpenSettings }: UserAvatarProps) {
   // 如果没有用户，显示加载状态而不是返回null
   if (!displayUser) {
     return (
-      <div className="flex items-center space-x-2 p-2 rounded-lg">
-        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
-        <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+      <div className="flex items-center gap-2 p-2">
+        <div className="skeleton w-8 h-8 rounded-full shrink-0" />
+        <div className="skeleton h-4 w-16" />
       </div>
     )
   }
@@ -135,133 +112,146 @@ export function UserAvatar({ onOpenSettings }: UserAvatarProps) {
   }
 
   return (
-    <div className="relative">
+    <div className="dropdown dropdown-top dropdown-end">
       {/* 用户头像按钮 */}
-      <button
-        ref={buttonRef}
-        onClick={() => setIsMenuOpen(!isMenuOpen)}
-        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+      <div
+        tabIndex={0}
+        role="button"
+        className="btn btn-sm btn-ghost items-left gap-2 p-2 pl-0 justify-items-left"
         title={`${displayName} (${displayUser.email})`}
       >
         {/* 头像 */}
-        <div className="relative">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={displayName}
-              className="w-8 h-8 rounded-full object-cover"
-            />
-          ) : (
-            <div className={`w-8 h-8 rounded-full ${getAvatarColor(displayName)} flex items-center justify-center text-white text-sm font-medium`}>
-              {displayName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          
-          {/* 同步状态指示器 */}
-          <div className="absolute -bottom-1 -right-1">
-            {syncing ? (
-              <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" title="同步中..." />
-            ) : syncError ? (
-              <div className="w-3 h-3 bg-red-500 rounded-full" title={`同步错误: ${syncError}`} />
+        <div className="avatar indicator">
+          <div className="w-7 rounded-full">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName}
+              />
             ) : (
-              <div className="w-3 h-3 bg-green-500 rounded-full" title={`最后同步: ${formatLastSync(lastSyncTime)}`} />
+              <div className={`w-7 h-7 rounded-full ${getAvatarColor(displayName)} flex items-center justify-center text-white text-sm font-medium`}>
+                {displayName.charAt(0).toUpperCase()}
+              </div>
             )}
           </div>
+          
+          {/* 同步状态指示器 */}
+          {syncing ? (
+            <span className="status status-base status-primary indicator-item animate-pulse" title="同步中..."></span>
+          ) : syncError ? (
+            <span className="status status-base status-error indicator-item" title={`同步错误: ${syncError}`}></span>
+          ) : (
+            <span className="status status-base status-success indicator-item" title={`最后同步: ${formatLastSync(lastSyncTime)}`}></span>
+          )}
         </div>
         
         {/* 用户名 */}
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 max-w-24 truncate">
+        <span className="text-sm font-medium max-w-24 truncate">
           {displayName}
         </span>
-      </button>
+      </div>
 
       {/* 下拉菜单 */}
-      {isMenuOpen && (
-        <div
-          ref={menuRef}
-          className="absolute left-2 bottom-2 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50"
-        >
-          {/* 用户信息 */}
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-3">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={displayName}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-              ) : (
-                <div className={`w-10 h-10 rounded-full ${getAvatarColor(displayName)} flex items-center justify-center text-white font-medium`}>
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {displayName}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                  {displayUser.email}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 同步状态 */}
-          <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                {syncing ? (
-                  <Cloud className="w-4 h-4 text-blue-500 animate-pulse" />
-                ) : syncError ? (
-                  <CloudOff className="w-4 h-4 text-red-500" />
+      <div
+        tabIndex={0}
+        className="dropdown-content menu bg-base-100 rounded-box z-[1] w-64 p-4 shadow-lg left-0"
+      >
+        {/* 用户信息 */}
+        <div className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="avatar">
+              <div className="w-10 rounded-full">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayName}
+                  />
                 ) : (
-                  <Cloud className="w-4 h-4 text-green-500" />
+                  <div className={`w-10 h-10 rounded-full ${getAvatarColor(displayName)} flex items-center justify-center text-white font-medium`}>
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
                 )}
-                <span className="text-xs text-gray-600 dark:text-gray-400">
-                  {syncing ? '同步中...' : syncError ? '同步失败' : '已同步'}
-                </span>
               </div>
-              <span className="text-xs text-gray-500 dark:text-gray-500">
-                {formatLastSync(lastSyncTime)}
-              </span>
             </div>
-            {syncError && (
-              <p className="text-xs text-red-500 dark:text-red-400 mt-1 truncate" title={syncError}>
-                {syncError}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">
+                {displayName}
               </p>
-            )}
-          </div>
-
-          {/* 菜单项 */}
-          <div className="py-1">
-            <button
-              onClick={handleSettings}
-              className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <Settings className="w-4 h-4 mr-3" />
-              设置
-            </button>
-            
-            {syncError && (
-              <button
-                onClick={handleDebug}
-                className="w-full flex items-center px-4 py-2 text-sm text-orange-600 dark:text-orange-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <Bug className="w-4 h-4 mr-3" />
-                调试连接
-              </button>
-            )}
-            
-            <button
-              onClick={handleSignOut}
-              className="w-full flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <LogOut className="w-4 h-4 mr-3" />
-              退出登录
-            </button>
+              <p className="text-xs text-base-content/70 truncate">
+                {displayUser.email}
+              </p>
+            </div>
           </div>
         </div>
-      )}
+
+        {/* 同步状态 */}
+        <div className="py-4 bg-base-200 rounded-lg px-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {syncing ? (
+                <Cloud className="w-4 h-4 text-info animate-pulse" />
+              ) : syncError ? (
+                <CloudOff className="w-4 h-4 text-error" />
+              ) : (
+                <Cloud className="w-4 h-4 text-success" />
+              )}
+              <span className="text-sm text-base-content/70">
+                {syncing ? '同步中...' : syncError ? '同步失败' : '已同步'}
+              </span>
+            </div>
+            <span className="text-sm text-base-content/40">
+              {formatLastSync(lastSyncTime)}
+            </span>
+          </div>
+          {syncError && (
+            <p className="text-xs text-error mt-1 truncate" title={syncError}>
+              {syncError}
+            </p>
+          )}
+        </div>
+
+        {/* 菜单项 */}
+        <li
+          className='py-2'
+        >
+          <button
+            onClick={() => {
+              handleSettings();
+              (document.activeElement as HTMLElement)?.blur();
+            }}
+            //点击后关闭本菜单
+            
+            className="flex items-center gap-3"
+          >
+            <Settings className="w-4 h-4" />
+            设置
+          </button>
+        </li>
+        
+        {syncError && (
+          <li
+            className='py-2'
+          >
+            <button
+              onClick={handleDebug}
+              className="flex items-center gap-3 text-warning"
+            >
+              <Bug className="w-4 h-4" />
+              调试连接
+            </button>
+          </li>
+        )}
+        
+        <li>
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-3 text-error"
+          >
+            <LogOut className="w-4 h-4" />
+            退出登录
+          </button>
+        </li>
+      </div>
     </div>
   )
 }

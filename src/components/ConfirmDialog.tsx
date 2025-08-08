@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -45,44 +44,45 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     onClose();
   };
 
-  const variantStyles = {
-    danger: {
-      icon: 'text-red-500',
-      confirmButton: 'bg-red-500 hover:bg-red-600 text-white',
-      iconBg: 'bg-red-100'
-    },
-    warning: {
-      icon: 'text-yellow-500',
-      confirmButton: 'bg-yellow-500 hover:bg-yellow-600 text-white',
-      iconBg: 'bg-yellow-100'
-    },
-    info: {
-      icon: 'text-blue-500',
-      confirmButton: 'bg-blue-500 hover:bg-blue-600 text-white',
-      iconBg: 'bg-blue-100'
+  const getVariantClasses = () => {
+    switch (variant) {
+      case 'danger':
+        return {
+          icon: 'text-error',
+          confirmButton: 'btn-error'
+        };
+      case 'warning':
+        return {
+          icon: 'text-warning',
+          confirmButton: 'btn-warning'
+        };
+      case 'info':
+        return {
+          icon: 'text-info',
+          confirmButton: 'btn-info'
+        };
+      default:
+        return {
+          icon: 'text-error',
+          confirmButton: 'btn-error'
+        };
     }
   };
 
-  const styles = variantStyles[variant];
+  const variantClasses = getVariantClasses();
 
   return (
     <dialog 
       ref={dialogRef}
-      className={cn(
-        "modal",
-        isOpen && "animate-in fade-in duration-200"
-      )}
+      className="modal"
       onClose={handleDialogClose}
     >
-      <div className={cn(
-        "modal-box max-w-md",
-        isOpen && "animate-in zoom-in-95 slide-in-from-bottom-4 duration-200"
-      )}>
+      <div className="modal-box max-w-md">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className={cn('p-2 rounded-full', styles.iconBg)}>
-              <AlertTriangle className={cn('w-5 h-5', styles.icon)} />
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-full bg-base-200">
+              <AlertTriangle className={`w-5 h-5 ${variantClasses.icon}`} />
             </div>
             <h3 className="text-lg font-semibold">
               {title}
@@ -111,12 +111,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           </form>
           <button
             onClick={handleConfirm}
-            className={cn(
-              'btn',
-              variant === 'danger' && 'btn-error',
-              variant === 'warning' && 'btn-warning', 
-              variant === 'info' && 'btn-info'
-            )}
+            className={`btn ${variantClasses.confirmButton}`}
           >
             {confirmText}
           </button>

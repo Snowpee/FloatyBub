@@ -14,7 +14,8 @@ import {
   Palette,
   EyeOff,
   LogIn,
-  Edit3
+  Edit3,
+  User
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Popconfirm from './Popconfirm';
@@ -53,6 +54,9 @@ const Layout: React.FC = () => {
     tempSessionId,
     deleteTempSession
   } = useAppStore();
+  
+  // 功能开关
+  const isUserSystemEnabled = import.meta.env.VITE_ENABLE_USER_SYSTEM === 'true';
   
   // 认证相关
   const { user, loading: authLoading } = useAuth();
@@ -251,7 +255,7 @@ const Layout: React.FC = () => {
           closeSidebarOnMobile();
         }}
         className={cn(
-          "chat-list p-3 m-1 transition-colors group block group",
+          "chat-list p-3 my-1 transition-colors group block group",
           isActive 
             ? "bg-base-300" 
             : "hover:bg-base-200"
@@ -516,38 +520,69 @@ const Layout: React.FC = () => {
           {/* 底部操作区 */}
           <div className="p-4 pt-0 flex-shrink-0">
             <div className="grid grid-cols-1 gap-2">
-              {/* 用户认证区域 */}
-              <div className="mb-2">
-                {(user || currentUser) ? (
-                  <UserAvatar 
-                    onOpenSettings={() => {
+              
+              <div className="grid grid-cols-2 gap-2">
+                {isUserSystemEnabled ? (
+                  (user || currentUser) ? (
+                    <UserAvatar 
+                      onOpenSettings={() => {
+                        window.location.hash = '#setting';
+                        closeSidebarOnMobile();
+                      }}
+                    />
+                  ) : (
+                    <div className="dropdown dropdown-top dropdown-start">
+                      <button 
+                        className="btn btn-ghost btn-sm"
+                        tabIndex={0}
+                        >
+                        <User className="h-4 w-4" />
+                        访客模式
+                      </button>
+                      <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 w-48">
+                        <span className="text-sm text-base-content/40 px-3 py-2">登录以同步</span>  
+
+                        <li
+                          className="mb-2"
+                        >
+                          <button
+                            onClick={() => setIsAuthModalOpen(true)}
+                            className="btn btn-sm btn-primary"
+                            disabled={authLoading}
+                          >
+                            <LogIn className="h-4 w-4" />
+                            {authLoading ? '加载中...' : '登录'}
+                          </button>
+                        </li>
+                        <li>
+                          <button 
+                            onClick={() => {
+                              window.location.hash = '#setting';
+                              (document.activeElement as HTMLElement)?.blur();
+                              closeSidebarOnMobile();
+                            }}
+                            className="btn btn-sm"
+                          >
+                            <Settings className="h-4 w-4" />
+                            设置
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  )
+                ) : (
+                  <button
+                    onClick={() => {
                       window.location.hash = '#setting';
                       closeSidebarOnMobile();
                     }}
-                  />
-                ) : (
-                  <button
-                    onClick={() => setIsAuthModalOpen(true)}
-                    className="btn btn-primary btn-sm w-full"
-                    disabled={authLoading}
+                    className="btn btn-ghost btn-sm"
                   >
-                    <LogIn className="h-4 w-4" />
-                    {authLoading ? '加载中...' : '登录'}
+                    <Settings className="h-4 w-4" />
+                    设置
                   </button>
                 )}
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => {
-                    window.location.hash = '#setting';
-                    closeSidebarOnMobile();
-                  }}
-                  className="btn btn-ghost btn-sm"
-                >
-                  <Settings className="h-4 w-4" />
-                  设置
-                </button>
+
                 
                 <div className="dropdown dropdown-top dropdown-end">
                   <button
