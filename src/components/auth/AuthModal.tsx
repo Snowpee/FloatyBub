@@ -26,7 +26,9 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
         onClose()
       }, 3000)
     } else {
+      // 登录成功后刷新页面以确保状态完全更新
       onClose()
+      window.location.reload()
     }
   }
 

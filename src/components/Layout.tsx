@@ -207,15 +207,20 @@ const Layout: React.FC = () => {
     return aiRoles.find(role => role.id === roleId);
   };
 
-  const deleteSession = (sessionId: string) => {
-    deleteChatSession(sessionId);
-    
-    // 如果删除的是当前对话，导航到聊天首页
-    if (currentSessionId === sessionId) {
-      navigate('/chat');
+  const deleteSession = async (sessionId: string) => {
+    try {
+      await deleteChatSession(sessionId);
+      
+      // 如果删除的是当前对话，导航到聊天首页
+      if (currentSessionId === sessionId) {
+        navigate('/chat');
+      }
+      
+      toast.success('对话已删除');
+    } catch (error) {
+      console.error('删除对话失败:', error);
+      toast.error(error instanceof Error ? error.message : '删除对话失败');
     }
-    
-    toast.success('对话已删除');
   };
 
   // 检测是否为移动设备

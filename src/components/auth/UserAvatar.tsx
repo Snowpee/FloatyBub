@@ -53,6 +53,8 @@ export function UserAvatar({ onOpenSettings }: UserAvatarProps) {
   const handleSignOut = async () => {
     setIsMenuOpen(false)
     await signOut()
+    // 刷新页面以确保状态完全更新
+    window.location.reload()
   }
 
   const handleSettings = () => {

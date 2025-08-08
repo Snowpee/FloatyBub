@@ -194,10 +194,15 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
     confirmDialogRef.current?.showModal();
   };
 
-  const confirmDelete = () => {
-    deleteAIRole(confirmDialog.roleId);
-    toast.success('角色已删除');
-    confirmDialogRef.current?.close();
+  const confirmDelete = async () => {
+    try {
+      await deleteAIRole(confirmDialog.roleId);
+      toast.success('角色已删除');
+      confirmDialogRef.current?.close();
+    } catch (error) {
+      console.error('删除角色失败:', error);
+      toast.error(error instanceof Error ? error.message : '删除角色失败');
+    }
   };
 
   const handleCancelDelete = () => {

@@ -90,10 +90,15 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
     modalRef.current?.showModal();
   };
 
-  const confirmDeleteSession = () => {
-    deleteChatSession(confirmDialog.sessionId);
-    toast.success('会话已删除');
-    modalRef.current?.close();
+  const confirmDeleteSession = async () => {
+    try {
+      await deleteChatSession(confirmDialog.sessionId);
+      toast.success('会话已删除');
+      modalRef.current?.close();
+    } catch (error) {
+      console.error('删除会话失败:', error);
+      toast.error(error instanceof Error ? error.message : '删除会话失败');
+    }
   };
 
   const handleCancel = () => {

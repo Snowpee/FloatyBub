@@ -121,13 +121,13 @@ const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => 
     });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     try {
-      deleteUserProfile(confirmDialog.profileId);
+      await deleteUserProfile(confirmDialog.profileId);
       toast.success('用户资料已删除');
     } catch (error) {
       console.error('删除用户资料失败:', error);
-      toast.error('删除用户资料失败');
+      toast.error(error instanceof Error ? error.message : '删除用户资料失败');
     }
   };
 

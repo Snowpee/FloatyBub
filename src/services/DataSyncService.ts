@@ -241,10 +241,32 @@ export class DataSyncService {
 
   // 同步语音设置
   private async syncVoiceSettings(data: any): Promise<void> {
+    // 将前端VoiceSettings数据映射到数据库结构
+    const dbData = {
+      user_id: data.user_id,
+      provider: data.provider || 'fish-audio',
+      model: data.defaultVoiceModelId || 'default',
+      config: {
+        apiUrl: data.apiUrl,
+        apiKey: data.apiKey,
+        readingMode: data.readingMode,
+        customModels: data.customModels,
+        modelVersion: data.modelVersion,
+        defaultVoiceModelId: data.defaultVoiceModelId
+      },
+      voice_model_id: null, // 不使用外键引用
+      speed: 1.0, // 默认语音速度
+      pitch: 1.0, // 默认音调
+      volume: 1.0, // 默认音量
+      enabled: true, // 默认启用
+      auto_play: false, // 默认不自动播放
+      updated_at: data.updated_at || new Date().toISOString()
+    }
+
     // 语音设置每个用户只有一条记录，使用user_id作为唯一标识
     const { error } = await supabase
       .from('voice_settings')
-      .upsert(data, { onConflict: 'user_id' })
+      .upsert(dbData, { onConflict: 'user_id' })
     
     if (error) {
       throw new Error(`语音设置同步失败: ${error.message}`)
@@ -271,7 +293,7 @@ export class DataSyncService {
       supabase.from('llm_configs').select('*').eq('user_id', user.id),
       supabase.from('ai_roles').select('*').eq('user_id', user.id),
       supabase.from('global_prompts').select('*').eq('user_id', user.id),
-      supabase.from('voice_settings').select('*').eq('user_id', user.id).single()
+      supabase.from('voice_settings').select('*').eq('user_id', user.id).maybeSingle()
     ])
 
     if (llmConfigsResult.error) {
@@ -324,11 +346,26 @@ export class DataSyncService {
       updatedAt: item.updated_at
     }))
 
+    // 将语音设置数据库格式转换回前端格式
+    let voiceSettings = null
+    if (voiceSettingsResult.data) {
+      const dbVoiceSettings = voiceSettingsResult.data
+      voiceSettings = {
+        provider: dbVoiceSettings.provider || 'fish-audio',
+        apiUrl: dbVoiceSettings.config?.apiUrl || 'https://api.fish.audio',
+        apiKey: dbVoiceSettings.config?.apiKey || '',
+        readingMode: dbVoiceSettings.config?.readingMode || 'all',
+        customModels: dbVoiceSettings.config?.customModels || [],
+        modelVersion: dbVoiceSettings.config?.modelVersion || 'speech-1.6',
+        defaultVoiceModelId: dbVoiceSettings.config?.defaultVoiceModelId || ''
+      }
+    }
+
     return {
       llmConfigs,
       aiRoles,
       globalPrompts,
-      voiceSettings: voiceSettingsResult.data || null
+      voiceSettings
     }
   }
 

@@ -47,19 +47,24 @@ const ChatSessionList: React.FC = () => {
   }, [showDeleteMenu]);
   
   // 处理删除会话
-  const handleDeleteSession = (sessionIdToDelete: string, e: React.MouseEvent) => {
+  const handleDeleteSession = async (sessionIdToDelete: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    deleteChatSession(sessionIdToDelete);
-    setShowDeleteMenu(null);
-    
-    // 如果删除的是当前会话，导航到聊天首页
-    if (activeSessionId === sessionIdToDelete) {
-      navigate('/chat');
+    try {
+      await deleteChatSession(sessionIdToDelete);
+      setShowDeleteMenu(null);
+      
+      // 如果删除的是当前会话，导航到聊天首页
+      if (activeSessionId === sessionIdToDelete) {
+        navigate('/chat');
+      }
+      
+      toast.success('会话已删除');
+    } catch (error) {
+      console.error('删除会话失败:', error);
+      toast.error(error instanceof Error ? error.message : '删除会话失败');
     }
-    
-    toast.success('会话已删除');
   };
   
   // 切换删除菜单

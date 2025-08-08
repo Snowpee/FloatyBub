@@ -127,40 +127,31 @@ const ChatPage: React.FC = () => {
   
   // 组件卸载时清理未使用的临时会话
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    
-    const cleanup = () => {
-      // 延迟执行清理逻辑，避免在快速切换时误删会话
-      timeoutId = setTimeout(() => {
-        const state = {
-          tempSessionId,
-          currentSession,
-          currentSessionId
-        };
-        
-        // 只有在确实需要清理时才删除临时会话
-        // 1. 必须存在临时会话ID
-        // 2. 临时会话确实存在
-        // 3. 临时会话没有用户消息
-        // 4. 临时会话不是当前活跃会话（避免删除正在使用的会话）
-        if (state.tempSessionId && 
-            state.currentSession && 
-            state.tempSessionId === state.currentSession.id &&
-            !state.currentSession.messages.some(m => m.role === 'user') &&
-            state.currentSessionId !== state.tempSessionId) {
-          deleteTempSession();
-        }
-      }, 200); // 增加延迟时间，确保状态稳定
-    };
-    
     return () => {
-      cleanup();
-      // 清理定时器，避免内存泄漏
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      // 组件卸载时检查是否需要清理临时会话
+      // 使用 setTimeout 确保在下一个事件循环中执行，避免状态不一致
+      setTimeout(() => {
+        const currentState = useAppStore.getState();
+        const { tempSessionId: currentTempSessionId, chatSessions, currentSessionId: currentActiveSessionId } = currentState;
+        
+        // 只有在以下条件全部满足时才清理临时会话：
+        // 1. 存在临时会话ID
+        // 2. 临时会话确实存在于会话列表中
+        // 3. 临时会话没有任何用户消息（只有AI开场白或完全为空）
+        // 4. 临时会话不是当前活跃的会话（用户已经离开了这个会话）
+        if (currentTempSessionId) {
+          const tempSession = chatSessions.find(s => s.id === currentTempSessionId);
+          
+          if (tempSession && 
+              !tempSession.messages.some(m => m.role === 'user') &&
+              currentActiveSessionId !== currentTempSessionId) {
+            console.log('🧹 清理未使用的临时会话:', currentTempSessionId);
+            useAppStore.getState().deleteTempSession();
+          }
+        }
+      }, 100);
     };
-  }, []); // 移除依赖项，避免重复注册清理逻辑
+  }, []); // 空依赖数组，只在组件卸载时执行
 
   // 自动滚动到底部
   useEffect(() => {
@@ -1205,9 +1196,14 @@ const ChatPage: React.FC = () => {
                   {/* 删除按钮 */}
                   <Popconfirm
                     title="确定要删除这条消息吗？"
-                    onConfirm={() => {
-                      deleteMessage(currentSession!.id, msg.id);
-                      toast.success('消息已删除');
+                    onConfirm={async () => {
+                      try {
+                        await deleteMessage(currentSession!.id, msg.id);
+                        toast.success('消息已删除');
+                      } catch (error) {
+                        console.error('删除消息失败:', error);
+                        toast.error('删除消息失败，请重试');
+                      }
                     }}
                   >
                     <button

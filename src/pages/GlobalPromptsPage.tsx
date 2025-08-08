@@ -125,10 +125,15 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
     confirmModalRef.current?.showModal();
   };
 
-  const confirmDelete = () => {
-    deleteGlobalPrompt(confirmDialog.promptId);
-    toast.success('全局提示词已删除');
-    confirmModalRef.current?.close();
+  const confirmDelete = async () => {
+    try {
+      await deleteGlobalPrompt(confirmDialog.promptId);
+      toast.success('全局提示词已删除');
+      confirmModalRef.current?.close();
+    } catch (error) {
+      console.error('删除全局提示词失败:', error);
+      toast.error(error instanceof Error ? error.message : '删除全局提示词失败');
+    }
   };
 
   const handleConfirmCancel = () => {

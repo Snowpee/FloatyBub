@@ -6,6 +6,7 @@ import NotFound from '../pages/NotFound';
 import VoiceTest from '../pages/tests/VoiceTest';
 import ToastTestPage from '../pages/tests/ToastTestPage';
 import SupabaseDebugPage from '../pages/SupabaseDebugPage';
+import SyncTestPage from '../pages/SyncTestPage';
 
 export const router = createBrowserRouter([
   {
@@ -36,6 +37,10 @@ export const router = createBrowserRouter([
       {
         path: 'debug',
         element: <SupabaseDebugPage />
+      },
+      {
+        path: 'sync-test',
+        element: <SyncTestPage />
       },
       {
         path: '*',

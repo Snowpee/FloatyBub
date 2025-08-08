@@ -1,6 +1,10 @@
 # TODO:
 
-- [x] fix_cloud_sync_auth_01: 修改useAuth.ts中的云端数据同步逻辑，在调用pullFromCloud前验证用户登录状态 (priority: High)
-- [x] fix_cloud_sync_auth_02: 修改DataSyncService.ts的pullFromCloud函数，接受用户对象参数避免重复获取 (priority: High)
-- [x] fix_cloud_sync_auth_03: 添加云端数据同步的重试机制，处理认证状态不稳定的情况 (priority: Medium)
-- [x] fix_cloud_sync_auth_04: 测试修复后的云端数据同步功能是否正常工作 (priority: Medium)
+- [x] analyze_delete_sync_problem: 分析删除同步问题的根源 (priority: High)
+- [x] fix_delete_ai_role: 修复deleteAIRole函数，添加数据库删除同步 (priority: High)
+- [x] fix_delete_llm_config: 修复deleteLLMConfig函数，添加数据库删除同步 (priority: High)
+- [x] fix_delete_global_prompt: 修复deleteGlobalPrompt函数，添加数据库删除同步 (priority: High)
+- [x] fix_delete_function_calls: 修复调用删除函数的地方，确保正确处理异步操作 (priority: High)
+- [x] fix_delete_user_profile: 修复deleteUserProfile函数，添加数据库删除同步 (priority: Medium)
+- [x] fix_delete_chat_session: 修复deleteChatSession函数，添加数据库删除同步 (priority: Medium)
+- [x] test_all_delete_functions: 测试所有修复后的删除功能 (priority: Medium)

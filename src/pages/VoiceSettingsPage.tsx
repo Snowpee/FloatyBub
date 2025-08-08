@@ -233,7 +233,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
           id: modelId,
           name: data.title || `模型 ${modelId.slice(0, 8)}`,
           description: data.description || '',
-          author: data.author?.nickname || data.author || '',
+          author: (typeof data.author === 'object' ? data.author?.nickname : data.author) || '',
           tags: data.tags || []
         };
       }

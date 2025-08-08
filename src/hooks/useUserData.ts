@@ -48,7 +48,16 @@ export interface UserDataActions {
   manualDataSync: () => Promise<SyncResult>
 }
 
-export function useUserData(): UserDataState & UserDataActions {
+export const useUserData = () => {
+  // 强制输出调试信息
+  console.log('🔥🔥🔥 [useUserData] HOOK INITIALIZED - FORCED LOG 🔥🔥🔥')
+  console.table({
+    timestamp: new Date().toISOString(),
+    userExists: !!useAuth().user,
+    userEmail: useAuth().user?.email,
+    sessionsCount: useAppStore.getState().chatSessions.length
+  })
+  
   const { user } = useAuth()
   const { 
     chatSessions,
@@ -63,6 +72,18 @@ export function useUserData(): UserDataState & UserDataActions {
   const [dataSyncLastTime, setDataSyncLastTime] = useState<number | null>(null)
   const [syncQueue, setSyncQueue] = useState<Set<string>>(new Set())
   const [syncProgress, setSyncProgress] = useState({ percent: 0, message: '' })
+
+  console.log('🔄 [useUserData] Hook初始化', {
+    userId: user?.id,
+    userEmail: user?.email,
+    autoSyncEnabled,
+    sessionsCount: chatSessions.length
+  })
+  
+  // 强制输出到控制台
+  if (typeof window !== 'undefined') {
+    console.warn('🚨 [useUserData] HOOK LOADED - User:', user?.email || 'Not logged in')
+  }
 
   // 自动同步间隔（5分钟）
   const AUTO_SYNC_INTERVAL = 5 * 60 * 1000
@@ -99,14 +120,27 @@ export function useUserData(): UserDataState & UserDataActions {
 
   // 同步到云端
   const syncToCloud = useCallback(async (retryCount = 0) => {
-    if (!user || syncing) return
+    console.log('🚀 [useUserData] syncToCloud 开始执行', {
+      userId: user?.id,
+      syncing,
+      retryCount,
+      sessionsCount: chatSessions.length
+    })
+    
+    if (!user || syncing) {
+      console.log('🔄 [useUserData] syncToCloud 跳过 - 条件不满足', {
+        hasUser: !!user,
+        syncing
+      })
+      return
+    }
     
     // 生成同步标识符
     const syncId = `${user.id}-${Date.now()}`
     
     // 检查是否已在队列中
     if (syncQueue.has(user.id)) {
-      
+      console.log('🔄 [useUserData] syncToCloud 跳过 - 已在同步队列中')
       return
     }
     
@@ -114,6 +148,11 @@ export function useUserData(): UserDataState & UserDataActions {
     setSyncQueue(prev => new Set(prev).add(user.id))
     setSyncing(true)
     setSyncError(null)
+    
+    console.log('✅ [useUserData] syncToCloud 开始同步', {
+      syncId,
+      sessionsToSync: chatSessions.length
+    })
 
     try {
       // 同步前检查数据库连通性
@@ -192,6 +231,8 @@ export function useUserData(): UserDataState & UserDataActions {
         id: session.id,
         user_id: user.id,
         title: session.title,
+        is_hidden: session.isHidden || false,
+        is_pinned: session.isPinned || false,
         metadata: {
           roleId: session.roleId,
           modelId: session.modelId,
@@ -439,6 +480,8 @@ export function useUserData(): UserDataState & UserDataActions {
           messages: sessionMessages,
           roleId: session.metadata?.roleId || 'default-assistant',
           modelId: session.metadata?.modelId || 'gpt-3.5-turbo',
+          isHidden: session.is_hidden || false,
+          isPinned: session.is_pinned || false,
           createdAt: new Date(session.metadata?.createdAt || session.created_at),
           updatedAt: new Date(session.metadata?.updatedAt || session.updated_at)
         })
@@ -453,7 +496,7 @@ export function useUserData(): UserDataState & UserDataActions {
         return 0
       }
 
-      // 合并本地和云端数据（云端数据优先）
+      // 智能合并本地和云端数据
       const mergedSessions = new Map<string, ChatSession>()
       
       // 先添加本地会话
@@ -461,11 +504,36 @@ export function useUserData(): UserDataState & UserDataActions {
         mergedSessions.set(session.id, session)
       })
       
-      // 用云端会话覆盖（如果云端更新时间更晚）
+      // 智能合并云端会话
       cloudSessions.forEach(cloudSession => {
         const localSession = mergedSessions.get(cloudSession.id)
-        if (!localSession || safeGetTime(cloudSession.updatedAt) > safeGetTime(localSession.updatedAt)) {
+        
+        if (!localSession) {
+          // 如果本地没有这个会话，直接使用云端数据
           mergedSessions.set(cloudSession.id, cloudSession)
+        } else {
+          // 如果本地有这个会话，需要智能合并
+          const localTime = safeGetTime(localSession.updatedAt)
+          const cloudTime = safeGetTime(cloudSession.updatedAt)
+          
+          // 检查本地是否有更多消息（可能未同步）
+          const localMessageCount = localSession.messages?.length || 0
+          const cloudMessageCount = cloudSession.messages?.length || 0
+          
+          // 如果本地消息更多，说明有未同步的新消息，保留本地数据
+          if (localMessageCount > cloudMessageCount) {
+            // 保留本地会话，但可能需要合并一些云端的元数据
+            mergedSessions.set(cloudSession.id, {
+              ...localSession,
+              // 保留本地的消息和更新时间
+              messages: localSession.messages,
+              updatedAt: localSession.updatedAt
+            })
+          } else if (cloudTime > localTime) {
+            // 如果云端时间更新且消息数量不少于本地，使用云端数据
+            mergedSessions.set(cloudSession.id, cloudSession)
+          }
+          // 否则保留本地数据（已经在map中）
         }
       })
 
@@ -548,16 +616,65 @@ export function useUserData(): UserDataState & UserDataActions {
   const lastSyncFromCloudTime = useRef<number>(0)
   const lastSyncToCloudTime = useRef<number>(0)
 
+  // 检查是否有消息正在流式输出
+  const hasStreamingMessages = useCallback(() => {
+    const streamingMessages = chatSessions.flatMap(session => 
+      session.messages?.filter(message => message.isStreaming) || []
+    )
+    const hasStreaming = streamingMessages.length > 0
+    
+    if (hasStreaming) {
+      console.log('🔄 [useUserData] 检测到流式消息', {
+        streamingCount: streamingMessages.length,
+        streamingMessageIds: streamingMessages.map(m => m.id)
+      })
+    }
+    
+    return hasStreaming
+  }, [chatSessions])
+
+  // 检查是否有本地未同步的数据
+  const hasUnsyncedLocalData = useCallback(() => {
+    const now = Date.now()
+    const recentThreshold = 30000 // 30秒内的数据认为可能未同步
+    
+    return chatSessions.some(session => {
+      // 检查会话是否在最近30秒内有更新
+      const sessionTime = session.updatedAt ? new Date(session.updatedAt).getTime() : 0
+      if (now - sessionTime < recentThreshold) {
+        return true
+      }
+      
+      // 检查是否有最近的消息
+      return session.messages?.some(message => {
+        const messageTime = message.timestamp ? new Date(message.timestamp).getTime() : 0
+        return now - messageTime < recentThreshold
+      })
+    })
+  }, [chatSessions])
+
   // 防抖的云端同步函数
   const debouncedSyncFromCloudFn = useCallback(() => {
     const now = Date.now()
     const timeSinceLastSync = now - lastSyncFromCloudTime.current
     
-    // console.log('🔄 [useUserData] 防抖云端同步检查', { timeSinceLastSync })
+    console.log('🔄 [useUserData] 防抖云端同步检查', { timeSinceLastSync })
     
     // 如果距离上次同步不足10秒，则跳过
     if (timeSinceLastSync < 10000) {
 
+      return
+    }
+    
+    // 如果有本地未同步的数据，延迟从云端拉取
+    if (hasUnsyncedLocalData()) {
+      console.log('🔄 [useUserData] 检测到本地未同步数据，延迟从云端拉取')
+      return
+    }
+    
+    // 如果有消息正在流式输出，跳过
+    if (hasStreamingMessages()) {
+      console.log('🔄 [useUserData] 检测到流式消息，跳过从云端同步')
       return
     }
     
@@ -570,31 +687,28 @@ export function useUserData(): UserDataState & UserDataActions {
       lastSyncFromCloudTime.current = Date.now()
       syncFromCloud()
     }, 1000)
-  }, [syncFromCloud])
-
-  // 检查是否有消息正在流式输出
-  const hasStreamingMessages = useCallback(() => {
-    return chatSessions.some(session => 
-      session.messages?.some(message => message.isStreaming === true)
-    )
-  }, [chatSessions])
+  }, [syncFromCloud, hasUnsyncedLocalData, hasStreamingMessages])
 
   // 防抖的云端上传函数
   const debouncedSyncToCloudFn = useCallback(() => {
     const now = Date.now()
     const timeSinceLastSync = now - lastSyncToCloudTime.current
     
-    // console.log('🔄 [useUserData] 防抖云端上传检查', { timeSinceLastSync })
+    console.log('🔄 [useUserData] 防抖云端上传检查', { 
+      timeSinceLastSync,
+      hasStreaming: hasStreamingMessages(),
+      sessionsCount: chatSessions.length
+    })
     
-    // 如果距离上次同步不足8秒，则跳过
-    if (timeSinceLastSync < 8000) {
-
+    // 减少时间间隔限制，从8秒改为3秒
+    if (timeSinceLastSync < 3000) {
+      console.log('🔄 [useUserData] 距离上次同步时间过短，跳过')
       return
     }
 
     // 检查是否有消息正在流式输出
     if (hasStreamingMessages()) {
-
+      console.log('🔄 [useUserData] 检测到流式消息，跳过上传')
       return
     }
     
@@ -605,38 +719,39 @@ export function useUserData(): UserDataState & UserDataActions {
     debouncedSyncToCloud.current = setTimeout(() => {
       // 再次检查流式状态，确保延迟执行时仍然安全
       if (hasStreamingMessages()) {
-
+        console.log('🔄 [useUserData] 延迟执行时检测到流式消息，取消同步')
         return
       }
 
+      console.log('✅ [useUserData] 开始执行云端上传')
       lastSyncToCloudTime.current = Date.now()
       syncToCloud()
-    }, 2000)
-  }, [syncToCloud, hasStreamingMessages])
+    }, 1000) // 减少延迟时间，从2秒改为1秒
+  }, [syncToCloud, hasStreamingMessages, chatSessions.length])
 
   // 自动同步效果
   useEffect(() => {
-    // console.log('🔄 [useUserData] 自动同步效果初始化', { userId: user?.id, autoSyncEnabled })
+    console.log('🔄 [useUserData] 自动同步效果初始化', { userId: user?.id, autoSyncEnabled })
     
     if (!user?.id || !autoSyncEnabled) {
 
       return
     }
 
-    // 延迟初始同步，确保认证状态稳定
-    const initialSyncTimeout = setTimeout(() => {
-
-      debouncedSyncFromCloudFn()
-    }, 2000)
-
-    // 立即执行一次同步到云端（如果有本地数据）
+    // 优先同步本地数据到云端
     const currentSessions = useAppStore.getState().chatSessions
     if (currentSessions.length > 0) {
-
+      console.log('🔄 [useUserData] 检测到本地数据，优先上传到云端')
       setTimeout(() => {
         debouncedSyncToCloudFn()
-      }, 3000)
+      }, 1000)
     }
+
+    // 延迟从云端同步，确保本地数据先上传
+    const initialSyncTimeout = setTimeout(() => {
+      console.log('🔄 [useUserData] 执行延迟的云端同步')
+      debouncedSyncFromCloudFn()
+    }, 10000) // 延长到10秒，给本地数据上传更多时间
 
     // 设置定时同步
     const interval = setInterval(() => {
@@ -666,56 +781,104 @@ export function useUserData(): UserDataState & UserDataActions {
   
   // 检测消息是否刚刚完成（从streaming变为非streaming状态）
    const checkMessageCompletion = useCallback(() => {
-     const currentSessionsStr = JSON.stringify(chatSessions.map(s => ({
+     const currentSessionsData = chatSessions.map(s => ({
        id: s.id,
        messageCount: s.messages?.length || 0,
-       lastMessageIsStreaming: s.messages?.[s.messages.length - 1]?.isStreaming || false
-     })))
+       lastMessageId: s.messages?.[s.messages.length - 1]?.id,
+       lastMessageIsStreaming: s.messages?.[s.messages.length - 1]?.isStreaming || false,
+       lastMessageContent: s.messages?.[s.messages.length - 1]?.content?.slice(0, 50) || ''
+     }))
      
+     const currentSessionsStr = JSON.stringify(currentSessionsData)
      const hasChanged = prevSessionsRef.current !== currentSessionsStr
      const hasStreamingNow = hasStreamingMessages()
      
-     if (hasChanged && !hasStreamingNow && prevSessionsRef.current) {
-       // 数据有变化且当前没有流式消息，可能是消息刚完成
-
-       prevSessionsRef.current = currentSessionsStr
-       return true
+     console.log('🔄 [useUserData] 检查消息完成状态', {
+       hasChanged,
+       hasStreamingNow,
+       hasPrevState: !!prevSessionsRef.current,
+       currentData: currentSessionsData,
+       prevData: prevSessionsRef.current ? JSON.parse(prevSessionsRef.current) : null
+     })
+     
+     // 检查是否有消息从streaming变为非streaming
+     let hasMessageCompleted = false
+     if (prevSessionsRef.current && hasChanged) {
+       try {
+         const prevData = JSON.parse(prevSessionsRef.current)
+         for (let i = 0; i < currentSessionsData.length; i++) {
+           const current = currentSessionsData[i]
+           const prev = prevData.find((p: any) => p.id === current.id)
+           if (prev && prev.lastMessageIsStreaming && !current.lastMessageIsStreaming) {
+             console.log('✅ [useUserData] 检测到消息完成', {
+               sessionId: current.id,
+               messageId: current.lastMessageId,
+               prevStreaming: prev.lastMessageIsStreaming,
+               currentStreaming: current.lastMessageIsStreaming
+             })
+             hasMessageCompleted = true
+             break
+           }
+         }
+       } catch (e) {
+         console.warn('解析前一状态失败:', e)
+       }
      }
      
      prevSessionsRef.current = currentSessionsStr
-     return false
+     return hasMessageCompleted
    }, [chatSessions, hasStreamingMessages])
 
   // 监听数据变化，自动同步到云端
   useEffect(() => {
-    // console.log('🔄 [useUserData] 数据变化监听', {
-    //   userId: user?.id,
-    //   autoSyncEnabled,
-    //   syncing,
-    //   sessionsCount: sessions.length
-    // })
+    console.log('🔄 [useUserData] 数据变化监听', {
+      userId: user?.id,
+      autoSyncEnabled,
+      syncing,
+      sessionsCount: chatSessions.length,
+      hasStreamingMessages: hasStreamingMessages()
+    })
     
-    if (!user?.id || !autoSyncEnabled || syncing || chatSessions.length === 0) {
+    if (!user?.id || !autoSyncEnabled || syncing) {
+      console.log('🔄 [useUserData] 跳过同步 - 条件不满足', {
+        hasUser: !!user?.id,
+        autoSyncEnabled,
+        syncing
+      })
+      return
+    }
 
+    // 即使没有会话也要尝试同步（可能是删除操作）
+    if (chatSessions.length === 0) {
+      console.log('🔄 [useUserData] 没有会话数据，但仍尝试同步（可能是删除操作）')
+      debouncedSyncToCloudFn()
       return
     }
 
     // 检查是否有消息正在流式输出
     if (hasStreamingMessages()) {
-
+      console.log('🔄 [useUserData] 检测到流式消息，延迟同步')
       return
     }
 
     // 检查是否是消息完成触发的变化
-    if (checkMessageCompletion()) {
-
-      debouncedSyncToCloudFn()
+    const isMessageCompletion = checkMessageCompletion()
+    console.log('🔄 [useUserData] 消息完成检查结果:', isMessageCompletion)
+    
+    if (isMessageCompletion) {
+      console.log('✅ [useUserData] 消息完成，立即触发同步（跳过防抖）')
+      // 消息完成时立即同步，不使用防抖
+      if (debouncedSyncToCloud.current) {
+        clearTimeout(debouncedSyncToCloud.current)
+      }
+      lastSyncToCloudTime.current = Date.now()
+      syncToCloud()
     } else {
-      // 对于其他变化（如新建会话等），也进行同步但延迟更长
-
+      // 对于其他变化（如新建会话等），使用防抖同步
+      console.log('🔄 [useUserData] 其他数据变化，触发防抖同步')
       debouncedSyncToCloudFn()
     }
-  }, [user?.id, autoSyncEnabled, chatSessions, debouncedSyncToCloudFn, hasStreamingMessages, checkMessageCompletion])
+  }, [user?.id, autoSyncEnabled, chatSessions, debouncedSyncToCloudFn, hasStreamingMessages, checkMessageCompletion, syncing])
 
   return {
     syncing,

@@ -148,13 +148,13 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
     });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     try {
-      deleteLLMConfig(confirmDialog.configId);
+      await deleteLLMConfig(confirmDialog.configId);
       toast.success('配置已删除');
     } catch (error) {
       console.error('删除配置失败:', error);
-      toast.error('删除配置失败');
+      toast.error(error instanceof Error ? error.message : '删除配置失败');
     }
   };
 

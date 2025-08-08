@@ -144,18 +144,18 @@ interface AppState {
   // LLM配置相关
   addLLMConfig: (config: Omit<LLMConfig, 'id'>) => void;
   updateLLMConfig: (id: string, config: Partial<LLMConfig>) => void;
-  deleteLLMConfig: (id: string) => void;
+  deleteLLMConfig: (id: string) => Promise<void>;
   setCurrentModel: (id: string) => void;
   
   // AI角色相关
   addAIRole: (role: Omit<AIRole, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateAIRole: (id: string, role: Partial<AIRole>) => void;
-  deleteAIRole: (id: string) => void;
+  deleteAIRole: (id: string) => Promise<void>;
   
   // 全局提示词相关
   addGlobalPrompt: (prompt: Omit<GlobalPrompt, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateGlobalPrompt: (id: string, prompt: Partial<GlobalPrompt>) => void;
-  deleteGlobalPrompt: (id: string) => void;
+  deleteGlobalPrompt: (id: string) => Promise<void>;
   
   // 聊天会话相关
   createChatSession: (roleId: string, modelId: string) => string;
@@ -164,7 +164,7 @@ interface AppState {
   deleteTempSession: () => void;
   generateSessionTitle: (sessionId: string, llmConfig: LLMConfig) => Promise<void>;
   updateChatSession: (id: string, session: Partial<ChatSession>) => void;
-  deleteChatSession: (id: string) => void;
+  deleteChatSession: (id: string) => Promise<void>;
   hideSession: (id: string) => void;
   showSession: (id: string) => void;
   pinSession: (id: string) => void;
@@ -178,7 +178,7 @@ interface AppState {
   addMessageVersion: (sessionId: string, messageId: string, newContent: string) => void;
   addMessageVersionWithOriginal: (sessionId: string, messageId: string, originalContent: string, newContent: string) => void;
   switchMessageVersion: (sessionId: string, messageId: string, versionIndex: number) => void;
-  deleteMessage: (sessionId: string, messageId: string) => void;
+  deleteMessage: (sessionId: string, messageId: string) => Promise<void>;
   
   // 标题生成相关
   markSessionNeedsTitle: (sessionId: string) => void;
@@ -188,7 +188,7 @@ interface AppState {
   // 用户资料相关
   addUserProfile: (profile: Omit<UserProfile, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateUserProfile: (id: string, profile: Partial<UserProfile>) => void;
-  deleteUserProfile: (id: string) => void;
+  deleteUserProfile: (id: string) => Promise<void>;
   setCurrentUserProfile: (profile: UserProfile | null) => void;
   
   // 用户认证相关
@@ -378,11 +378,52 @@ export const useAppStore = create<AppState>()(
         }
       },
       
-      deleteLLMConfig: (id) => {
+      deleteLLMConfig: async (id) => {
+        // 先保存原始状态，以便在失败时回滚
+        const originalState = get();
+        const originalConfig = originalState.llmConfigs.find(c => c.id === id);
+        const originalCurrentModelId = originalState.currentModelId;
+        
+        // 先从本地状态删除
         set((state) => ({
           llmConfigs: state.llmConfigs.filter(c => c.id !== id),
           currentModelId: state.currentModelId === id ? null : state.currentModelId
         }));
+        
+        // 同步删除到数据库
+        try {
+          const { error } = await supabase
+            .from('llm_configs')
+            .delete()
+            .eq('id', id);
+          
+          if (error) {
+            // 回滚本地状态
+            if (originalConfig) {
+              set((state) => ({
+                llmConfigs: [...state.llmConfigs, originalConfig],
+                currentModelId: originalCurrentModelId
+              }));
+            }
+            console.error('删除LLM配置失败:', error);
+            throw new Error(`删除LLM配置失败: ${error.message}`);
+          }
+        } catch (error) {
+          // 如果是我们抛出的错误，直接重新抛出
+          if (error instanceof Error && error.message.includes('删除LLM配置失败')) {
+            throw error;
+          }
+          
+          // 回滚本地状态
+          if (originalConfig) {
+            set((state) => ({
+              llmConfigs: [...state.llmConfigs, originalConfig],
+              currentModelId: originalCurrentModelId
+            }));
+          }
+          console.error('删除LLM配置时发生错误:', error);
+          throw new Error(`删除LLM配置时发生错误: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
       },
       
       setCurrentModel: (id) => {
@@ -434,10 +475,48 @@ export const useAppStore = create<AppState>()(
         }
       },
       
-      deleteAIRole: (id) => {
+      deleteAIRole: async (id) => {
+        // 先保存原始状态，以便在失败时回滚
+        const originalState = get();
+        const originalRole = originalState.aiRoles.find(r => r.id === id);
+        
+        // 先从本地状态删除
         set((state) => ({
           aiRoles: state.aiRoles.filter(r => r.id !== id)
         }));
+        
+        // 同步删除到数据库
+        try {
+          const { error } = await supabase
+            .from('ai_roles')
+            .delete()
+            .eq('id', id);
+          
+          if (error) {
+            // 回滚本地状态
+            if (originalRole) {
+              set((state) => ({
+                aiRoles: [...state.aiRoles, originalRole]
+              }));
+            }
+            console.error('删除AI角色失败:', error);
+            throw new Error(`删除AI角色失败: ${error.message}`);
+          }
+        } catch (error) {
+          // 如果是我们抛出的错误，直接重新抛出
+          if (error instanceof Error && error.message.includes('删除AI角色失败')) {
+            throw error;
+          }
+          
+          // 回滚本地状态
+          if (originalRole) {
+            set((state) => ({
+              aiRoles: [...state.aiRoles, originalRole]
+            }));
+          }
+          console.error('删除AI角色时发生错误:', error);
+          throw new Error(`删除AI角色时发生错误: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
       },
       
       // 用户资料相关actions
@@ -461,11 +540,52 @@ export const useAppStore = create<AppState>()(
         }));
       },
       
-      deleteUserProfile: (id) => {
+      deleteUserProfile: async (id) => {
+        // 先保存原始状态，以便在失败时回滚
+        const originalState = get();
+        const originalProfile = originalState.userProfiles.find(p => p.id === id);
+        const originalCurrentProfile = originalState.currentUserProfile;
+        
+        // 先从本地状态删除
         set((state) => ({
           userProfiles: state.userProfiles.filter(p => p.id !== id),
           currentUserProfile: state.currentUserProfile?.id === id ? null : state.currentUserProfile
         }));
+        
+        // 同步删除到数据库
+        try {
+          const { error } = await supabase
+            .from('user_profiles')
+            .delete()
+            .eq('id', id);
+          
+          if (error) {
+            // 回滚本地状态
+            if (originalProfile) {
+              set((state) => ({
+                userProfiles: [...state.userProfiles, originalProfile],
+                currentUserProfile: originalCurrentProfile
+              }));
+            }
+            console.error('删除用户配置失败:', error);
+            throw new Error(`删除用户配置失败: ${error.message}`);
+          }
+        } catch (error) {
+          // 如果是我们抛出的错误，直接重新抛出
+          if (error instanceof Error && error.message.includes('删除用户配置失败')) {
+            throw error;
+          }
+          
+          // 回滚本地状态
+          if (originalProfile) {
+            set((state) => ({
+              userProfiles: [...state.userProfiles, originalProfile],
+              currentUserProfile: originalCurrentProfile
+            }));
+          }
+          console.error('删除用户配置时发生错误:', error);
+          throw new Error(`删除用户配置时发生错误: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
       },
       
       setCurrentUserProfile: (profile) => {
@@ -510,7 +630,13 @@ export const useAppStore = create<AppState>()(
         }
       },
       
-      deleteGlobalPrompt: (id) => {
+      deleteGlobalPrompt: async (id) => {
+        // 先保存原始状态，以便在失败时回滚
+        const originalState = get();
+        const originalPrompt = originalState.globalPrompts.find(p => p.id === id);
+        const originalAiRoles = originalState.aiRoles;
+        
+        // 先从本地状态删除
         set((state) => ({
           globalPrompts: state.globalPrompts.filter(p => p.id !== id),
           // 清除使用了该全局提示词的角色关联
@@ -518,6 +644,41 @@ export const useAppStore = create<AppState>()(
             role.globalPromptId === id ? { ...role, globalPromptId: undefined } : role
           )
         }));
+        
+        // 同步删除到数据库
+        try {
+          const { error } = await supabase
+            .from('global_prompts')
+            .delete()
+            .eq('id', id);
+          
+          if (error) {
+            // 回滚本地状态
+            if (originalPrompt) {
+              set((state) => ({
+                globalPrompts: [...state.globalPrompts, originalPrompt],
+                aiRoles: originalAiRoles
+              }));
+            }
+            console.error('删除全局提示词失败:', error);
+            throw new Error(`删除全局提示词失败: ${error.message}`);
+          }
+        } catch (error) {
+          // 如果是我们抛出的错误，直接重新抛出
+          if (error instanceof Error && error.message.includes('删除全局提示词失败')) {
+            throw error;
+          }
+          
+          // 回滚本地状态
+          if (originalPrompt) {
+            set((state) => ({
+              globalPrompts: [...state.globalPrompts, originalPrompt],
+              aiRoles: originalAiRoles
+            }));
+          }
+          console.error('删除全局提示词时发生错误:', error);
+          throw new Error(`删除全局提示词时发生错误: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
       },
       
       // 聊天会话相关actions
@@ -579,7 +740,7 @@ export const useAppStore = create<AppState>()(
         const state = get();
         const session = state.chatSessions.find(s => s.id === sessionId);
         
-        console.log('🔍 找到的会话:', session ? { id: session.id, title: session.title, messagesCount: session.messages.length } : '未找到');
+        console.log('� 找到的会话:', session ? { id: session.id, title: session.title, messagesCount: session.messages.length } : '未找到');
         
         if (!session || session.messages.length === 0) {
           console.log('❌ 会话不存在或无消息，跳过标题生成');
@@ -875,11 +1036,50 @@ export const useAppStore = create<AppState>()(
         }));
       },
       
-      deleteChatSession: (id) => {
+      deleteChatSession: async (id) => {
+        // 先保存原始状态，以便在失败时回滚
+        const originalState = get();
+        const originalSession = originalState.chatSessions.find(s => s.id === id);
+        const originalCurrentSessionId = originalState.currentSessionId;
+        
+        // 先从本地状态删除
         set((state) => ({
           chatSessions: state.chatSessions.filter(s => s.id !== id),
           currentSessionId: state.currentSessionId === id ? null : state.currentSessionId
         }));
+        
+        // 同步删除到数据库
+        try {
+          // 先删除会话中的所有消息
+          const { error: messagesError } = await supabase
+            .from('messages')
+            .delete()
+            .eq('session_id', id);
+          
+          if (messagesError) {
+            throw new Error(`删除会话消息失败: ${messagesError.message}`);
+          }
+          
+          // 再删除会话本身
+          const { error: sessionError } = await supabase
+            .from('chat_sessions')
+            .delete()
+            .eq('id', id);
+          
+          if (sessionError) {
+            throw new Error(`删除会话失败: ${sessionError.message}`);
+          }
+        } catch (error) {
+          // 回滚本地状态
+          if (originalSession) {
+            set((state) => ({
+              chatSessions: [...state.chatSessions, originalSession],
+              currentSessionId: originalCurrentSessionId
+            }));
+          }
+          console.error('删除会话时发生错误:', error);
+          throw new Error(`删除会话时发生错误: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
       },
       
       hideSession: (id) => {
@@ -1133,7 +1333,12 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      deleteMessage: (sessionId, messageId) => {
+      deleteMessage: async (sessionId, messageId) => {
+        // 先保存原始状态，以便在失败时回滚
+        const originalState = get();
+        const originalSession = originalState.chatSessions.find(s => s.id === sessionId);
+        
+        // 先从本地状态删除
         set((state) => ({
           chatSessions: state.chatSessions.map(s => 
             s.id === sessionId 
@@ -1145,6 +1350,43 @@ export const useAppStore = create<AppState>()(
               : s
           )
         }));
+        
+        // 同步删除到数据库
+        try {
+          const { error } = await supabase
+            .from('messages')
+            .delete()
+            .eq('id', messageId);
+          
+          if (error) {
+            // 回滚本地状态
+            if (originalSession) {
+              set((state) => ({
+                chatSessions: state.chatSessions.map(s => 
+                  s.id === sessionId ? originalSession : s
+                )
+              }));
+            }
+            console.error('删除消息失败:', error);
+            throw new Error(`删除消息失败: ${error.message}`);
+          }
+        } catch (error) {
+          // 如果是我们抛出的错误，直接重新抛出
+          if (error instanceof Error && error.message.includes('删除消息失败')) {
+            throw error;
+          }
+          
+          // 回滚本地状态
+          if (originalSession) {
+            set((state) => ({
+              chatSessions: state.chatSessions.map(s => 
+                s.id === sessionId ? originalSession : s
+              )
+            }));
+          }
+          console.error('删除消息时发生错误:', error);
+          throw new Error(`删除消息时发生错误: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
       },
       
       // 标题生成相关actions
