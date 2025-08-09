@@ -98,7 +98,7 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
           <button
             type="button"
             onClick={handleRandomAvatar}
-            className="btn btn-sm btn-outline"
+            className="btn btn-sm border-base-300 bg-base-100 hover:bg-base-200"
           >
             <Shuffle className="h-4 w-4 mr-1" />
             随机生成

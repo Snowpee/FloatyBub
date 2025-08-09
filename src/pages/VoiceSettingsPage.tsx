@@ -734,34 +734,32 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
             </button>
           </div>
 
-          <div className="space-y-4">
-            {/* 模型ID/网址输入 */}
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text">模型ID或网址 *</span>
+          <div className="">
+            {/* 模型信息 */}
+            <fieldset className="fieldset">
+              <label className="input w-full mb-1">
+                <input
+                  type="text"
+                  className=""
+                  value={newModelInput}
+                  onChange={(e) => setNewModelInput(e.target.value)}
+                  placeholder="输入模型ID或Fish Audio网址"
+                />
               </label>
-              <input
-                type="text"
-                className="input input-bordered w-full"
-                value={newModelInput}
-                onChange={(e) => setNewModelInput(e.target.value)}
-                placeholder="输入模型ID或Fish Audio网址 (如: https://fish.audio/zh-CN/m/7f92f8afb8ec43bf81429cc1c9199cb1/)"
-              />
-            </div>
+            </fieldset>
 
-            {/* 备注输入 */}
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text">备注</span>
+            {/* 用户备注 */}
+            <fieldset className="fieldset">
+              <label className="input w-full mb-1">
+                <input
+                  type="text"
+                  className=""
+                  value={newModelNote}
+                  onChange={(e) => setNewModelNote(e.target.value)}
+                  placeholder="为此模型添加备注"
+                />
               </label>
-              <input
-                type="text"
-                className="input input-bordered w-full"
-                value={newModelNote}
-                onChange={(e) => setNewModelNote(e.target.value)}
-                placeholder="添加备注 (可选)"
-              />
-            </div>
+            </fieldset>
           </div>
 
           <div className="modal-action">

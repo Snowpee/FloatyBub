@@ -494,57 +494,105 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
             </h2>
           </div>
 
-            <fieldset className="fieldset">
+            <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
               <div>
-                <label className="label">
-                  <span className="label-text">配置名称 *</span>
+                <label className="input w-full mb-1">
+                  <span className="label">配置名称 *</span>
+                  <input
+                    type="text"
+                    value={formData.name || ''}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="grow"
+                    placeholder="例如: GPT-4"
+                  />
                 </label>
-                <input
-                  type="text"
-                  value={formData.name || ''}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="input input-bordered w-full"
-                  placeholder="例如: GPT-4"
-                />
               </div>
 
               <div>
-                <label className="label">
-                  <span className="label-text">提供商 *</span>
+                <label className="select w-full mb-1">
+                  <span className="label">提供商 *</span>
+                  <select
+                    value={formData.provider || 'openai'}
+                    onChange={(e) => {
+                      const newProvider = e.target.value as any;
+                      const newBaseUrl = getDefaultBaseUrl(newProvider);
+                      // 切换提供商时清空已获取的模型列表
+                      setFetchedModels([]);
+                      setFormData({ 
+                        ...formData, 
+                        provider: newProvider, 
+                        model: '', 
+                        baseUrl: newProvider === 'custom' ? formData.baseUrl : newBaseUrl 
+                      });
+                    }}
+                    className="grow"
+                  >
+                    {providers.map(provider => (
+                      <option key={provider.value} value={provider.value}>
+                        {provider.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-                <select
-                  value={formData.provider || 'openai'}
-                  onChange={(e) => {
-                    const newProvider = e.target.value as any;
-                    const newBaseUrl = getDefaultBaseUrl(newProvider);
-                    // 切换提供商时清空已获取的模型列表
-                    setFetchedModels([]);
-                    setFormData({ 
-                      ...formData, 
-                      provider: newProvider, 
-                      model: '', 
-                      baseUrl: newProvider === 'custom' ? formData.baseUrl : newBaseUrl 
-                    });
-                  }}
-                  className="select select-bordered w-full"
-                >
-                  {providers.map(provider => (
-                    <option key={provider.value} value={provider.value}>
-                      {provider.label}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div>
-                <label className="label">
-                  <span className="label-text">模型 *</span>
+                <label className="input w-full mb-1 pr-2">
+                  <span className="label">API密钥 *</span>
+
+                    <input
+                      type="password"
+                      value={formData.apiKey || ''}
+                      onChange={(e) => {
+                        setFormData({ ...formData, apiKey: e.target.value });
+                        // 当API密钥改变时，清空已获取的模型列表
+                        if (fetchedModels.length > 0) {
+                          setFetchedModels([]);
+                          setFormData(prev => ({ ...prev, model: '' }));
+                        }
+                      }}
+                      className=""
+                      placeholder="输入API密钥"
+                    />
+                    {formData.provider && supportsModelsApi(formData.provider) && (
+                      <button
+                        type="button"
+                        onClick={fetchModelsList}
+                        disabled={fetchingModels || !formData.apiKey}
+                        className="btn btn-xs"
+                      >
+                        {fetchingModels ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            获取中
+                          </>
+                        ) : (
+                          '获取模型'
+                        )}
+                      </button>
+                    )}
                 </label>
+              </div>
+
+              <div>
+                <label 
+                // 判断使用选择器还是输入框，使用 cn 方法动态添加类名
+                  className={cn(
+                    'w-full mb-1',
+                    formData.provider && getProviderModels(formData.provider).length > 0 ? (
+                      'select'
+                    ) : (
+                      'input'
+                    )
+                  )}
+                  >
+                  <span className="label">模型 *</span>
+                
                 {formData.provider && getProviderModels(formData.provider).length > 0 ? (
                   <select
                     value={formData.model || ''}
                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                    className="select select-bordered w-full"
+                    className=""
                   >
                     <option value="">选择模型</option>
                     {getProviderModels(formData.provider).map(model => (
@@ -558,118 +606,84 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
                     type="text"
                     value={formData.model || ''}
                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                    className="input input-bordered w-full"
+                    className=""
                     placeholder="输入模型名称"
                   />
                 )}
+                </label>
               </div>
 
               <div>
-                <label className="label">
-                  <span className="label-text">API密钥 *</span>
-                </label>
-                <div className="join w-full">
+                <label className="input w-full mb-1">
+                  <span className="label">基础URL</span>
                   <input
-                    type="password"
-                    value={formData.apiKey || ''}
-                    onChange={(e) => {
-                      setFormData({ ...formData, apiKey: e.target.value });
-                      // 当API密钥改变时，清空已获取的模型列表
-                      if (fetchedModels.length > 0) {
-                        setFetchedModels([]);
-                        setFormData(prev => ({ ...prev, model: '' }));
-                      }
-                    }}
-                    className="input input-bordered join-item flex-1"
-                    placeholder="输入API密钥"
+                    type="url"
+                    value={formData.baseUrl || ''}
+                    onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
+                    className=""
+                    placeholder="https://api.openai.com/v1"
                   />
-                  {formData.provider && supportsModelsApi(formData.provider) && (
-                    <button
-                      type="button"
-                      onClick={fetchModelsList}
-                      disabled={fetchingModels || !formData.apiKey}
-                      className="btn btn-neutral join-item"
-                    >
-                      {fetchingModels ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          获取中
-                        </>
-                      ) : (
-                        '获取模型列表'
-                      )}
-                    </button>
-                  )}
-                </div>
+                </label>
               </div>
 
               <div>
-                <label className="label">
-                  <span className="label-text">基础URL</span>
+                <label className="input w-full mb-1">
+                  <span className="label">代理URL</span>
+                  <input
+                    type="url"
+                    value={formData.proxyUrl || ''}
+                    onChange={(e) => setFormData({ ...formData, proxyUrl: e.target.value })}
+                    className=""
+                    placeholder="http://proxy.example.com:8080"
+                  />
                 </label>
-                <input
-                  type="url"
-                  value={formData.baseUrl || ''}
-                  onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-                  className="input input-bordered w-full"
-                  placeholder="https://api.openai.com/v1"
-                />
               </div>
 
-              <div>
-                <label className="label">
-                  <span className="label-text">代理URL</span>
-                </label>
-                <input
-                  type="url"
-                  value={formData.proxyUrl || ''}
-                  onChange={(e) => setFormData({ ...formData, proxyUrl: e.target.value })}
-                  className="input input-bordered w-full"
-                  placeholder="http://proxy.example.com:8080"
-                />
-              </div>
+            </fieldset>
+            <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4 my-4">
 
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">
-                    <span className="label-text">温度</span>
+                  <label className="input w-full mb-1">
+                    <span className="label">温度</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="2"
+                      step="0.1"
+                      value={formData.temperature || 0.7}
+                      onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
+                      className=""
+                    />
                   </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="2"
-                    step="0.1"
-                    value={formData.temperature || 0.7}
-                    onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
-                    className="input input-bordered w-full"
-                  />
                 </div>
                 <div>
-                  <label className="label">
-                    <span className="label-text">最大令牌</span>
+                  <label className="input w-full mb-1">
+                    <span className="label">最大令牌</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="8192"
+                      value={formData.maxTokens || 2048}
+                      onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
+                      className=""
+                    />
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="8192"
-                    value={formData.maxTokens || 2048}
-                    onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
-                    className="input input-bordered w-full"
-                  />
                 </div>
-              </div>
 
-              <div className="form-control">
-                <label className="label cursor-pointer">
-                  <span className="label-text">启用此配置</span>
-                  <input
-                    type="checkbox"
-                    checked={formData.enabled || false}
-                    onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-                    className="checkbox checkbox-primary"
-                  />
-                </label>
-              </div>
+            </fieldset>
+            <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+            <div className="form-control flex items-center">
+              <span className="text-sm text-base-content/70">启用此配置</span>
+              <label className="label cursor-pointer ml-auto">
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  checked={formData.enabled || false}
+                  onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                  className="toggle toggle-primary"
+                />
+              </label>
+            </div>
             </fieldset>
             {/* /结束配置表单 */}
 

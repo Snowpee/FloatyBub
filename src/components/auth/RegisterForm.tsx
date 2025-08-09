@@ -101,7 +101,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* 显示名称输入 */}
         <div className="form-control">
-          <label className="input input-bordered flex items-center gap-2">
+          <label className="input input-bordered flex items-center gap-2 w-full">
             <User className="h-4 w-4 opacity-70" />
             <input
               type="text"
@@ -117,7 +117,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
 
         {/* 邮箱输入 */}
         <div className="form-control">
-          <label className="input input-bordered flex items-center gap-2">
+          <label className="input input-bordered flex items-center gap-2 w-full">
             <Mail className="h-4 w-4 opacity-70" />
             <input
               type="email"
@@ -133,7 +133,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
 
         {/* 密码输入 */}
         <div className="form-control">
-          <label className="input input-bordered flex items-center gap-2">
+          <label className="input input-bordered flex items-center gap-2 w-full">
             <Lock className="h-4 w-4 opacity-70" />
             <input
               type={showPassword ? 'text' : 'password'}
@@ -160,7 +160,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
 
         {/* 确认密码输入 */}
         <div className="form-control">
-          <label className="input input-bordered flex items-center gap-2">
+          <label className="input input-bordered flex items-center gap-2 w-full">
             <Lock className="h-4 w-4 opacity-70" />
             <input
               type={showConfirmPassword ? 'text' : 'password'}

@@ -232,61 +232,46 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
               </button>
             </div>
 
-            <div>
+            <div className="space-y-2">
               {/* 基本信息 */}
-              <fieldset className="fieldset">
+              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                <legend className="fieldset-legend">提示词 *</legend>
                 
-                <div>
-                  {/* 标题 */}
-                  <div className="form-control">
-                    <label className="label mb-1">
-                      <span className="label-text">标题 *</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.title || ''}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="input input-bordered w-full"
-                      placeholder="例如: 专业编程助手提示词"
-                    />
-                  </div>
-
-                  {/* 描述 */}
-                  <div className="form-control">
-                    <label className="label mb-1">
-                      <span className="label-text">描述</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.description || ''}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="input input-bordered w-full"
-                      placeholder="简要描述该提示词的用途和特点"
-                    />
-                  </div>
-                </div>
+                {/* 标题 */}
+                <label className="input w-full mb-1">
+                  <span className="label">标题</span>
+                  <input
+                    type="text"
+                    value={formData.title || ''}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className=""
+                    placeholder="例如: 专业编程助手提示词"
+                  />
+                </label>
+                <textarea
+                  value={formData.prompt || ''}
+                  onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
+                  rows={8}
+                  className="textarea textarea-bordered w-full"
+                  placeholder="输入全局提示词内容，这将作为系统级别的指导原则..."
+                />
+                <span className="label-text">定义全局提示词内容，可在角色中复用</span>
               </fieldset>
 
               {/* 提示词配置 */}
-              <fieldset className="fieldset">
+              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                <legend className="fieldset-legend">备注</legend>
+                
+                {/* 描述 */}
+                <input
+                  type="text"
+                  value={formData.description || ''}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="input input-bordered w-full mb-1"
+                  placeholder="简要描述该提示词的用途和特点"
+                />
 
-                <div>
-                  {/* 提示词内容 */}
-                  <div className="form-control">
-                    <label className="label mb-1">
-                      <span className="label-text">提示词内容 *</span>
-                    </label>
-                    <textarea
-                      value={formData.prompt || ''}
-                      onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
-                      rows={8}
-                      className="textarea textarea-bordered w-full"
-                      placeholder="输入全局提示词内容，这将作为系统级别的指导原则..."
-                    />
-                  </div>
-                </div>
               </fieldset>
-
             </div>
 
             <div className="modal-action">

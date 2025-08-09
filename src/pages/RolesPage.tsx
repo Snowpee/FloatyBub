@@ -339,12 +339,11 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
               </button>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-2">
               {/* 基本信息 */}
               <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
                 <legend className="fieldset-legend">基本信息</legend>
                 
-                <label className="label">角色头像</label>
                 <RoleAvatarUpload
                   name={formData.name || '新角色'}
                   currentAvatar={formData.avatar}
@@ -352,80 +351,80 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                   className="self-center"
                 />
 
-                <label className="label">角色名称 *</label>
-                <input
-                  type="text"
-                  value={formData.name || ''}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="input input-bordered w-full"
-                  placeholder="例如: 编程助手"
-                />
+                <label className="input w-full mb-1 mt-2">
+                  <span className="label">角色名称 *</span>
+                  <input
+                    type="text"
+                    value={formData.name || ''}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className=""
+                    placeholder="例如: 编程助手"
+                  />
+                </label>
                 
-                <label className="label">角色描述 *</label>
                 <textarea
                   value={formData.description || ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={3}
-                  className="textarea textarea-bordered w-full"
-                  placeholder="简要描述这个角色的特点和用途"
+                  className="textarea textarea-bordered w-full mb-1"
+                  placeholder="角色描述，简要描述这个角色的特点和用途"
                 />
                 
-                <label className="label">专属语音模型（可选）</label>
-                <select
-                  value={formData.voiceModelId || ''}
-                  onChange={(e) => setFormData({ ...formData, voiceModelId: e.target.value || undefined })}
-                  className="select select-bordered w-full"
-                >
-                  <option value="">使用默认语音模型</option>
-                  {voiceSettings?.customModels?.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} {model.isPreset ? '(预设)' : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-base-content/60 text-sm mt-1">
-                  为此角色设置专属语音，未设置时将使用默认语音模型
-                </p>
+                <label className="select w-full mb-1">
+                  <span className="label">语音模型</span>
+                  <select
+                    value={formData.voiceModelId || ''}
+                    onChange={(e) => setFormData({ ...formData, voiceModelId: e.target.value || undefined })}
+                  >
+                    <option value="">默认</option>
+                    {voiceSettings?.customModels?.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name} {model.isPreset ? '(预设)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span className="label-text">为此角色设置专属语音，未设置时将使用默认语音模型</span>
               </fieldset>
 
               {/* 提示词配置 */}
-              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
-                <legend className="fieldset-legend">提示词配置</legend>
-                
-                <label className="label">全局提示词（可选）</label>
-                <select
-                  value={formData.globalPromptId || ''}
-                  onChange={(e) => setFormData({ ...formData, globalPromptId: e.target.value })}
-                  className="select select-bordered w-full"
-                >
-                  <option value="">不使用全局提示词</option>
-                  {globalPrompts.map((prompt) => (
-                    <option key={prompt.id} value={prompt.id}>
-                      {prompt.title}
-                    </option>
-                  ))}
-                </select>
+              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4"> 
+                <legend className="fieldset-legend">提示词</legend>          
+                <label className="select w-full">
+                  <span className="label">全局提示词（可选）</span>
+                  <select
+                    value={formData.globalPromptId || ''}
+                    onChange={(e) => setFormData({ ...formData, globalPromptId: e.target.value })}
+                  >
+                    <option value="">不使用全局提示词</option>
+                    {globalPrompts.map((prompt) => (
+                      <option key={prompt.id} value={prompt.id}>
+                        {prompt.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 {formData.globalPromptId && (
                   <p className="label text-info text-sm mt-1">
                     已选择全局提示词，保存后将在对话时自动应用
                   </p>
                 )}
                 
-                <label className="label mt-4">系统提示词 *</label>
-                <textarea
-                  value={formData.systemPrompt || ''}
-                  onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
-                  rows={6}
-                  className="textarea textarea-bordered w-full"
-                  placeholder="定义AI的角色、行为方式和回答风格。例如：你是一个专业的编程助手，擅长多种编程语言..."
-                />
+                <fieldset className="fieldset  floating-label">
+                  <legend className="fieldset-legend">角色提示词 *</legend>
+                  <textarea
+                    value={formData.systemPrompt || ''}
+                    onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
+                    rows={6}
+                    className="textarea textarea-bordered w-full"
+                    placeholder="定义AI的角色、行为方式和回答风格。例如：你是一个专业的编程助手，擅长多种编程语言..."
+                  />
+                </fieldset>
               </fieldset>
 
               {/* 开场白设置 */}
               <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
                 <legend className="fieldset-legend">开场白设置</legend>
-                
-                <label className="label">开场白（可选）</label>
                 <div className="space-y-3">
                   {formData.openingMessages.map((message, index) => (
                     <div key={index} className="flex gap-2">
@@ -451,13 +450,13 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                   <button
                     type="button"
                     onClick={addOpeningMessage}
-                    className="btn btn-outline btn-sm w-full"
+                    className="btn btn-outline w-full border-base-300 bg-base-100 hover:bg-base-200"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="h-4 w-4 mr-2 " />
                     新增更多开场白
                   </button>
                 </div>
-                <p className="label text-base-content/60 text-sm mt-2 whitespace-normal">
+                <p className="label-text">
                   开场白将在新对话开始时以翻页方式显示，用户可以选择喜欢的开场白
                 </p>
               </fieldset>

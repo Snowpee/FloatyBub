@@ -257,78 +257,61 @@ const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => 
 
       {/* 编辑对话框 */}
       <dialog ref={modalRef} className="modal">
-        <div className="modal-box w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="modal-box max-w-2xl w-full">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-base-content">
                 {editingId ? '编辑用户资料' : '添加用户资料'}
               </h2>
               <button
                 onClick={handleCancel}
-                className="btn btn-ghost btn-sm btn-circle"
+                className="btn btn-sm btn-circle btn-ghost"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="space-y-6">
-              {/* 外观设置 */}
-              <fieldset className="fieldset">
+            <div className="space-y-2">
+              {/* 基本信息 */}
+              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                <legend className="fieldset-legend">基本信息</legend>
                 
-                <div className="space-y-4">
-                  {/* 头像 */}
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">头像</span>
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <div className="avatar">
-                        <div className="w-16 h-16 rounded-full">
-                          <img src={formData.avatar} alt="头像预览" />
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={generateNewAvatar}
-                        className="btn btn-outline btn-sm"
-                      >
-                        随机生成
-                      </button>
+                {/* 头像 */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="avatar">
+                    <div className="w-16 h-16 rounded-full">
+                      <img src={formData.avatar} alt="头像预览" />
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={generateNewAvatar}
+                    className="btn btn-outline btn-sm border-base-300 bg-base-100 hover:bg-base-200"
+                  >
+                    随机生成
+                  </button>
                 </div>
-              </fieldset>
 
-              {/* 基本信息 */}
-              <fieldset className="fieldset">
-
-                <div className="space-y-4">
-                  {/* 用户名 */}
-                  <div className="form-control">
-                    <label className="label">用户名 *</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="input input-bordered w-full"
-                      placeholder="请输入用户名"
-                      maxLength={50}
-                    />
-                  </div>
-
-                  {/* 用户简介 */}
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">用户简介</span>
-                    </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="textarea textarea-bordered w-full h-24 resize-none"
-                      placeholder="请输入用户简介（可选）"
-                      maxLength={500}
-                    />
-                  </div>
-                </div>
+                <label className="input w-full mb-1">
+                  <span className="label">昵称 *</span>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className=""
+                    placeholder="你希望 AI 如何称呼你？"
+                    maxLength={50}
+                  />
+                </label>
+                
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                  className="textarea textarea-bordered w-full mb-1"
+                  placeholder="用户简介，简要描述用户的特点和背景（可选）"
+                  maxLength={500}
+                />
+                <span className="label-text">用户简介将在对话时传递给AI，帮助AI更好地理解用户背景</span>
               </fieldset>
             </div>
 
