@@ -142,13 +142,13 @@ const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => 
 
   return (
     <div className="max-w-6xl mx-auto p-6 md:pt-0">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
-          <p className="text-base-content/60 mt-1">管理用户资料，在对话时传递给AI</p>
+          <p className="text-base-content/60">管理用户资料，在对话时传递给AI</p>
         </div>
         <button
           onClick={handleAdd}
-          className="btn btn-primary btn-sm"
+          className="btn btn-outline-light w-full md:w-auto"
         >
           <Plus className="h-4 w-4" />
           添加用户资料

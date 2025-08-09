@@ -5,6 +5,7 @@ import Home from '../pages/Home';
 import NotFound from '../pages/NotFound';
 import VoiceTest from '../pages/tests/VoiceTest';
 import ToastTestPage from '../pages/tests/ToastTestPage';
+import DatabaseConnectionTestPage from '../pages/tests/DatabaseConnectionTestPage';
 import SupabaseDebugPage from '../pages/SupabaseDebugPage';
 import SyncTestPage from '../pages/SyncTestPage';
 
@@ -29,6 +30,10 @@ export const router = createBrowserRouter([
       {
         path: 'tests/voice',
         element: <VoiceTest />
+      },
+      {
+        path: 'tests/database',
+        element: <DatabaseConnectionTestPage />
       },
       {
         path: 'toast-test',

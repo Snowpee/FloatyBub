@@ -127,6 +127,12 @@ dialog .modal-box {
     }
   }
 }
+.btn-outline-light {
+  @apply border-base-300 bg-base-100;
+  &:hover {
+    background-color: var(--color-base-200);
+  }
+}
 /* 思考过程 */
 .thinking-process {
   border-radius: calc(var(--radius-field) - 1rem);

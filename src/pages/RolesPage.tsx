@@ -235,17 +235,15 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
 
   return (
     <div className="max-w-6xl mx-auto p-6 md:pt-0">
-      <div className="mb-6">
-        <p className="text-base-content/60">
-          创建和管理AI角色，定义不同的对话风格和专业领域
-        </p>
-      </div>
-
-      {/* 添加按钮 */}
-      <div className="mb-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+          <p className="text-base-content/60">
+            创建和管理AI角色，定义不同的对话风格和专业领域
+          </p>
+        </div>
         <button
           onClick={handleAdd}
-          className="btn btn-primary"
+          className="btn btn-outline-light w-full md:w-auto"
         >
           <Plus className="h-4 w-4 mr-2" />
           创建新角色

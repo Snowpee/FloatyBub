@@ -143,16 +143,15 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
 
   return (
     <div className="p-6 max-w-6xl mx-auto md:pt-0">
-      <div className="mb-6">
-        <p className="text-base-content/70">
-          管理可在角色中复用的全局提示词模板
-        </p>
-      </div>
-
-      <div className="mb-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+          <p className="text-base-content/70">
+            管理可在角色中复用的全局提示词模板
+          </p>
+        </div>
         <button
           onClick={handleAdd}
-          className="btn btn-primary"
+          className="btn btn-outline-light w-full md:w-auto"
         >
           <Plus className="h-4 w-4 mr-2" />
           创建新提示词

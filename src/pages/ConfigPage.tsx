@@ -362,17 +362,15 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
 
   return (
     <div className="max-w-6xl mx-auto p-6 md:pt-0">
-      <div className="mb-6">
-        <p className="text-base-content/60">
-          配置和管理您的AI模型连接设置
-        </p>
-      </div>
-
-      {/* 添加按钮 */}
-      <div className="mb-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+          <p className="text-base-content/60">
+            配置和管理您的AI模型连接设置
+          </p>
+        </div>
         <button
           onClick={handleAdd}
-          className="btn btn-primary"
+          className="btn btn-outline-light w-full md:w-auto"
         >
           <Plus className="h-4 w-4" />
           添加模型配置

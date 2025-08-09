@@ -15,7 +15,7 @@ import {
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { DatabaseConnectionIndicator } from '../components/DatabaseConnectionIndicator';
+
 
 interface DataPageProps {
   onCloseModal?: () => void;
@@ -197,12 +197,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
         </div>
       </div>
 
-      {/* 数据库连接状态 */}
-      <div className="card bg-base-100 shadow-sm border border-base-300">
-        <div className="card-body">
-          <DatabaseConnectionIndicator showDetails={true} />
-        </div>
-      </div>
+
 
       {/* 存储信息 */}
       <div className="card bg-base-100 dark:bg-gray-800 p-6 border border-gray-200 dark:border-gray-700">
