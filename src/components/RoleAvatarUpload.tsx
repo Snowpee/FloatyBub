@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Camera, Shuffle } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { fileToBase64, validateImageFile, generateRandomLocalAvatar } from '../utils/avatarUtils';
+import { validateImageFile, generateRandomLocalAvatar } from '../utils/avatarUtils';
 import Avatar from './Avatar';
 import { toast } from '../hooks/useToast';
+import { createStorageService } from '../services/storage/StorageService';
 
 interface RoleAvatarUploadProps {
   name: string;
@@ -39,8 +40,22 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
 
     setIsUploading(true);
     try {
-      const base64 = await fileToBase64(file);
-      onAvatarChange(base64);
+      // 创建存储服务实例
+      const storageService = createStorageService();
+      
+      if (!storageService) {
+        // 如果存储服务不可用，回退到base64
+        console.warn('Storage service not available, falling back to base64');
+        const { fileToBase64 } = await import('../utils/avatarUtils');
+        const base64 = await fileToBase64(file);
+        onAvatarChange(base64);
+        toast.success('头像上传成功（本地存储）');
+        return;
+      }
+
+      // 使用S3存储服务上传头像
+      const fileMetadata = await storageService.uploadAvatar(file);
+      onAvatarChange(fileMetadata.accessUrl);
       toast.success('头像上传成功');
     } catch (error) {
       console.error('头像上传失败:', error);

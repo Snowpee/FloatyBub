@@ -243,7 +243,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
         </div>
         <button
           onClick={handleAdd}
-          className="btn btn-outline-light w-full md:w-auto"
+          className="btn btn-outline-light md:btn-neutral w-full md:w-auto"
         >
           <Plus className="h-4 w-4 mr-2" />
           创建新角色
@@ -276,8 +276,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                       {role.name}
                     </h3>
                     <span className={cn(
-                      'badge badge-sm badge-outline',
-                      isDefault ? 'badge-success' : 'badge-info'
+                      'badge badge-sm badge-neutral',
+                      isDefault ? 'badge-primary' : 'badge-info'
                     )}>
                       {getRoleTypeLabel(role.id)}
                     </span>
@@ -359,42 +359,39 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                     placeholder="例如: 编程助手"
                   />
                 </label>
-                
-                <textarea
+
+                <fieldset className="fieldset floating-label mt-2">
+                  <span className="label">角色提示词 *</span>
+                  <textarea
+                    value={formData.systemPrompt || ''}
+                    onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
+                    rows={4}
+                    className="textarea textarea-bordered w-full"
+                    placeholder="定义AI的角色、行为方式和回答风格。例如：你是一个专业的编程助手，擅长多种编程语言..."
+                  />
+                </fieldset>
+                <fieldset className="fieldset floating-label mt-2">
+                  <span className="label">角色描述</span>
+                  <textarea
                   value={formData.description || ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
+                  rows={2}
                   className="textarea textarea-bordered w-full mb-1"
                   placeholder="角色描述，简要描述这个角色的特点和用途"
                 />
-                
-                <label className="select w-full mb-1">
-                  <span className="label">语音模型</span>
-                  <select
-                    value={formData.voiceModelId || ''}
-                    onChange={(e) => setFormData({ ...formData, voiceModelId: e.target.value || undefined })}
-                  >
-                    <option value="">默认</option>
-                    {voiceSettings?.customModels?.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.name} {model.isPreset ? '(预设)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <span className="label-text">为此角色设置专属语音，未设置时将使用默认语音模型</span>
+                </fieldset>
               </fieldset>
 
               {/* 提示词配置 */}
               <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4"> 
-                <legend className="fieldset-legend">提示词</legend>          
+                <legend className="fieldset-legend">附加提示词</legend>          
                 <label className="select w-full">
-                  <span className="label">全局提示词（可选）</span>
+                  {/* <span className="label">附加提示词（可选）</span> */}
                   <select
                     value={formData.globalPromptId || ''}
                     onChange={(e) => setFormData({ ...formData, globalPromptId: e.target.value })}
                   >
-                    <option value="">不使用全局提示词</option>
+                    <option value="">不使用</option>
                     {globalPrompts.map((prompt) => (
                       <option key={prompt.id} value={prompt.id}>
                         {prompt.title}
@@ -402,22 +399,15 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                     ))}
                   </select>
                 </label>
+                <p className="label">
+                  可从全局提示词选择。
+                </p>
                 {formData.globalPromptId && (
                   <p className="label text-info text-sm mt-1">
                     已选择全局提示词，保存后将在对话时自动应用
                   </p>
                 )}
-                
-                <fieldset className="fieldset  floating-label">
-                  <legend className="fieldset-legend">角色提示词 *</legend>
-                  <textarea
-                    value={formData.systemPrompt || ''}
-                    onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
-                    rows={6}
-                    className="textarea textarea-bordered w-full"
-                    placeholder="定义AI的角色、行为方式和回答风格。例如：你是一个专业的编程助手，擅长多种编程语言..."
-                  />
-                </fieldset>
+
               </fieldset>
 
               {/* 开场白设置 */}
@@ -454,9 +444,26 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                     新增更多开场白
                   </button>
                 </div>
-                <p className="label-text">
-                  开场白将在新对话开始时以翻页方式显示，用户可以选择喜欢的开场白
-                </p>
+              </fieldset>
+              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                <legend className="fieldset-legend">语音设置</legend>
+                                
+                <label className="select w-full mb-1">
+                  {/* <span className="label">语音模型</span> */}
+                  <select
+                    value={formData.voiceModelId || ''}
+                    onChange={(e) => setFormData({ ...formData, voiceModelId: e.target.value || undefined })}
+                  >
+                    <option value="">默认</option>
+                    {voiceSettings?.customModels?.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name} {model.isPreset ? '(预设)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span className="label">未设置时将使用默认语音模型</span>
+
               </fieldset>
             </div>
 

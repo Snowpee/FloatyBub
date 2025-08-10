@@ -127,10 +127,19 @@ dialog .modal-box {
     }
   }
 }
-.btn-outline-light {
-  @apply border-base-300 bg-base-100;
+/* 自定义按钮样式 - 使用Tailwind CSS 4的@utility API语法 */
+@layer utilities {
+  @media (max-width: 767px) {
+    .btn-outline-light {
+  --btn-border: var(--color-base-300);
+  --btn-bg: var(--color-base-100);
   &:hover {
-    background-color: var(--color-base-200);
+    --btn-bg: var(--color-base-200);
+  }
+    }
+    .btn-outline-light:hover {
+      background-color: oklch(var(--color-base-200));
+    }
   }
 }
 /* 思考过程 */

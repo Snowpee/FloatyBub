@@ -6,6 +6,7 @@ import NotFound from '../pages/NotFound';
 import VoiceTest from '../pages/tests/VoiceTest';
 import ToastTestPage from '../pages/tests/ToastTestPage';
 import DatabaseConnectionTestPage from '../pages/tests/DatabaseConnectionTestPage';
+import S3StorageTestPage from '../pages/tests/S3StorageTestPage';
 import SupabaseDebugPage from '../pages/SupabaseDebugPage';
 import SyncTestPage from '../pages/SyncTestPage';
 
@@ -34,6 +35,10 @@ export const router = createBrowserRouter([
       {
         path: 'tests/database',
         element: <DatabaseConnectionTestPage />
+      },
+      {
+        path: 'tests/s3-storage',
+        element: <S3StorageTestPage />
       },
       {
         path: 'toast-test',

@@ -4,10 +4,10 @@ import { convertAvatarForExport, convertAvatarFromImport } from '../utils/avatar
 import { dataSyncService } from '../services/DataSyncService';
 import { supabase } from '../lib/supabase';
 
-// 导入默认头像
-import avatar01 from '../assets/avatar/avatar-01.png';
-import avatar02 from '../assets/avatar/avatar-02.png';
-import avatar03 from '../assets/avatar/avatar-03.png';
+// 默认头像路径（使用public目录下的静态资源）
+const avatar01 = '/avatars/avatar-01.png';
+const avatar02 = '/avatars/avatar-02.png';
+const avatar03 = '/avatars/avatar-03.png';
 
 // LLM模型配置接口
 export interface LLMConfig {
