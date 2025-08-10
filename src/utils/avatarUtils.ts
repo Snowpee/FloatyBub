@@ -1,26 +1,21 @@
 // 头像工具函数
 
-// 导入本地头像文件
-import avatar01 from '../assets/avatar/avatar-01.png';
-import avatar02 from '../assets/avatar/avatar-02.png';
-import avatar03 from '../assets/avatar/avatar-03.png';
-import avatar20 from '../assets/avatar/avatar-20.png';
-import avatar21 from '../assets/avatar/avatar-21.png';
-import avatar22 from '../assets/avatar/avatar-22.png';
-import avatar23 from '../assets/avatar/avatar-23.png';
-import avatar24 from '../assets/avatar/avatar-24.png';
-import avatar25 from '../assets/avatar/avatar-25.png';
-import avatar26 from '../assets/avatar/avatar-26.png';
-import avatar27 from '../assets/avatar/avatar-27.png';
-import avatar28 from '../assets/avatar/avatar-28.png';
-import avatar29 from '../assets/avatar/avatar-29.png';
-import avatar30 from '../assets/avatar/avatar-30.png';
-
-// 本地头像数组
+// 本地头像路径数组（使用public目录下的静态资源）
 const localAvatars = [
-  avatar01, avatar02, avatar03, avatar20, avatar21, avatar22,
-  avatar23, avatar24, avatar25, avatar26, avatar27, avatar28,
-  avatar29, avatar30
+  '/avatars/avatar-01.png',
+  '/avatars/avatar-02.png',
+  '/avatars/avatar-03.png',
+  '/avatars/avatar-20.png',
+  '/avatars/avatar-21.png',
+  '/avatars/avatar-22.png',
+  '/avatars/avatar-23.png',
+  '/avatars/avatar-24.png',
+  '/avatars/avatar-25.png',
+  '/avatars/avatar-26.png',
+  '/avatars/avatar-27.png',
+  '/avatars/avatar-28.png',
+  '/avatars/avatar-29.png',
+  '/avatars/avatar-30.png'
 ];
 
 // 生成随机本地头像
@@ -177,38 +172,38 @@ export const validateImageFile = (file: File): { valid: boolean; error?: string 
 
 // 头像路径映射表，用于导出时转换为标识符
 const avatarPathMap = new Map([
-  [avatar01, 'avatar-01'],
-  [avatar02, 'avatar-02'],
-  [avatar03, 'avatar-03'],
-  [avatar20, 'avatar-20'],
-  [avatar21, 'avatar-21'],
-  [avatar22, 'avatar-22'],
-  [avatar23, 'avatar-23'],
-  [avatar24, 'avatar-24'],
-  [avatar25, 'avatar-25'],
-  [avatar26, 'avatar-26'],
-  [avatar27, 'avatar-27'],
-  [avatar28, 'avatar-28'],
-  [avatar29, 'avatar-29'],
-  [avatar30, 'avatar-30']
+  ['/avatars/avatar-01.png', 'avatar-01'],
+  ['/avatars/avatar-02.png', 'avatar-02'],
+  ['/avatars/avatar-03.png', 'avatar-03'],
+  ['/avatars/avatar-20.png', 'avatar-20'],
+  ['/avatars/avatar-21.png', 'avatar-21'],
+  ['/avatars/avatar-22.png', 'avatar-22'],
+  ['/avatars/avatar-23.png', 'avatar-23'],
+  ['/avatars/avatar-24.png', 'avatar-24'],
+  ['/avatars/avatar-25.png', 'avatar-25'],
+  ['/avatars/avatar-26.png', 'avatar-26'],
+  ['/avatars/avatar-27.png', 'avatar-27'],
+  ['/avatars/avatar-28.png', 'avatar-28'],
+  ['/avatars/avatar-29.png', 'avatar-29'],
+  ['/avatars/avatar-30.png', 'avatar-30']
 ]);
 
 // 标识符到头像路径的反向映射表
 const avatarIdMap = new Map([
-  ['avatar-01', avatar01],
-  ['avatar-02', avatar02],
-  ['avatar-03', avatar03],
-  ['avatar-20', avatar20],
-  ['avatar-21', avatar21],
-  ['avatar-22', avatar22],
-  ['avatar-23', avatar23],
-  ['avatar-24', avatar24],
-  ['avatar-25', avatar25],
-  ['avatar-26', avatar26],
-  ['avatar-27', avatar27],
-  ['avatar-28', avatar28],
-  ['avatar-29', avatar29],
-  ['avatar-30', avatar30]
+  ['avatar-01', '/avatars/avatar-01.png'],
+  ['avatar-02', '/avatars/avatar-02.png'],
+  ['avatar-03', '/avatars/avatar-03.png'],
+  ['avatar-20', '/avatars/avatar-20.png'],
+  ['avatar-21', '/avatars/avatar-21.png'],
+  ['avatar-22', '/avatars/avatar-22.png'],
+  ['avatar-23', '/avatars/avatar-23.png'],
+  ['avatar-24', '/avatars/avatar-24.png'],
+  ['avatar-25', '/avatars/avatar-25.png'],
+  ['avatar-26', '/avatars/avatar-26.png'],
+  ['avatar-27', '/avatars/avatar-27.png'],
+  ['avatar-28', '/avatars/avatar-28.png'],
+  ['avatar-29', '/avatars/avatar-29.png'],
+  ['avatar-30', '/avatars/avatar-30.png']
 ]);
 
 // 将头像路径转换为可导出的格式

@@ -148,10 +148,10 @@ const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => 
         </div>
         <button
           onClick={handleAdd}
-          className="btn btn-outline-light w-full md:w-auto"
+          className="btn btn-outline-light md:btn-neutral w-full md:w-auto"
         >
           <Plus className="h-4 w-4" />
-          添加用户资料
+          添加用户角色
         </button>
       </div>
 
