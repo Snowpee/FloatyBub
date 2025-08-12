@@ -10,7 +10,10 @@ import {
   CheckCircle,
   Info,
   FileOutput,
-  FileInput
+  FileInput,
+  Drama,
+  MessageSquare,
+  Logs
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
@@ -174,7 +177,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
         
         <div className="stat">
           <div className="stat-figure text-secondary">
-            <FileText className="h-8 w-8" />
+            <Drama className="h-8 w-8" />
           </div>
           <div className="stat-title">AI角色</div>
           <div className="stat-value text-secondary">{stats.roles}</div>
@@ -182,7 +185,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
         
         <div className="stat">
           <div className="stat-figure text-accent">
-            <FileText className="h-8 w-8" />
+            <Logs className="h-8 w-8" />
           </div>
           <div className="stat-title">聊天会话</div>
           <div className="stat-value text-accent">{stats.sessions}</div>
@@ -190,7 +193,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
         
         <div className="stat">
           <div className="stat-figure text-info">
-            <FileText className="h-8 w-8" />
+            <MessageSquare className="h-8 w-8" />
           </div>
           <div className="stat-title">消息总数</div>
           <div className="stat-value text-info">{stats.messages}</div>
@@ -200,24 +203,25 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
 
 
       {/* 存储信息 */}
-      <div className="card bg-base-100 dark:bg-gray-800 p-6 border border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+      <div className="card bg-base-100 p-6 border border-gray-200">
+        <h2 className="text-lg font-semibold text-base-content mb-4 flex items-center">
           <Info className="h-5 w-5 mr-2" />
           存储信息
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">存储位置</p>
-            <p className="text-gray-900 dark:text-white">浏览器本地存储 (localStorage)</p>
+            <p className="text-sm text-base-content">存储位置</p>
+            <p className="text-base-content">浏览器本地存储 (localStorage)</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">数据大小</p>
-            <p className="text-gray-900 dark:text-white">{getStorageSize()}</p>
+            <p className="text-sm text-base-content">数据大小</p>
+            <p className="text-base-content">{getStorageSize()}</p>
           </div>
         </div>
-        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          <p className="text-sm text-blue-800 dark:text-blue-200">
-            💡 数据自动保存在浏览器本地，清除浏览器数据会导致配置丢失。建议定期导出备份。
+        <div role="alert" className="alert alert-info alert-soft mt-4">
+          <Info className="h-4 w-4 mr-2" />
+          <p className="">
+            数据自动保存在浏览器本地，清除浏览器数据会导致配置丢失。建议定期导出备份。
           </p>
         </div>
       </div>
@@ -293,7 +297,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
             <AlertTriangle className="h-5 w-5 mr-2" />
             危险操作
           </h2>
-          <div className="alert alert-error alert-soft mb-4">
+          <div role="alert" className="alert alert-error alert-soft mb-4">
             <AlertTriangle className="h-4 w-4" />
             <span>以下操作不可逆，请谨慎使用。建议在执行前先导出数据备份。</span>
           </div>
