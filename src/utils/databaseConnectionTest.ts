@@ -44,7 +44,6 @@ class DatabaseConnectionTester {
     
     try {
       this.updateStatus('testing')
-      console.log('🔍 [数据库连接测试] 开始测试连接...')
 
       // 1. 测试基本连接
       const { data: healthCheck, error: healthError } = await supabase
@@ -71,7 +70,7 @@ class DatabaseConnectionTester {
           .limit(1)
         tableAccess = !tableError
       } catch (error) {
-        console.warn('🔍 [数据库连接测试] 表访问测试失败:', error)
+        // 表访问测试失败
       }
 
       const isConnected = databaseAccess && (authStatus || tableAccess)
@@ -98,15 +97,7 @@ class DatabaseConnectionTester {
         result.error
       )
 
-      // 输出详细日志
-      console.log('🔍 [数据库连接测试] 测试完成:', {
-        连接状态: isConnected ? '✅ 已连接' : '❌ 连接失败',
-        响应时间: `${responseTime}ms`,
-        认证状态: authStatus ? '✅ 已认证' : '❌ 未认证',
-        数据库访问: databaseAccess ? '✅ 可访问' : '❌ 无法访问',
-        表访问权限: tableAccess ? '✅ 有权限' : '❌ 无权限',
-        错误信息: result.error || '无'
-      })
+
 
       return result
     } catch (error) {
@@ -114,11 +105,6 @@ class DatabaseConnectionTester {
       const errorMessage = error instanceof Error ? error.message : '未知错误'
       
       this.updateStatus('error', responseTime, errorMessage)
-      
-      console.error('🔍 [数据库连接测试] 测试异常:', {
-        错误: errorMessage,
-        响应时间: `${responseTime}ms`
-      })
 
       return {
         isConnected: false,
@@ -146,11 +132,11 @@ class DatabaseConnectionTester {
       const responseTime = Date.now() - startTime
       const isConnected = !error
 
-      console.log(`🔍 [快速连接检查] ${isConnected ? '✅' : '❌'} 连接状态: ${isConnected ? '正常' : '异常'} (${responseTime}ms)`)
+
       
       return isConnected
     } catch (error) {
-      console.warn('🔍 [快速连接检查] ❌ 连接检查失败:', error)
+
       return false
     }
   }
@@ -197,7 +183,7 @@ class DatabaseConnectionTester {
       try {
         callback(this.getConnectionStatus())
       } catch (error) {
-        console.error('🔍 [数据库连接测试] 状态监听器错误:', error)
+        // 状态监听器错误
       }
     })
   }
@@ -206,14 +192,11 @@ class DatabaseConnectionTester {
    * 启动定期连接检查
    */
   startPeriodicCheck(intervalMs: number = 60000): () => void {
-    console.log('🔍 [数据库连接测试] 启动定期连接检查')
-    
     const interval = setInterval(() => {
       this.quickConnectionCheck()
     }, intervalMs)
 
     return () => {
-      console.log('🔍 [数据库连接测试] 停止定期连接检查')
       clearInterval(interval)
     }
   }

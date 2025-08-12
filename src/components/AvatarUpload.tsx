@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, Camera } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { fileToBase64, validateImageFile } from '../utils/avatarUtils';
 import Avatar from './Avatar';
 import { toast } from '../hooks/useToast';
+import { createStorageService, StorageService } from '../services/storage/StorageService';
 
 interface AvatarUploadProps {
   name: string;
@@ -19,7 +20,17 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
   className = ''
 }) => {
   const [isUploading, setIsUploading] = useState(false);
+  const [storageService, setStorageService] = useState<StorageService | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 初始化存储服务
+  useEffect(() => {
+    const service = createStorageService();
+    setStorageService(service);
+    if (!service) {
+      console.warn('Storage service not available, will fallback to base64');
+    }
+  }, []);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -34,6 +45,20 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
 
     setIsUploading(true);
     try {
+      // 优先使用S3存储服务
+      if (storageService) {
+        try {
+          const fileMetadata = await storageService.uploadAvatar(file);
+          onAvatarChange(fileMetadata.accessUrl);
+          toast.success('头像上传成功');
+          return;
+        } catch (s3Error) {
+          console.warn('S3上传失败，降级使用base64:', s3Error);
+          toast.warning('云存储上传失败，使用本地存储');
+        }
+      }
+      
+      // 降级方案：使用base64
       const base64 = await fileToBase64(file);
       onAvatarChange(base64);
       toast.success('头像上传成功');
@@ -66,11 +91,11 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
           name={name}
           avatar={currentAvatar}
           size="xl"
-          className="rounded-sm"
+          className="rounded-full border border-base-300"
         />
         
         {/* 上传按钮覆盖层 */}
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 bg-opacity-50 rounded-full opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
              onClick={handleUploadClick}>
           {isUploading ? (
             <div className="loading loading-spinner loading-sm text-white"></div>
@@ -81,7 +106,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
       </div>
 
       {/* 操作按钮 */}
-      <div className="flex space-x-2">
+      {/* <div className="flex space-x-2">
         <button
           type="button"
           onClick={handleUploadClick}
@@ -102,7 +127,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
             移除
           </button>
         )}
-      </div>
+      </div> */}
 
       {/* 隐藏的文件输入 */}
       <input
@@ -115,17 +140,12 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
 
       {/* 提示文字 */}
       <div className="text-center">
-        <p className="text-xs text-base-content/60">
-          支持 JPEG、PNG、GIF、WebP 格式
+        <p className="text-sm text-base-content/70">
+          点击头像上传新头像
         </p>
-        <p className="text-xs text-base-content/60">
-          文件大小不超过 5MB
+        <p className="text-xs text-base-content/50">
+          支持常见图片格式，文件大小不超过 5MB
         </p>
-        {!currentAvatar && (
-          <p className="text-xs text-base-content/40 mt-1">
-            未上传头像时将根据角色名自动生成
-          </p>
-        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef } from 'react';
 import { generateAvatar, isValidImageUrl } from '../utils/avatarUtils';
+import { useAvatarPreload } from '../utils/imageCache';
 import { cn } from '../lib/utils';
 
 interface AvatarProps {
@@ -19,7 +20,8 @@ const Avatar: React.FC<AvatarProps> = ({
   showRing = false,
   ringColor = 'ring-primary'
 }) => {
-  const [imageError, setImageError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const { isLoaded, isLoading, hasError } = useAvatarPreload(avatar);
   
   const sizeClasses = {
     sm: 'w-6',
@@ -35,11 +37,11 @@ const Avatar: React.FC<AvatarProps> = ({
     xl: 'text-lg'
   };
 
-  const hasCustomAvatar = avatar && isValidImageUrl(avatar) && !imageError;
+  const hasCustomAvatar = avatar && isValidImageUrl(avatar) && !hasError && isLoaded;
   const avatarData = generateAvatar(name);
 
-  // 图片头像
-  if (hasCustomAvatar) {
+  // 图片头像或loading状态
+  if (avatar && isValidImageUrl(avatar) && !hasError) {
     return (
       <div className={cn(
         'avatar',
@@ -47,14 +49,25 @@ const Avatar: React.FC<AvatarProps> = ({
         className
       )}>
         <div className={cn(
-          'rounded-full',
+          'rounded-full relative',
           sizeClasses[size]
         )}>
-          <img
-            src={avatar}
-            alt={`${name}的头像`}
-            onError={() => setImageError(true)}
-          />
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-base-200 rounded-full">
+              <div className="loading loading-spinner loading-xs"></div>
+            </div>
+          )}
+          {hasCustomAvatar && (
+            <img
+              ref={imgRef}
+              src={avatar}
+              alt={`${name}的头像`}
+              className={cn(
+                 'transition-opacity duration-200',
+                 isLoaded ? 'opacity-100' : 'opacity-0'
+               )}
+            />
+          )}
         </div>
       </div>
     );

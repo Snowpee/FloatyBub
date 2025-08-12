@@ -4,7 +4,7 @@ import type { Database } from '../lib/supabase'
 // 同步项目类型
 export interface SyncItem {
   id: string
-  type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings'
+  type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'user_profile'
   data: any
   timestamp: number
   retries: number
@@ -152,6 +152,9 @@ export class DataSyncService {
       case 'voice_settings':
         await this.syncVoiceSettings(dataWithUserId)
         break
+      case 'user_profile':
+        await this.syncUserProfile(dataWithUserId)
+        break
       default:
         throw new Error(`未知的同步类型: ${type}`)
     }
@@ -271,6 +274,35 @@ export class DataSyncService {
     if (error) {
       throw new Error(`语音设置同步失败: ${error.message}`)
     }
+  }
+
+  // 同步用户资料
+  private async syncUserProfile(data: any): Promise<void> {
+    console.log('🔄 DataSyncService.syncUserProfile: 开始同步用户资料', data)
+    
+    // 将前端用户资料数据映射到数据库结构
+    const dbData = {
+      user_id: data.user_id,
+      display_name: data.name || data.displayName || data.display_name,
+      avatar: data.avatar || data.avatarUrl || data.avatar_url,
+      bio: data.bio || '',
+      preferences: data.preferences || {},
+      updated_at: data.updated_at || new Date().toISOString()
+    }
+
+    console.log('📤 DataSyncService.syncUserProfile: 准备写入数据库', dbData)
+
+    // 用户资料每个用户只有一条记录，使用user_id作为唯一标识
+    const { error } = await supabase
+      .from('user_profiles')
+      .upsert(dbData, { onConflict: 'user_id' })
+    
+    if (error) {
+      console.error('❌ DataSyncService.syncUserProfile: 同步失败', error)
+      throw new Error(`用户资料同步失败: ${error.message}`)
+    }
+    
+    console.log('✅ DataSyncService.syncUserProfile: 同步成功')
   }
 
   // 从云端拉取数据
