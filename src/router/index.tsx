@@ -41,15 +41,15 @@ export const router = createBrowserRouter([
         element: <S3StorageTestPage />
       },
       {
-        path: 'toast-test',
+        path: 'tests/toast-test',
         element: <ToastTestPage />
       },
       {
-        path: 'debug',
+        path: 'tests/debug',
         element: <SupabaseDebugPage />
       },
       {
-        path: 'sync-test',
+        path: 'tests/sync-test',
         element: <SyncTestPage />
       },
       {
