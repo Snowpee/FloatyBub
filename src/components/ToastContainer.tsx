@@ -64,9 +64,6 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
 const ToastContainer: React.FC = () => {
   const { toasts, toast: toastApi } = useToast();
 
-  console.log('🎨 [ToastContainer] 组件渲染，接收到的通知数量:', toasts.length);
-  console.log('🎨 [ToastContainer] 通知详情:', toasts.map(t => ({ id: t.id, type: t.type, message: t.message, position: t.position })));
-
   // 按位置分组toasts
   const groupedToasts = toasts.reduce((acc, toast) => {
     const position = toast.position || 'top-end';
@@ -76,8 +73,6 @@ const ToastContainer: React.FC = () => {
     acc[position].push(toast);
     return acc;
   }, {} as Record<string, ToastMessage[]>);
-
-  console.log('🎨 [ToastContainer] 分组后的通知:', Object.keys(groupedToasts).map(pos => ({ position: pos, count: groupedToasts[pos].length })));
 
   const getPositionClasses = (position: string) => {
     const baseClasses = 'toast z-50';

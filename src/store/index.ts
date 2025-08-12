@@ -233,20 +233,25 @@ const convertToUUID = (oldId: string): string => {
 };
 
 // 数据同步辅助函数
-const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings', data: any) => {
+const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'user_profile', data: any) => {
   try {
+    console.log('🔄 queueDataSync: 准备同步数据', { type, data })
+    
     // 检查用户是否已登录
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-
+      console.log('⚠️ queueDataSync: 用户未登录，跳过同步')
       return;
     }
     
+    console.log('✅ queueDataSync: 用户已登录，开始同步', user.id)
+    
     // 添加到同步队列
     await dataSyncService.queueSync(type, data);
+    console.log('✅ queueDataSync: 数据已添加到同步队列')
 
   } catch (error) {
-
+    console.error('❌ queueDataSync: 同步失败', error)
   }
 };
 
@@ -533,11 +538,26 @@ export const useAppStore = create<AppState>()(
       },
       
       updateUserProfile: (id, profile) => {
-        set((state) => ({
-          userProfiles: state.userProfiles.map(p => 
-            p.id === id ? { ...p, ...profile, updatedAt: new Date() } : p
-          )
-        }));
+        console.log('🔄 Store: 开始更新用户资料', { id, profile })
+        
+        let updatedProfile: UserProfile | null = null;
+        set((state) => {
+          const newProfiles = state.userProfiles.map(p => {
+            if (p.id === id) {
+              updatedProfile = { ...p, ...profile, updatedAt: new Date() };
+              return updatedProfile;
+            }
+            return p;
+          });
+          console.log('✅ Store: 本地状态已更新', updatedProfile)
+          return { userProfiles: newProfiles };
+        });
+        
+        // 自动同步到云端
+        if (updatedProfile) {
+          console.log('📤 Store: 准备同步到云端', updatedProfile)
+          queueDataSync('user_profile', updatedProfile);
+        }
       },
       
       deleteUserProfile: async (id) => {

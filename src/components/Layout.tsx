@@ -15,7 +15,9 @@ import {
   EyeOff,
   LogIn,
   Edit3,
-  User
+  User,
+  Save,
+  X
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Popconfirm from './Popconfirm';
@@ -25,6 +27,10 @@ import { UserAvatar } from './auth/UserAvatar';
 import { AuthModal } from './auth/AuthModal';
 import Avatar from './Avatar';
 import VirtualScrollContainer from './VirtualScrollContainer';
+import AvatarUpload from './AvatarUpload';
+import { useUserData } from '../hooks/useUserData';
+import { supabase } from '../lib/supabase';
+import { avatarCache } from '../utils/imageCache';
 
 type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data' | 'history';
 
@@ -32,7 +38,7 @@ type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' |
 const Layout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { theme, setTheme, currentUser } = useAppStore();
+  const { theme, setTheme, currentUser, setCurrentUser, updateUserProfile } = useAppStore();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // 虚拟滚动配置
@@ -60,11 +66,19 @@ const Layout: React.FC = () => {
   
   // 认证相关
   const { user, loading: authLoading } = useAuth();
+  const { queueDataSync } = useUserData();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   
   // 设置弹窗状态
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState<TabType>('config');
+  
+  // 用户资料modal状态
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  const [editingAvatar, setEditingAvatar] = useState<string | undefined>(undefined);
+  const [isSaving, setIsSaving] = useState(false);
+  const userProfileDialogRef = useRef<HTMLDialogElement>(null);
   
   // 重命名状态
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
@@ -74,6 +88,128 @@ const Layout: React.FC = () => {
   const currentSessionId = location.pathname.startsWith('/chat/') 
     ? location.pathname.split('/chat/')[1] 
     : null;
+
+  // 用户资料modal处理函数
+  const handleOpenUserProfileModal = () => {
+    const displayUser = currentUser || user;
+    const displayName = currentUser?.name || displayUser?.user_metadata?.display_name || displayUser?.email?.split('@')[0] || 'User';
+    const avatarUrl = currentUser?.avatar || displayUser?.user_metadata?.avatar_url;
+    
+    setEditingName(displayName);
+    setEditingAvatar(avatarUrl);
+    setIsUserProfileModalOpen(true);
+  };
+
+  const handleCloseUserProfileModal = () => {
+    const dialog = userProfileDialogRef.current;
+    if (dialog) {
+      dialog.close();
+    }
+    setIsUserProfileModalOpen(false);
+    setEditingName('');
+    setEditingAvatar(undefined);
+  };
+
+  const handleSaveUserProfile = async () => {
+    console.log('🚀 保存用户资料:', editingName.trim());
+    
+    if (!editingName.trim()) {
+      toast.error('用户名不能为空');
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      // 更新本地用户资料
+      if (currentUser) {
+        updateUserProfile(currentUser.id, {
+          name: editingName.trim(),
+          avatar: editingAvatar
+        });
+        console.log('✅ 本地资料已更新');
+      }
+      
+      // 更新Supabase认证用户元数据
+      if (user) {
+        const updateData = {
+          display_name: editingName.trim(),
+          avatar_url: editingAvatar
+        };
+        
+        const { error } = await supabase.auth.updateUser({
+          data: updateData
+        });
+        
+        if (error) {
+          console.error('❌ 更新失败:', error);
+          toast.error('保存失败，请重试');
+          return;
+        }
+        
+        // 重新获取用户数据并更新本地状态
+        const { data: { user: updatedUser }, error: getUserError } = await supabase.auth.getUser();
+        
+        if (getUserError) {
+          console.error('❌ 获取用户数据失败:', getUserError);
+        } else if (updatedUser) {
+          const newUserState = {
+            id: currentUser?.id || updatedUser.id,
+            name: updatedUser.user_metadata?.display_name || currentUser?.name || 'User',
+            email: currentUser?.email || updatedUser.email || '',
+            avatar: updatedUser.user_metadata?.avatar_url || currentUser?.avatar || '',
+            preferences: currentUser?.preferences || {}
+          };
+          
+          setCurrentUser(newUserState);
+          console.log('✅ 用户资料更新完成:', newUserState.name);
+          
+          // 同步用户资料到数据库
+          const userData = {
+            user_id: updatedUser.id,
+            name: updatedUser.user_metadata?.display_name || editingName.trim(),
+            avatar: updatedUser.user_metadata?.avatar_url || editingAvatar,
+            email: updatedUser.email || ''
+          };
+          
+          await queueDataSync('user_profile', userData);
+          console.log('✅ 用户资料已同步到数据库');
+        }
+      }
+      
+      toast.success('用户资料更新成功');
+      handleCloseUserProfileModal();
+    } catch (error) {
+      console.error('💥 保存失败:', error);
+      toast.error('保存失败，请重试');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 使用 dialog 元素控制模态框显示
+  useEffect(() => {
+    const dialog = userProfileDialogRef.current;
+    if (!dialog) return;
+
+    if (isUserProfileModalOpen) {
+      dialog.showModal();
+    }
+    
+    // 监听 dialog 的关闭事件，确保状态同步
+    const handleDialogClose = () => {
+      if (isUserProfileModalOpen) {
+        setIsUserProfileModalOpen(false);
+        setEditingName('');
+        setEditingAvatar(undefined);
+      }
+    };
+    
+    dialog.addEventListener('close', handleDialogClose);
+    
+    return () => {
+      dialog.removeEventListener('close', handleDialogClose);
+    };
+  }, [isUserProfileModalOpen]);
 
   // 监听主题变化
   useEffect(() => {
@@ -139,6 +275,19 @@ const Layout: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [sidebarOpen, toggleSidebar]);
+
+  // 预加载用户头像
+  useEffect(() => {
+    const displayUser = currentUser || user;
+    const avatarUrl = currentUser?.avatar || displayUser?.user_metadata?.avatar_url;
+    
+    if (avatarUrl) {
+      // 预加载用户头像到缓存
+      avatarCache.preloadImage(avatarUrl).catch(error => {
+        console.warn('预加载用户头像失败:', error);
+      });
+    }
+  }, [currentUser, user]);
 
   // 移除navigation数组，不再需要
 
@@ -525,11 +674,12 @@ const Layout: React.FC = () => {
                 {isUserSystemEnabled ? (
                   (user || currentUser) ? (
                     <UserAvatar 
-                      onOpenSettings={() => {
-                        window.location.hash = '#setting';
-                        closeSidebarOnMobile();
-                      }}
-                    />
+                  onOpenSettings={() => {
+                    window.location.hash = '#setting';
+                    closeSidebarOnMobile();
+                  }}
+                  onOpenProfileModal={handleOpenUserProfileModal}
+                />
                   ) : (
                     <div className="dropdown dropdown-top dropdown-start">
                       <button 
@@ -587,7 +737,7 @@ const Layout: React.FC = () => {
                 <div className="dropdown dropdown-top dropdown-end">
                   <button
                     tabIndex={0}
-                    className="btn btn-ghost btn-sm"
+                    className="btn btn-ghost btn-sm w-full justify-start"
                     title="切换主题"
                   >
                     <Palette className="h-4 w-4" />
@@ -831,6 +981,78 @@ const Layout: React.FC = () => {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
       />
+      
+      {/* 用户资料编辑弹窗 */}
+      <dialog 
+        ref={userProfileDialogRef}
+        className="modal bg-black/50 backdrop:bg-black/50 p-0 m-0 max-w-none max-h-none w-full h-full"
+      >
+        <div className="modal-box bg-base-200 border border-base-300 max-w-md mx-auto mt-20">
+          <button 
+            onClick={handleCloseUserProfileModal}
+            className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          
+          <h3 className="font-bold text-lg mb-4">修改资料</h3>
+          
+          <div className="space-y-4">
+            {/* 头像上传 */}
+            <div className="flex flex-col items-center space-y-2">
+              <AvatarUpload 
+                  name={editingName}
+                  currentAvatar={editingAvatar}
+                  onAvatarChange={setEditingAvatar}
+                />
+            </div>
+            
+            {/* 用户名输入 */}
+            <div>
+              <label className="input w-full">
+                <span className="label">昵称</span>
+              
+              <input 
+                type="text" 
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                className=""
+                placeholder="请输入昵称"
+                maxLength={50}
+              />
+              </label>
+            </div>
+            
+            {/* 操作按钮 */}
+            <div className="flex justify-end space-x-2 pt-4">
+              <button 
+                onClick={handleCloseUserProfileModal}
+                className="btn btn-ghost"
+                disabled={isSaving}
+              >
+                取消
+              </button>
+              <button 
+                onClick={handleSaveUserProfile}
+                className="btn btn-primary"
+                disabled={isSaving || !editingName.trim()}
+              >
+                {isSaving ? (
+                  <>
+                    <span className="loading loading-spinner loading-sm"></span>
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-1" />
+                    保存
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 };

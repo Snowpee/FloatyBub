@@ -1,7 +1,9 @@
 # TODO:
 
-- [x] rename_rolespage_file: 将rolespage.tsx重命名为RolesPage.tsx (priority: High)
-- [x] search_file_references: 搜索所有引用rolespage.tsx的文件 (priority: High)
-- [x] update_import_statements: 更新所有导入语句中的文件路径 (priority: High)
-- [x] integrate_s3_avatar_upload: 集成S3存储服务到角色头像上传功能 (priority: High)
-- [x] verify_build_success: 验证重命名后项目构建成功 (priority: Medium)
+- [x] rename_avatar_cache_file: 将avatarCache.ts重命名为imageCache.ts (priority: High)
+- [x] refactor_avatar_cache_class: 将AvatarCache类重构为ImageCache类，支持通用图片缓存 (priority: High)
+- [x] refactor_avatar_preload_hook: 将useAvatarPreload hook重构为useImagePreload hook (priority: High)
+- [x] add_backward_compatibility: 添加向后兼容的别名导出，确保现有代码不受影响 (priority: High)
+- [x] add_generic_features: 添加通用功能：图片尺寸检测、格式验证等 (priority: Medium)
+- [x] update_avatar_component: 更新Avatar组件使用新的通用图片缓存机制 (priority: Medium)
+- [x] test_functionality: 测试重构后的功能确保一切正常工作 (priority: Medium)
