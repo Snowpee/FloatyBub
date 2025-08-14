@@ -29,7 +29,7 @@ const notify = (callback: (state: ToastState) => ToastState) => {
   });
 };
 
-const generateId = () => Math.random().toString(36).substr(2, 9);
+const generateId = () => crypto.randomUUID();
 
 const addToast = (toast: Omit<ToastMessage, 'id'>) => {
   const id = generateId();

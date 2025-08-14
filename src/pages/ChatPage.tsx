@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAppStore } from '../store';
+import { useAppStore, generateId } from '../store';
 import {
   Send,
   Bot,
@@ -75,7 +75,48 @@ const ChatPage: React.FC = () => {
   const enabledModels = llmConfigs.filter(m => m.enabled);
 
   // 获取当前会话
-  const currentSession = chatSessions.find(s => s.id === (sessionId || currentSessionId));
+  const currentSession = chatSessions.find(s => s.id === sessionId);
+  
+  // React 重新渲染检测
+  const prevMessagesRef = useRef<any[]>([]);
+  useEffect(() => {
+    if (currentSession?.messages && process.env.NODE_ENV === 'development') {
+      const currentMessages = currentSession.messages;
+      const prevMessages = prevMessagesRef.current;
+      
+      // 检测消息变化
+      if (prevMessages.length !== currentMessages.length) {
+        console.log('🔄 [重新渲染检测] 消息数量变化', {
+          prev: prevMessages.length,
+          current: currentMessages.length,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // 检测消息内容变化
+      currentMessages.forEach((msg, index) => {
+        const prevMsg = prevMessages[index];
+        if (prevMsg && (
+          prevMsg.content !== msg.content ||
+          prevMsg.isStreaming !== msg.isStreaming ||
+          prevMsg.reasoningContent !== msg.reasoningContent
+        )) {
+          console.log(`🔄 [重新渲染检测] 消息 ${msg.id} 状态变化`, {
+            contentChanged: prevMsg.content !== msg.content,
+            streamingChanged: prevMsg.isStreaming !== msg.isStreaming,
+            reasoningChanged: prevMsg.reasoningContent !== msg.reasoningContent,
+            prevContentLength: prevMsg.content?.length || 0,
+            currentContentLength: msg.content?.length || 0,
+            prevStreaming: prevMsg.isStreaming,
+            currentStreaming: msg.isStreaming,
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
+      
+      prevMessagesRef.current = currentMessages.map(msg => ({ ...msg }));
+    }
+  }, [currentSession?.messages]);
   // 临时会话和正式会话使用相同的角色获取逻辑
   const isTemporarySession = tempSessionId === currentSession?.id;
   
@@ -262,7 +303,7 @@ const ChatPage: React.FC = () => {
     });
 
     // 添加AI消息占位符
-    const aiMessageId = Math.random().toString(36).substr(2, 9);
+    const aiMessageId = generateId();
     
     // 检查当前模型是否支持思考过程
     const supportsReasoning = currentModel?.model?.includes('deepseek-reasoner') || 
@@ -566,6 +607,16 @@ const ChatPage: React.FC = () => {
                   }
                   
                   // 内容累积更新
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log('🔄 [状态更新调试] updateMessageWithReasoning 调用', {
+                      messageId,
+                      contentLength: currentContent?.length || 0,
+                      reasoningLength: currentReasoningContent?.length || 0,
+                      isStreaming: true,
+                      timestamp: new Date().toISOString()
+                    });
+                  }
+                  
                   updateMessageWithReasoning(
                     sessionId, 
                     messageId, 
@@ -604,12 +655,46 @@ const ChatPage: React.FC = () => {
         generateSessionTitle(sessionId, currentModel)
           .then(() => {
             console.log('✅ 会话标题生成成功');
+            
+            // 检查当前会话中所有消息的流式状态
+            const currentSessionData = chatSessions.find(s => s.id === sessionId);
+            if (currentSessionData) {
+              const streamingMessages = currentSessionData.messages?.filter(msg => msg.isStreaming) || [];
+              console.log('🔍🔍🔍🔍 [标题生成调试] 当前会话消息流式状态检查:', {
+                sessionId,
+                totalMessages: currentSessionData.messages?.length || 0,
+                streamingCount: streamingMessages.length,
+                streamingMessages: streamingMessages.map(msg => ({
+                  id: msg.id,
+                  role: msg.role,
+                  isStreaming: msg.isStreaming,
+                  content: msg.content?.slice(0, 50) + '...'
+                }))
+              });
+            }
+            
+            // 检查全局是否还有流式消息存在
+            const allStreamingMessages = chatSessions.flatMap(session => 
+              session.messages?.filter(msg => msg.isStreaming).map(msg => ({
+                sessionId: session.id,
+                messageId: msg.id,
+                role: msg.role,
+                isStreaming: msg.isStreaming
+              })) || []
+            );
+            console.log('🌊🌊🌊🌊 [标题生成调试] 全局流式消息检查:', {
+              totalStreamingMessages: allStreamingMessages.length,
+              streamingMessages: allStreamingMessages
+            });
+            
             removeSessionNeedsTitle(sessionId);
+            console.log('🏁🏁🏁🏁 [标题生成调试] 标题生成流程完全结束，已清除标记');
           })
           .catch(error => {
             console.error('❌ 生成会话标题失败:', error);
             // 即使失败也要清除标记，避免重复尝试
             removeSessionNeedsTitle(sessionId);
+            console.log('🏁🏁🏁🏁 [标题生成调试] 标题生成失败，已清除标记');
           });
       }
       
@@ -951,6 +1036,17 @@ const ChatPage: React.FC = () => {
     // 关键节点：流式响应完成
     console.log('🏁 重新生成完成');
     
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 [状态更新调试] 重新生成完成 - updateMessageWithReasoning 调用', {
+        messageId,
+        contentLength: currentContent?.length || 0,
+        reasoningLength: currentReasoningContent?.length || 0,
+        isStreaming: false,
+        isReasoningComplete: true,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     updateMessageWithReasoning(
       sessionId, 
       messageId, 
@@ -966,12 +1062,46 @@ const ChatPage: React.FC = () => {
       generateSessionTitle(sessionId, currentModel)
         .then(() => {
           console.log('✅ 会话标题生成成功');
+          
+          // 检查当前会话中所有消息的流式状态
+          const currentSessionData = chatSessions.find(s => s.id === sessionId);
+          if (currentSessionData) {
+            const streamingMessages = currentSessionData.messages?.filter(msg => msg.isStreaming) || [];
+            console.log('🔍🔍🔍🔍 [重新生成标题调试] 当前会话消息流式状态检查:', {
+              sessionId,
+              totalMessages: currentSessionData.messages?.length || 0,
+              streamingCount: streamingMessages.length,
+              streamingMessages: streamingMessages.map(msg => ({
+                id: msg.id,
+                role: msg.role,
+                isStreaming: msg.isStreaming,
+                content: msg.content?.slice(0, 50) + '...'
+              }))
+            });
+          }
+          
+          // 检查全局是否还有流式消息存在
+          const allStreamingMessages = chatSessions.flatMap(session => 
+            session.messages?.filter(msg => msg.isStreaming).map(msg => ({
+              sessionId: session.id,
+              messageId: msg.id,
+              role: msg.role,
+              isStreaming: msg.isStreaming
+            })) || []
+          );
+          console.log('🌊🌊🌊🌊 [重新生成标题调试] 全局流式消息检查:', {
+            totalStreamingMessages: allStreamingMessages.length,
+            streamingMessages: allStreamingMessages
+          });
+          
           removeSessionNeedsTitle(sessionId);
+          console.log('🏁🏁🏁🏁 [重新生成标题调试] 标题生成流程完全结束，已清除标记');
         })
         .catch(error => {
           console.error('❌ 生成会话标题失败:', error);
           // 即使失败也要清除标记，避免重复尝试
           removeSessionNeedsTitle(sessionId);
+          console.log('🏁🏁🏁🏁 [重新生成标题调试] 标题生成失败，已清除标记');
         });
     }
     
@@ -1014,7 +1144,29 @@ const ChatPage: React.FC = () => {
             )}
           </div>
         ) : (
-          currentSession?.messages.map((msg) => (
+          currentSession?.messages
+            .slice() // 创建副本避免修改原数组
+            .sort((a, b) => {
+              // 三级排序策略：snowflake_id -> message_timestamp -> created_at
+              if (a.snowflake_id && b.snowflake_id) {
+                // 都有 snowflake_id，按 snowflake_id 排序（转换为字符串比较，因为 snowflake_id 具有时间有序性）
+                return String(a.snowflake_id).localeCompare(String(b.snowflake_id));
+              } else if (a.snowflake_id && !b.snowflake_id) {
+                // 只有 a 有 snowflake_id，a 排在后面（新消息）
+                return 1;
+              } else if (!a.snowflake_id && b.snowflake_id) {
+                // 只有 b 有 snowflake_id，b 排在后面（新消息）
+                return -1;
+              } else {
+                 // 都没有 snowflake_id，使用原有的排序逻辑
+                 if (a.message_timestamp && b.message_timestamp) {
+                   return parseFloat(a.message_timestamp) - parseFloat(b.message_timestamp);
+                 }
+                 // 最后使用 timestamp 排序
+                 return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+               }
+            })
+            .map((msg) => (
             <div
               key={msg.id}
               className={cn(
@@ -1100,11 +1252,29 @@ const ChatPage: React.FC = () => {
                      />
                    )}
                   
-                  <MarkdownRenderer content={replaceTemplateVariables(
-                    msg.content,
-                    currentUserProfile?.name || '用户',
-                    currentRole?.name || 'AI助手'
-                  )} />
+                  {/* 消息渲染调试日志 */}
+                  {(() => {
+                    const processedContent = replaceTemplateVariables(
+                      msg.content,
+                      currentUserProfile?.name || '用户',
+                      currentRole?.name || 'AI助手'
+                    );
+                    
+                    if (process.env.NODE_ENV === 'development') {
+                      // console.log(`📝 [消息渲染调试] 消息ID: ${msg.id}`, {
+                      //   role: msg.role,
+                      //   isStreaming: msg.isStreaming,
+                      //   contentLength: msg.content?.length || 0,
+                      //   processedContentLength: processedContent?.length || 0,
+                      //   hasContent: !!msg.content,
+                      //   timestamp: new Date().toISOString()
+                      // });
+                    }
+                    
+                    return (
+                      <MarkdownRenderer content={processedContent} />
+                    );
+                  })()}
                   {msg.isStreaming && (
                     <Loader2 className="h-4 w-4 animate-spin mt-2" />
                   )}

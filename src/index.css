@@ -3,7 +3,7 @@
   --color-base-light: oklch(100% 0 0);
 }
 @plugin "daisyui" {
-  themes: light --default, dark --prefersdark, cupcake, floaty;
+  themes: floaty --default, dark --prefersdark, cupcake, light;
 }
 @plugin "daisyui/theme" {
   name: dark;

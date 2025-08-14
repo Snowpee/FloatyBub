@@ -86,6 +86,7 @@ export interface Database {
           reasoning_content: string | null
           metadata: Record<string, any>
           created_at: string
+          message_timestamp: string
         }
         Insert: {
           id?: string
@@ -95,6 +96,7 @@ export interface Database {
           reasoning_content?: string | null
           metadata?: Record<string, any>
           created_at?: string
+          message_timestamp?: string
         }
         Update: {
           id?: string
@@ -104,6 +106,7 @@ export interface Database {
           reasoning_content?: string | null
           metadata?: Record<string, any>
           created_at?: string
+          message_timestamp?: string
         }
       }
       llm_configs: {

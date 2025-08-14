@@ -65,7 +65,7 @@ export class DataSyncService {
 
   // 生成唯一ID
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    return crypto.randomUUID()
   }
 
   // 添加到同步队列

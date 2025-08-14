@@ -613,7 +613,7 @@ const Layout: React.FC = () => {
       {/* 侧边栏 */}
       <div 
         className={cn(
-          'w-64 bg-base-100 border-base-300/50 border-r-[length:var(--border)]  transition-all duration-200 ease-in-out flex-shrink-0',
+          'w-70 md:w-64 bg-base-100 border-base-300/50 border-r-[length:var(--border)]  transition-all duration-200 ease-in-out flex-shrink-0',
           // 移动端：固定定位
           'fixed lg:fixed z-40 h-full lg:h-screen',
           // PWA 安全区
@@ -683,7 +683,7 @@ const Layout: React.FC = () => {
                   ) : (
                     <div className="dropdown dropdown-top dropdown-start">
                       <button 
-                        className="btn btn-ghost btn-sm"
+                        className="btn btn-ghost btn-md md:btn-sm w-full"
                         tabIndex={0}
                         >
                         <User className="h-4 w-4" />
@@ -697,7 +697,7 @@ const Layout: React.FC = () => {
                         >
                           <button
                             onClick={() => setIsAuthModalOpen(true)}
-                            className="btn btn-sm btn-primary"
+                            className="btn btn-md md:btn-sm btn-primary"
                             disabled={authLoading}
                           >
                             <LogIn className="h-4 w-4" />
@@ -711,7 +711,7 @@ const Layout: React.FC = () => {
                               (document.activeElement as HTMLElement)?.blur();
                               closeSidebarOnMobile();
                             }}
-                            className="btn btn-sm"
+                            className="btn btn-md md:btn-sm"
                           >
                             <Settings className="h-4 w-4" />
                             设置
@@ -726,7 +726,7 @@ const Layout: React.FC = () => {
                       window.location.hash = '#setting';
                       closeSidebarOnMobile();
                     }}
-                    className="btn btn-ghost btn-sm"
+                    className="btn btn-ghost btn-md md:btn-sm"
                   >
                     <Settings className="h-4 w-4" />
                     设置
@@ -737,21 +737,21 @@ const Layout: React.FC = () => {
                 <div className="dropdown dropdown-top dropdown-end">
                   <button
                     tabIndex={0}
-                    className="btn btn-ghost btn-sm w-full justify-start"
+                    className="btn btn-ghost btn-md md:btn-sm w-full justify-start"
                     title="切换主题"
                   >
                     <Palette className="h-4 w-4" />
                     {theme === 'floaty' ? '浮光' : theme === 'dark' ? '暗色' : theme === 'light' ? '简洁' : theme === 'cupcake' ? '纸杯蛋糕' : '主题'}
                   </button>
                   <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 w-32">
-                    <span className="text-sm text-base-content/40 px-3 py-2">主题</span>
+                    <span className="text-base md:text-sm text-base-content/40 px-3 py-2">主题</span>
                     <li>
                       <button
                         onClick={() => {
                           setTheme('floaty');
                           (document.activeElement as HTMLElement)?.blur();
                         }}
-                        className={`text-sm ${theme === 'floaty' ? 'bg-base-200' : ''}`}
+                        className={`text-base md:text-sm ${theme === 'floaty' ? 'bg-base-200' : ''}`}
                       >
                         浮光
                       </button>
@@ -762,7 +762,7 @@ const Layout: React.FC = () => {
                           setTheme('dark');
                           (document.activeElement as HTMLElement)?.blur();
                         }}
-                        className={`text-sm ${theme === 'dark' ? 'bg-base-200' : ''}`}
+                        className={`text-base md:text-sm ${theme === 'dark' ? 'bg-base-200' : ''}`}
                       >
                         暗色
                       </button>
@@ -773,7 +773,7 @@ const Layout: React.FC = () => {
                           setTheme('light');
                           (document.activeElement as HTMLElement)?.blur();
                         }}
-                        className={`text-sm ${theme === 'light' ? 'bg-base-200' : ''}`}
+                        className={`text-base md:text-sm ${theme === 'light' ? 'bg-base-200' : ''}`}
                       >
                         简洁
                       </button>
@@ -781,24 +781,10 @@ const Layout: React.FC = () => {
                     <li>
                       <button
                         onClick={() => {
-                          console.log('🎨 点击杯子蛋糕主题按钮');
-                          console.log('🎨 当前主题:', theme);
                           setTheme('cupcake');
-                          console.log('🎨 调用 setTheme 完成');
-                          // 延迟检查主题是否生效
-                          setTimeout(() => {
-                            const currentStoreTheme = useAppStore.getState().theme;
-                            console.log('🎨 延迟检查 - 当前主题:', document.documentElement.getAttribute('data-theme'));
-                            console.log('🎨 延迟检查 - store 主题:', currentStoreTheme);
-                            console.log('🎨 延迟检查 - 主题切换验证:', {
-                              domTheme: document.documentElement.getAttribute('data-theme'),
-                              storeTheme: currentStoreTheme,
-                              isConsistent: document.documentElement.getAttribute('data-theme') === currentStoreTheme
-                            });
-                          }, 100);
                           (document.activeElement as HTMLElement)?.blur();
                         }}
-                        className={`text-sm ${theme === 'cupcake' ? 'bg-base-200' : ''}`}
+                        className={`text-base md:text-sm ${theme === 'cupcake' ? 'bg-base-200' : ''}`}
                       >
                         纸杯蛋糕
                       </button>

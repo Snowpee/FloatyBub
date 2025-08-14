@@ -1,9 +1,9 @@
 # TODO:
 
-- [x] rename_avatar_cache_file: 将avatarCache.ts重命名为imageCache.ts (priority: High)
-- [x] refactor_avatar_cache_class: 将AvatarCache类重构为ImageCache类，支持通用图片缓存 (priority: High)
-- [x] refactor_avatar_preload_hook: 将useAvatarPreload hook重构为useImagePreload hook (priority: High)
-- [x] add_backward_compatibility: 添加向后兼容的别名导出，确保现有代码不受影响 (priority: High)
-- [x] add_generic_features: 添加通用功能：图片尺寸检测、格式验证等 (priority: Medium)
-- [x] update_avatar_component: 更新Avatar组件使用新的通用图片缓存机制 (priority: Medium)
-- [x] test_functionality: 测试重构后的功能确保一切正常工作 (priority: Medium)
+- [x] 1: 创建数据库迁移脚本，添加 message_timestamp 字段和索引 (priority: High)
+- [x] 2: 执行数据迁移，将现有 metadata.timestamp 迁移到 message_timestamp (priority: High)
+- [x] 3: 更新 Supabase TypeScript 类型定义，添加 message_timestamp 字段 (priority: High)
+- [x] 4: 修改消息同步逻辑，移除对 created_at 的手动设置 (priority: High)
+- [x] 5: 更新消息查询逻辑，使用 message_timestamp 进行排序 (priority: High)
+- [x] 6: 测试新的消息创建和同步流程 (priority: Medium)
+- [x] 7: 验证消息排序的正确性和数据完整性 (priority: Medium)

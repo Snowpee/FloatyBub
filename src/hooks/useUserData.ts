@@ -105,10 +105,10 @@ export const useUserData = () => {
 
   // 同步到云端
   const syncToCloud = useCallback(async (retryCount = 0) => {
-
+    console.log('🚀🚀🚀🚀 [同步调试] 开始更新 - syncToCloud 函数被调用')
     
     if (!user || syncing) {
-
+      console.log('🏃‍➡️🏃‍➡️🏃‍➡️🏃‍➡️ [同步调试] 同步被跳过 - 用户未登录或正在同步中', { user: !!user, syncing })
       return
     }
     
@@ -253,20 +253,50 @@ export const useUserData = () => {
 
       // 批量同步所有消息
       setSyncProgress({ percent: 50, message: '准备同步消息...' })
+      // 用于确保 message_timestamp 唯一性的计数器
+      let timestampCounter = 0
+      
       const allMessages = updatedSessions.flatMap(session => 
-        session.messages.map(message => ({
-          id: message.id,
-          session_id: session.id,
-          role: message.role,
-          content: message.content,
-          reasoning_content: message.reasoningContent || null,
-          metadata: {
-            timestamp: message.timestamp,
-            roleId: message.roleId,
-            userProfileId: message.userProfileId
-          },
-          created_at: new Date(message.timestamp).toISOString()
-        }))
+        session.messages.map(message => {
+          // 为每个消息生成唯一的 message_timestamp
+          let messageTimestamp = message.message_timestamp
+          if (!messageTimestamp) {
+            // 基于原始 timestamp 生成，但添加微秒偏移确保唯一性
+            const baseTime = new Date(message.timestamp)
+            const uniqueTime = new Date(baseTime.getTime() + timestampCounter)
+            messageTimestamp = uniqueTime.toISOString()
+            timestampCounter++ // 递增计数器
+          }
+          
+          // 明确构造消息对象，排除 created_at 字段
+          // 确保使用转换后的 UUID 格式 ID
+          const messageData: {
+            id: string;
+            session_id: string;
+            role: string;
+            content: string;
+            reasoning_content: string | null;
+            metadata: Record<string, any>;
+            message_timestamp: string;
+            snowflake_id?: string;
+          } = {
+            id: message.id, // 这里的 message.id 已经是转换后的 UUID 格式
+            session_id: session.id, // 这里的 session.id 已经是转换后的 UUID 格式
+            role: message.role,
+            content: message.content,
+            reasoning_content: message.reasoningContent || null,
+            metadata: {
+              timestamp: message.timestamp,
+              roleId: message.roleId,
+              userProfileId: message.userProfileId
+            },
+            // 使用生成的唯一 message_timestamp
+            message_timestamp: messageTimestamp,
+            // 添加 snowflake_id 字段
+            snowflake_id: message.snowflake_id
+          }
+          return messageData
+        })
       )
       
       // 分批处理消息（每批最多100个）
@@ -306,6 +336,11 @@ export const useUserData = () => {
 
       setLastSyncTime(new Date())
       setSyncProgress({ percent: 100, message: '同步完成' })
+      console.log('✅✅✅✅ [同步调试] 更新完成 - 数据同步到云端成功', {
+        syncId,
+        sessionCount: updatedSessions.length,
+        messageCount: allMessages.length
+      })
       
       // 2秒后重置进度
       setTimeout(() => {
@@ -432,7 +467,7 @@ export const useUserData = () => {
           .from('messages')
           .select('*')
           .eq('session_id', session.id)
-          .order('created_at', { ascending: true })
+          .order('message_timestamp', { ascending: true })
 
         if (messagesError) {
           throw new Error(`Failed to fetch messages for session ${session.id}: ${messagesError.message}`)
@@ -443,7 +478,9 @@ export const useUserData = () => {
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
           reasoningContent: msg.reasoning_content || undefined,
-          timestamp: new Date(msg.metadata?.timestamp || msg.created_at),
+          timestamp: new Date(msg.metadata?.timestamp || msg.message_timestamp),
+          message_timestamp: msg.message_timestamp,
+          snowflake_id: msg.snowflake_id,
           roleId: msg.metadata?.roleId,
           userProfileId: msg.metadata?.userProfileId
         }))
@@ -658,10 +695,11 @@ export const useUserData = () => {
     const now = Date.now()
     const timeSinceLastSync = now - lastSyncToCloudTime.current
     
-
+    console.log('🔄🔄🔄🔄 [同步调试] 防抖同步函数被调用', { timeSinceLastSync })
     
     // 减少时间间隔限制，从8秒改为3秒
     if (timeSinceLastSync < 3000) {
+      console.log('⏰⏰⏰⏰ [同步调试] 同步被跳过 - 距离上次同步时间太短', { timeSinceLastSync })
       return
     }
 
@@ -676,13 +714,23 @@ export const useUserData = () => {
     }
     
     debouncedSyncToCloud.current = setTimeout(() => {
+      console.log('⏰⏰⏰⏰ [同步调试] 防抖延迟结束，开始执行同步检查')
+      
       // 再次检查流式状态，确保延迟执行时仍然安全
       if (hasStreamingMessages()) {
-        // console.log('🔄 [useUserData] 延迟执行时检测到流式消息，取消同步')
+        const streamingMessages = chatSessions.flatMap(session => 
+          session.messages?.filter(msg => msg.isStreaming).map(msg => ({
+            sessionId: session.id,
+            messageId: msg.id,
+            isStreaming: msg.isStreaming
+          })) || []
+        )
+        console.log('🌊🌊🌊🌊 [同步调试] 防抖延迟后检测到流式消息，取消同步', { streamingMessages })
         return
       }
 
-      // console.log('✅ [useUserData] 开始执行云端上传')
+      console.log('🚀🚀🚀🚀 [同步调试] 通过所有检查，准备执行云端同步')
+      console.log('✅✅✅✅ [同步调试] 开始更新 - 防抖延迟后开始执行云端上传')
       lastSyncToCloudTime.current = Date.now()
       syncToCloud()
     }, 1000) // 减少延迟时间，从2秒改为1秒
@@ -776,32 +824,38 @@ export const useUserData = () => {
 
   // 监听数据变化，自动同步到云端
   useEffect(() => {
-
+    console.log('📊📊📊📊 [同步调试] 本地数据已更新 - 数据变化监听器触发', {
+      userId: user?.id,
+      autoSyncEnabled,
+      syncing,
+      sessionCount: chatSessions.length
+    })
     
     if (!user?.id || !autoSyncEnabled || syncing) {
-
+      console.log('🏃‍➡️🏃‍➡️🏃‍➡️🏃‍➡️ [同步调试] 同步被跳过 - 条件不满足', { userId: !!user?.id, autoSyncEnabled, syncing })
       return
     }
 
     // 即使没有会话也要尝试同步（可能是删除操作）
     if (chatSessions.length === 0) {
-
+      console.log('🗑️🗑️🗑️🗑️ [同步调试] 本地数据已更新 - 检测到会话为空，可能是删除操作')
       debouncedSyncToCloudFn()
       return
     }
 
     // 检查是否有消息正在流式输出
     if (hasStreamingMessages()) {
-
+      console.log('🌊🌊🌊🌊 [同步调试] 同步被跳过 - 检测到流式消息正在输出')
       return
     }
 
     // 检查是否是消息完成触发的变化
     const isMessageCompletion = checkMessageCompletion()
 
+    console.log('🔍🔍🔍🔍 [同步调试] 检查消息完成状态', { isMessageCompletion })
     
     if (isMessageCompletion) {
-
+      console.log('✨✨✨✨ [同步调试] 本地数据已更新 - 检测到消息完成，立即开始同步')
       // 消息完成时立即同步，不使用防抖
       if (debouncedSyncToCloud.current) {
         clearTimeout(debouncedSyncToCloud.current)
@@ -810,7 +864,7 @@ export const useUserData = () => {
       syncToCloud()
     } else {
       // 对于其他变化（如新建会话等），使用防抖同步
-
+      console.log('🔄🔄🔄🔄 [同步调试] 本地数据已更新 - 使用防抖同步处理其他变化')
       debouncedSyncToCloudFn()
     }
   }, [user?.id, autoSyncEnabled, chatSessions, debouncedSyncToCloudFn, hasStreamingMessages, checkMessageCompletion, syncing])

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { convertAvatarForExport, convertAvatarFromImport } from '../utils/avatarUtils';
 import { dataSyncService } from '../services/DataSyncService';
 import { supabase } from '../lib/supabase';
+import { generateSnowflakeId } from '../utils/snowflakeId';
 
 // 默认头像路径（使用public目录下的静态资源）
 const avatar01 = '/avatars/avatar-01.png';
@@ -64,6 +65,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  message_timestamp?: string; // 业务时间戳，用于数据库存储和排序，一旦设置不可修改
+  snowflake_id?: string; // Snowflake ID，用于分布式环境下的唯一标识和排序
   isStreaming?: boolean;
   roleId?: string; // 对于assistant消息，存储AI角色ID；对于user消息，可以为空
   userProfileId?: string; // 对于user消息，存储用户资料ID；对于assistant消息，可以为空
@@ -1209,10 +1212,17 @@ export const useAppStore = create<AppState>()(
         const newMessage: ChatMessage = {
           ...message,
           id: message.id || generateId(),
-          timestamp: new Date(),
+          timestamp: message.timestamp || new Date(),
+          // 设置 message_timestamp，确保只在首次创建时生成
+          message_timestamp: message.message_timestamp || (message.timestamp || new Date()).toISOString(),
+          // 生成 Snowflake ID，用于分布式环境下的唯一标识和排序
+          snowflake_id: message.snowflake_id || generateSnowflakeId(),
           roleId: session?.roleId,
           userProfileId: message.role === 'user' ? state.currentUserProfile?.id : undefined
         };
+        
+        // 打印消息创建信息
+        console.log('📝 消息创建:', { id: newMessage.id, message_timestamp: newMessage.message_timestamp, snowflake_id: newMessage.snowflake_id });
         
         // 如果是临时会话的第一条用户消息，将其转为正式会话
         const { tempSessionId } = get();
@@ -1721,6 +1731,9 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
+
+// 导出工具函数
+export { generateId, isValidUUID, convertToUUID };
 
 // 在开发环境中将store暴露到window对象，方便测试数据生成器使用
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
