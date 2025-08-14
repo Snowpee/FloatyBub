@@ -95,4 +95,74 @@ export const generateSnowflakeId = (): string => {
   return snowflakeGenerator.generateId();
 };
 
+/**
+ * 验证 Snowflake ID 的数据类型和精度
+ * @param id - 要验证的 Snowflake ID
+ * @returns 验证结果和修正后的 ID
+ */
+export const validateSnowflakeId = (id: any): { isValid: boolean; correctedId: string; issues: string[] } => {
+  const issues: string[] = [];
+  let correctedId = id;
+
+  // 检查是否为 null 或 undefined
+  if (id == null) {
+    return { isValid: false, correctedId: '', issues: ['ID is null or undefined'] };
+  }
+
+  // 检查数据类型
+  const originalType = typeof id;
+  if (originalType === 'number') {
+    issues.push(`ID is number type, potential precision loss detected`);
+    correctedId = String(id);
+  } else if (originalType !== 'string') {
+    issues.push(`ID has unexpected type: ${originalType}`);
+    correctedId = String(id);
+  }
+
+  // 确保是字符串
+  correctedId = String(correctedId);
+
+  // 验证格式（应该是纯数字字符串）
+  if (!/^\d+$/.test(correctedId)) {
+    issues.push('ID contains non-numeric characters');
+    return { isValid: false, correctedId, issues };
+  }
+
+  // 验证长度（Snowflake ID 通常是 18-19 位）
+  if (correctedId.length < 15 || correctedId.length > 20) {
+    issues.push(`ID length ${correctedId.length} is outside expected range (15-20)`);
+  }
+
+  // 检查精度丢失（比较原始值和转换后的值）
+  if (originalType === 'number' && id > Number.MAX_SAFE_INTEGER) {
+    issues.push(`Original number ${id} exceeds MAX_SAFE_INTEGER, precision loss likely`);
+  }
+
+  return {
+    isValid: issues.length === 0,
+    correctedId,
+    issues
+  };
+};
+
+/**
+ * 安全地转换任何值为有效的 Snowflake ID 字符串
+ * @param id - 要转换的值
+ * @returns 安全的字符串格式 Snowflake ID
+ */
+export const ensureSnowflakeIdString = (id: any): string => {
+  const validation = validateSnowflakeId(id);
+  
+  if (validation.issues.length > 0) {
+    console.warn('🔧 [Snowflake ID] Validation issues detected:', {
+      originalId: id,
+      originalType: typeof id,
+      correctedId: validation.correctedId,
+      issues: validation.issues
+    });
+  }
+  
+  return validation.correctedId;
+};
+
 export { SnowflakeIdGenerator };

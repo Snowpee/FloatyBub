@@ -115,32 +115,109 @@ export const manualSync = async (forceSync = false) => {
         
         // 准备消息数据
         const allMessages = chatSessions.flatMap(session => 
-          session.messages.map(message => ({
-            id: message.id,
-            session_id: session.id,
-            role: message.role,
-            content: message.content,
-            reasoning_content: message.reasoningContent || null,
-            metadata: {
-              timestamp: message.timestamp,
-              roleId: message.roleId,
-              userProfileId: message.userProfileId
-            },
-            message_timestamp: new Date(message.timestamp).toISOString(),
-            snowflake_id: message.snowflake_id || null
-          }))
+          session.messages.map(message => {
+            const messageData = {
+              id: message.id,
+              session_id: session.id,
+              role: message.role,
+              content: message.content,
+              reasoning_content: message.reasoningContent || '',
+              metadata: {
+                timestamp: new Date(message.timestamp),
+                roleId: message.roleId,
+                userProfileId: message.userProfileId
+              },
+              message_timestamp: message.message_timestamp || new Date(message.timestamp).toISOString(),
+              snowflake_id: null as string | null
+            };
+            
+            // 🔒 Snowflake ID 保护机制：只有在不存在时才设置为 null，已存在的绝不覆盖
+            if (message.snowflake_id) {
+              messageData.snowflake_id = message.snowflake_id;
+              console.log(`🔒 [手动同步-Snowflake保护] 保护已存在的 snowflake_id: ${message.snowflake_id} (消息: ${message.id})`);
+            } else {
+              messageData.snowflake_id = null;
+              console.log(`⚠️ [手动同步-Snowflake保护] 消息缺少 snowflake_id，设置为 null: ${message.id}`);
+            }
+            
+            return messageData;
+          })
         );
         
-        // 上传消息数据
+        // 上传消息数据 - 使用与 useUserData.ts 相同的 Snowflake ID 冲突检测策略
         if (allMessages.length > 0) {
-          const { error: messageError } = await supabase
-            .from('messages')
-            .upsert(allMessages, { onConflict: 'id' });
+          console.log(`🔒 [手动同步-Snowflake策略] 开始同步 ${allMessages.length} 条消息`);
           
-          if (messageError) {
-            throw new Error(`消息同步失败: ${messageError.message}`);
+          // 🔒 Snowflake ID 冲突检测：分离有 snowflake_id 和无 snowflake_id 的消息
+          const messagesWithSnowflake = allMessages.filter(msg => msg.snowflake_id)
+          const messagesWithoutSnowflake = allMessages.filter(msg => !msg.snowflake_id)
+          
+          console.log(`🔒 [手动同步-Snowflake分类] 有snowflake_id=${messagesWithSnowflake.length}, 无snowflake_id=${messagesWithoutSnowflake.length}`);
+          
+          try {
+            if (messagesWithSnowflake.length > 0 && messagesWithoutSnowflake.length > 0) {
+              // 如果同时有两种类型的消息，分别处理
+              console.log(`🔒 [手动同步-Snowflake策略] 分别处理两种类型的消息`);
+              
+              // 对于有 snowflake_id 的消息，使用更安全的策略
+              const withSnowflakeResult = await supabase
+                .from('messages')
+                .upsert(messagesWithSnowflake, { 
+                  onConflict: 'id',
+                  ignoreDuplicates: true // 如果存在冲突，忽略重复插入
+                });
+              
+              if (withSnowflakeResult.error) {
+                console.error(`❌ [手动同步-Snowflake错误] 有snowflake_id的消息同步失败:`, withSnowflakeResult.error);
+                throw new Error(`有snowflake_id的消息同步失败: ${withSnowflakeResult.error.message}`);
+              }
+              
+              const withoutSnowflakeResult = await supabase
+                .from('messages')
+                .upsert(messagesWithoutSnowflake, { 
+                  onConflict: 'id',
+                  ignoreDuplicates: false
+                });
+              
+              if (withoutSnowflakeResult.error) {
+                console.error(`❌ [手动同步-Snowflake错误] 无snowflake_id的消息同步失败:`, withoutSnowflakeResult.error);
+                throw new Error(`无snowflake_id的消息同步失败: ${withoutSnowflakeResult.error.message}`);
+              }
+              
+              console.log(`✅ [手动同步-Snowflake成功] 分别同步完成: 有snowflake_id=${messagesWithSnowflake.length}, 无snowflake_id=${messagesWithoutSnowflake.length}`);
+            } else if (messagesWithSnowflake.length > 0) {
+              // 只有带 snowflake_id 的消息
+              console.log(`🔒 [手动同步-Snowflake策略] 仅处理有snowflake_id的消息: ${messagesWithSnowflake.length}条`);
+              const { error: messageError } = await supabase
+                .from('messages')
+                .upsert(messagesWithSnowflake, { 
+                  onConflict: 'id',
+                  ignoreDuplicates: true // 对于有 snowflake_id 的消息，忽略重复
+                });
+              
+              if (messageError) {
+                throw new Error(`有snowflake_id的消息同步失败: ${messageError.message}`);
+              }
+            } else {
+              // 只有无 snowflake_id 的消息
+              console.log(`🔒 [手动同步-Snowflake策略] 仅处理无snowflake_id的消息: ${messagesWithoutSnowflake.length}条`);
+              const { error: messageError } = await supabase
+                .from('messages')
+                .upsert(messagesWithoutSnowflake, { 
+                  onConflict: 'id',
+                  ignoreDuplicates: false
+                });
+              
+              if (messageError) {
+                throw new Error(`无snowflake_id的消息同步失败: ${messageError.message}`);
+              }
+            }
+            
+            console.log(`✅ [手动同步-Snowflake完成] 已同步 ${allMessages.length} 条消息`);
+          } catch (conflictError) {
+            console.error(`❌ [手动同步-Snowflake冲突] 消息同步处理失败:`, conflictError);
+            throw conflictError;
           }
-          console.log(`✅ 已同步 ${allMessages.length} 条消息`);
         }
         
         console.log('📥 开始从云端拉取最新数据...');

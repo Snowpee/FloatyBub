@@ -28,6 +28,7 @@ import { replaceTemplateVariables } from '../utils/templateUtils';
 import { useAnimatedText } from '../components/AnimatedText';
 import { getDefaultBaseUrl } from '../utils/providerUtils';
 import { playVoice, stopCurrentVoice, addVoiceStateListener, getVoiceState } from '../utils/voiceUtils';
+import { supabase } from '../lib/supabase';
 
 const ChatPage: React.FC = () => {
   const { sessionId } = useParams();
@@ -77,84 +78,24 @@ const ChatPage: React.FC = () => {
   // 获取当前会话
   const currentSession = chatSessions.find(s => s.id === sessionId);
   
-  // React 重新渲染检测
-  const prevMessagesRef = useRef<any[]>([]);
-  useEffect(() => {
-    if (currentSession?.messages && process.env.NODE_ENV === 'development') {
-      const currentMessages = currentSession.messages;
-      const prevMessages = prevMessagesRef.current;
-      
-      // 检测消息变化
-      if (prevMessages.length !== currentMessages.length) {
-        console.log('🔄 [重新渲染检测] 消息数量变化', {
-          prev: prevMessages.length,
-          current: currentMessages.length,
-          timestamp: new Date().toISOString()
-        });
-      }
-      
-      // 检测消息内容变化
-      currentMessages.forEach((msg, index) => {
-        const prevMsg = prevMessages[index];
-        if (prevMsg && (
-          prevMsg.content !== msg.content ||
-          prevMsg.isStreaming !== msg.isStreaming ||
-          prevMsg.reasoningContent !== msg.reasoningContent
-        )) {
-          console.log(`🔄 [重新渲染检测] 消息 ${msg.id} 状态变化`, {
-            contentChanged: prevMsg.content !== msg.content,
-            streamingChanged: prevMsg.isStreaming !== msg.isStreaming,
-            reasoningChanged: prevMsg.reasoningContent !== msg.reasoningContent,
-            prevContentLength: prevMsg.content?.length || 0,
-            currentContentLength: msg.content?.length || 0,
-            prevStreaming: prevMsg.isStreaming,
-            currentStreaming: msg.isStreaming,
-            timestamp: new Date().toISOString()
-          });
-        }
-      });
-      
-      prevMessagesRef.current = currentMessages.map(msg => ({ ...msg }));
-    }
-  }, [currentSession?.messages]);
+
   // 临时会话和正式会话使用相同的角色获取逻辑
   const isTemporarySession = tempSessionId === currentSession?.id;
   
   // 使用 useMemo 优化角色获取逻辑，避免频繁重新计算
   const currentRole = useMemo(() => {
-    // 减少日志输出频率
-    const shouldLog = Math.random() < 0.1; // 只有10%的概率输出日志
-    
-    if (shouldLog) {
-      console.log('🔍 getCurrentRole 调用:', {
-        sessionId: currentSession?.id,
-        sessionRoleId: currentSession?.roleId,
-        aiRolesCount: aiRoles.length,
-        tempSessionId
-      });
-    }
-    
     let role = null;
     
     // 优先使用当前会话的roleId
     if (currentSession?.roleId) {
       role = aiRoles.find(r => r.id === currentSession.roleId);
-      if (shouldLog) {
-        console.log('🔍 使用会话角色:', role?.name || 'NOT_FOUND');
-      }
     }
     
     // 如果会话角色不存在，回退到第一个可用角色
     if (!role && aiRoles.length > 0) {
       role = aiRoles[0];
-      if (shouldLog) {
-        console.log('🔍 使用第一个角色:', role?.name || 'NOT_FOUND');
-      }
     }
     
-    if (shouldLog) {
-      console.log('🔍 最终角色:', role?.name || 'NONE');
-    }
     return role;
   }, [currentSession?.id, currentSession?.roleId, aiRoles, tempSessionId]);
   const currentModel = currentSession ? llmConfigs.find(m => m.id === currentSession.modelId) : llmConfigs.find(m => m.id === currentModelId);
@@ -193,6 +134,74 @@ const ChatPage: React.FC = () => {
       }, 100);
     };
   }, []); // 空依赖数组，只在组件卸载时执行
+
+  // 调试功能：输出消息数据结构
+  const debugMessageData = useCallback(async () => {
+    if (!currentSession?.messages || currentSession.messages.length === 0) {
+      return;
+    }
+
+    try {
+      // 获取所有消息ID
+      const messageIds = currentSession.messages.map(msg => msg.id);
+      
+      // 查询数据库中的消息数据
+      const { data: dbMessages, error } = await supabase
+        .from('messages')
+        .select('id, content, snowflake_id::text, message_timestamp, created_at')
+        .in('id', messageIds);
+
+      if (error) {
+        console.error('❌ [调试] 查询数据库消息失败:', error);
+        return;
+      }
+
+      // 构建调试数据结构
+      const debugData = currentSession.messages.map(localMsg => {
+        const dbMsg = dbMessages?.find(db => db.id === localMsg.id);
+        return {
+          messageId: localMsg.id,
+          content: localMsg.content.substring(0, 100) + (localMsg.content.length > 100 ? '...' : ''),
+          role: localMsg.role,
+          timestamp: localMsg.timestamp,
+          message_timestamp: localMsg.message_timestamp,
+          snowflakeId: {
+            local: localMsg.snowflake_id || null,
+            database: dbMsg?.snowflake_id || null,
+            consistent: localMsg.snowflake_id === dbMsg?.snowflake_id
+          },
+          database: {
+            exists: !!dbMsg,
+            message_timestamp: dbMsg?.message_timestamp || null,
+            created_at: dbMsg?.created_at || null
+          }
+        };
+      });
+
+      console.log('🔍 [调试] 会话消息数据结构:', {
+        sessionId: currentSession.id,
+        sessionTitle: currentSession.title,
+        messageCount: currentSession.messages.length,
+        databaseMessageCount: dbMessages?.length || 0,
+        messages: debugData
+      });
+
+    } catch (error) {
+      console.error('❌ [调试] 调试功能执行失败:', error);
+    }
+  }, [currentSession]);
+
+  // 在会话加载完成后触发调试输出
+  useEffect(() => {
+    if (currentSession?.messages && currentSession.messages.length > 0) {
+      // 延迟执行，确保会话完全加载
+      const timer = setTimeout(() => {
+        debugMessageData();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentSession?.id, debugMessageData]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -258,7 +267,6 @@ const ChatPage: React.FC = () => {
       const roleToUse = messageRole || currentRole;
       await playVoice(messageId, content, roleToUse, voiceSettings);
     } catch (error) {
-      console.error('朗读失败:', error);
       toast.error(`朗读失败: ${error instanceof Error ? error.message : '未知错误'}`);
     }
   };
@@ -291,15 +299,15 @@ const ChatPage: React.FC = () => {
     setIsLoading(true);
     setIsGenerating(true);
 
-    // 添加用户消息
+    // 添加用户消息（新消息不传入snowflake_id，让addMessage生成）
     addMessage(currentSession.id, {
       role: 'user',
       content: userMessage,
       timestamp: new Date()
+      // 注意：新消息不传入snowflake_id，让addMessage方法生成新的ID
     }, () => {
       // 临时会话转为正式会话后，标记需要生成标题
       markSessionNeedsTitle(currentSession.id);
-      console.log('🏷️ 会话已标记需要生成标题:', currentSession.id);
     });
 
     // 添加AI消息占位符
@@ -316,6 +324,7 @@ const ChatPage: React.FC = () => {
       content: '',
       timestamp: new Date(),
       isStreaming: true,
+      // 注意：新消息不传入snowflake_id，让addMessage方法生成新的ID
       ...(supportsReasoning && {
         reasoningContent: '',
         isReasoningComplete: false
@@ -328,7 +337,6 @@ const ChatPage: React.FC = () => {
       // 调用AI API
       await callAIAPI(currentSession.id, aiMessageId, userMessage);
     } catch (error) {
-      console.error('发送消息失败:', error);
       
       // 根据错误类型显示不同的提示
       if (error instanceof Error && error.name === 'AbortError') {
@@ -401,8 +409,7 @@ const ChatPage: React.FC = () => {
       throw new Error('模型或角色未配置');
     }
 
-    // 关键节点：LLM开始回复
-    console.log('🚀 LLM开始回复');
+
 
     try {
       // 构建完整的系统提示词
@@ -581,15 +588,7 @@ const ChatPage: React.FC = () => {
                   // Gemini解析结果
                 }
 
-                // 关键节点：检测到内容开始
-                if ((content || reasoningContent) && process.env.NODE_ENV === 'development') {
-                  if (content && !currentContent) {
-                    console.log('📝 正文内容开始输出');
-                  }
-                  if (reasoningContent && !currentReasoningContent) {
-                    console.log('🧠 思考过程开始');
-                  }
-                }
+
 
                 // 更新消息内容
                 if (content || reasoningContent) {
@@ -606,17 +605,6 @@ const ChatPage: React.FC = () => {
                     currentReasoningContent += reasoningContent;
                   }
                   
-                  // 内容累积更新
-                  if (process.env.NODE_ENV === 'development') {
-                    console.log('🔄 [状态更新调试] updateMessageWithReasoning 调用', {
-                      messageId,
-                      contentLength: currentContent?.length || 0,
-                      reasoningLength: currentReasoningContent?.length || 0,
-                      isStreaming: true,
-                      timestamp: new Date().toISOString()
-                    });
-                  }
-                  
                   updateMessageWithReasoning(
                     sessionId, 
                     messageId, 
@@ -628,7 +616,6 @@ const ChatPage: React.FC = () => {
                 }
               } catch (e) {
                 // 忽略JSON解析错误
-                console.warn('解析流数据失败:', e);
               }
             }
           }
@@ -637,8 +624,7 @@ const ChatPage: React.FC = () => {
         reader.releaseLock();
       }
 
-      // 关键节点：流式响应完成
-      console.log('🏁 正文完成');
+
       
       updateMessageWithReasoning(
         sessionId, 
@@ -651,50 +637,13 @@ const ChatPage: React.FC = () => {
       
       // 检查是否需要生成标题
       if (checkSessionNeedsTitle(sessionId) && currentModel) {
-        console.log('🎯 AI回复完成，开始生成会话标题');
         generateSessionTitle(sessionId, currentModel)
           .then(() => {
-            console.log('✅ 会话标题生成成功');
-            
-            // 检查当前会话中所有消息的流式状态
-            const currentSessionData = chatSessions.find(s => s.id === sessionId);
-            if (currentSessionData) {
-              const streamingMessages = currentSessionData.messages?.filter(msg => msg.isStreaming) || [];
-              console.log('🔍🔍🔍🔍 [标题生成调试] 当前会话消息流式状态检查:', {
-                sessionId,
-                totalMessages: currentSessionData.messages?.length || 0,
-                streamingCount: streamingMessages.length,
-                streamingMessages: streamingMessages.map(msg => ({
-                  id: msg.id,
-                  role: msg.role,
-                  isStreaming: msg.isStreaming,
-                  content: msg.content?.slice(0, 50) + '...'
-                }))
-              });
-            }
-            
-            // 检查全局是否还有流式消息存在
-            const allStreamingMessages = chatSessions.flatMap(session => 
-              session.messages?.filter(msg => msg.isStreaming).map(msg => ({
-                sessionId: session.id,
-                messageId: msg.id,
-                role: msg.role,
-                isStreaming: msg.isStreaming
-              })) || []
-            );
-            console.log('🌊🌊🌊🌊 [标题生成调试] 全局流式消息检查:', {
-              totalStreamingMessages: allStreamingMessages.length,
-              streamingMessages: allStreamingMessages
-            });
-            
             removeSessionNeedsTitle(sessionId);
-            console.log('🏁🏁🏁🏁 [标题生成调试] 标题生成流程完全结束，已清除标记');
           })
           .catch(error => {
-            console.error('❌ 生成会话标题失败:', error);
             // 即使失败也要清除标记，避免重复尝试
             removeSessionNeedsTitle(sessionId);
-            console.log('🏁🏁🏁🏁 [标题生成调试] 标题生成失败，已清除标记');
           });
       }
       
@@ -703,7 +652,6 @@ const ChatPage: React.FC = () => {
       setIsGenerating(false);
 
     } catch (error) {
-      console.error('AI API调用失败:', error);
       
       // 处理不同类型的错误
       let errorMessage = '未知错误';
@@ -818,7 +766,6 @@ const ChatPage: React.FC = () => {
       
       toast.success('重新生成完成');
     } catch (error) {
-      console.error('重新生成失败:', error);
       toast.error('重新生成失败，请重试');
     } finally {
       setIsLoading(false);
@@ -921,12 +868,7 @@ const ChatPage: React.FC = () => {
       apiUrl = currentModel.proxyUrl;
     }
 
-    // ===== 添加重新生成 API 请求体调试信息 =====
-    console.log('重新生成请求URL:', apiUrl);
-    console.log('重新生成请求头:', JSON.stringify(headers, null, 2));
-    console.log('重新生成请求体:', JSON.stringify(body, null, 2));
-    console.log('===============================\n');
-    // ===== 重新生成 API 请求体调试信息结束 =====
+
 
     // 清理之前的请求并创建新的 AbortController
     cleanupRequest();
@@ -1024,7 +966,6 @@ const ChatPage: React.FC = () => {
               }
             } catch (e) {
               // 忽略JSON解析错误
-              console.warn('解析流数据失败:', e);
             }
           }
         }
@@ -1033,19 +974,7 @@ const ChatPage: React.FC = () => {
       reader.releaseLock();
     }
 
-    // 关键节点：流式响应完成
-    console.log('🏁 重新生成完成');
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔄 [状态更新调试] 重新生成完成 - updateMessageWithReasoning 调用', {
-        messageId,
-        contentLength: currentContent?.length || 0,
-        reasoningLength: currentReasoningContent?.length || 0,
-        isStreaming: false,
-        isReasoningComplete: true,
-        timestamp: new Date().toISOString()
-      });
-    }
+
     
     updateMessageWithReasoning(
       sessionId, 
@@ -1058,50 +987,13 @@ const ChatPage: React.FC = () => {
     
     // 检查是否需要生成标题（重新生成时也可能需要）
     if (checkSessionNeedsTitle(sessionId) && currentModel) {
-      console.log('🎯 重新生成完成，开始生成会话标题');
       generateSessionTitle(sessionId, currentModel)
         .then(() => {
-          console.log('✅ 会话标题生成成功');
-          
-          // 检查当前会话中所有消息的流式状态
-          const currentSessionData = chatSessions.find(s => s.id === sessionId);
-          if (currentSessionData) {
-            const streamingMessages = currentSessionData.messages?.filter(msg => msg.isStreaming) || [];
-            console.log('🔍🔍🔍🔍 [重新生成标题调试] 当前会话消息流式状态检查:', {
-              sessionId,
-              totalMessages: currentSessionData.messages?.length || 0,
-              streamingCount: streamingMessages.length,
-              streamingMessages: streamingMessages.map(msg => ({
-                id: msg.id,
-                role: msg.role,
-                isStreaming: msg.isStreaming,
-                content: msg.content?.slice(0, 50) + '...'
-              }))
-            });
-          }
-          
-          // 检查全局是否还有流式消息存在
-          const allStreamingMessages = chatSessions.flatMap(session => 
-            session.messages?.filter(msg => msg.isStreaming).map(msg => ({
-              sessionId: session.id,
-              messageId: msg.id,
-              role: msg.role,
-              isStreaming: msg.isStreaming
-            })) || []
-          );
-          console.log('🌊🌊🌊🌊 [重新生成标题调试] 全局流式消息检查:', {
-            totalStreamingMessages: allStreamingMessages.length,
-            streamingMessages: allStreamingMessages
-          });
-          
           removeSessionNeedsTitle(sessionId);
-          console.log('🏁🏁🏁🏁 [重新生成标题调试] 标题生成流程完全结束，已清除标记');
         })
         .catch(error => {
-          console.error('❌ 生成会话标题失败:', error);
           // 即使失败也要清除标记，避免重复尝试
           removeSessionNeedsTitle(sessionId);
-          console.log('🏁🏁🏁🏁 [重新生成标题调试] 标题生成失败，已清除标记');
         });
     }
     
@@ -1252,24 +1144,12 @@ const ChatPage: React.FC = () => {
                      />
                    )}
                   
-                  {/* 消息渲染调试日志 */}
                   {(() => {
                     const processedContent = replaceTemplateVariables(
                       msg.content,
                       currentUserProfile?.name || '用户',
                       currentRole?.name || 'AI助手'
                     );
-                    
-                    if (process.env.NODE_ENV === 'development') {
-                      // console.log(`📝 [消息渲染调试] 消息ID: ${msg.id}`, {
-                      //   role: msg.role,
-                      //   isStreaming: msg.isStreaming,
-                      //   contentLength: msg.content?.length || 0,
-                      //   processedContentLength: processedContent?.length || 0,
-                      //   hasContent: !!msg.content,
-                      //   timestamp: new Date().toISOString()
-                      // });
-                    }
                     
                     return (
                       <MarkdownRenderer content={processedContent} />
@@ -1409,7 +1289,7 @@ const ChatPage: React.FC = () => {
                         try {
                           await handleReadMessage(msg.id, msg.content, messageRole);
                         } catch (error) {
-                          // 错误已在handleReadMessage中处理，这里不需要额外处理
+                          // 错误已在handleReadMessage中处理
                         }
                       }}
                     >

@@ -35,7 +35,7 @@ export class DataIntegrityChecker {
     };
 
     try {
-      console.log('🔍 开始检查 Snowflake ID 一致性...');
+      // console.log('🔍 开始检查 Snowflake ID 一致性...');
 
       // 获取所有本地消息的 ID 列表
       const localMessageIds = localSessions.flatMap(session => 
@@ -50,7 +50,7 @@ export class DataIntegrityChecker {
       // 从云端获取对应的消息数据
       const { data: cloudMessages, error } = await supabase
         .from('messages')
-        .select('id, snowflake_id')
+        .select('id, snowflake_id::text')
         .in('id', localMessageIds);
 
       if (error) {
@@ -59,10 +59,12 @@ export class DataIntegrityChecker {
         return result;
       }
 
-      // 创建云端消息映射
+      // 创建云端消息映射，确保 Snowflake ID 正确转换为字符串
       const cloudMessageMap = new Map<string, string | null>();
       (cloudMessages || []).forEach(msg => {
-        cloudMessageMap.set(msg.id, msg.snowflake_id);
+        // snowflake_id 现在已经是字符串类型，无需转换
+        const snowflakeIdStr = msg.snowflake_id;
+        cloudMessageMap.set(msg.id, snowflakeIdStr);
       });
 
       // 检查每个本地消息的 Snowflake ID 一致性
@@ -72,22 +74,26 @@ export class DataIntegrityChecker {
           
           // 如果云端没有这条消息，跳过检查（可能是新消息）
           if (cloudSnowflakeId === undefined) {
+            console.log(`🔍 [调试] 跳过检查，云端没有消息: ${message.id}`);
             continue;
           }
 
-          // 检查 Snowflake ID 是否一致
-          if (message.snowflake_id !== cloudSnowflakeId) {
+          // 确保本地 Snowflake ID 也转换为字符串进行比较
+          const localSnowflakeIdStr = message.snowflake_id?.toString() || null;
+
+          // 检查 Snowflake ID 是否一致（字符串比较）
+          if (localSnowflakeIdStr !== cloudSnowflakeId) {
             const inconsistency = {
               messageId: message.id,
               sessionId: session.id,
-              localSnowflakeId: message.snowflake_id,
+              localSnowflakeId: localSnowflakeIdStr,
               cloudSnowflakeId: cloudSnowflakeId,
               issue: 'Snowflake ID 不一致'
             };
 
             result.inconsistencies.push(inconsistency);
             result.warnings.push(
-              `消息 ${message.id} 的 Snowflake ID 不一致: 本地=${message.snowflake_id}, 云端=${cloudSnowflakeId}`
+              `消息 ${message.id} 的 Snowflake ID 不一致: 本地=${localSnowflakeIdStr}, 云端=${cloudSnowflakeId}`
             );
           }
 
@@ -119,12 +125,6 @@ export class DataIntegrityChecker {
         result.isValid = false;
       }
 
-      console.log('🔍 Snowflake ID 一致性检查完成:', {
-        isValid: result.isValid,
-        warnings: result.warnings.length,
-        errors: result.errors.length,
-        inconsistencies: result.inconsistencies.length
-      });
 
       return result;
 
@@ -211,7 +211,7 @@ export class DataIntegrityChecker {
         .from('messages')
         .select(`
           id,
-          snowflake_id,
+          snowflake_id::text,
           session_id,
           chat_sessions!inner(user_id)
         `)
@@ -234,7 +234,7 @@ export class DataIntegrityChecker {
       const snowflakeIdMap = new Map<string, string[]>();
       
       (messages || []).forEach((message: any) => {
-        const snowflakeId = message.snowflake_id?.toString();
+        const snowflakeId = message.snowflake_id;
         if (snowflakeId) {
           if (!snowflakeIdMap.has(snowflakeId)) {
             snowflakeIdMap.set(snowflakeId, []);
@@ -281,7 +281,7 @@ export class DataIntegrityChecker {
    */
   static logIntegrityCheckResult(result: IntegrityCheckResult): void {
     if (result.isValid) {
-      console.log('✅ 数据完整性检查通过');
+      // console.log('✅ 数据完整性检查通过');
     } else {
       console.warn('⚠️ 数据完整性检查发现问题:');
     }

@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { convertAvatarForExport, convertAvatarFromImport } from '../utils/avatarUtils';
 import { dataSyncService } from '../services/DataSyncService';
 import { supabase } from '../lib/supabase';
-import { generateSnowflakeId } from '../utils/snowflakeId';
+import { generateSnowflakeId, ensureSnowflakeIdString } from '../utils/snowflakeId';
 
 // 默认头像路径（使用public目录下的静态资源）
 const avatar01 = '/avatars/avatar-01.png';
@@ -1215,11 +1215,18 @@ export const useAppStore = create<AppState>()(
           timestamp: message.timestamp || new Date(),
           // 设置 message_timestamp，确保只在首次创建时生成
           message_timestamp: message.message_timestamp || (message.timestamp || new Date()).toISOString(),
-          // 生成 Snowflake ID，用于分布式环境下的唯一标识和排序
-          snowflake_id: message.snowflake_id || generateSnowflakeId(),
           roleId: session?.roleId,
           userProfileId: message.role === 'user' ? state.currentUserProfile?.id : undefined
         };
+        
+        // 🔒 Snowflake ID 保护机制：只有在不存在时才生成新的，已存在的绝不覆盖
+        if (message.snowflake_id) {
+          newMessage.snowflake_id = message.snowflake_id;
+          console.log('🔒 保护已存在的 Snowflake ID:', message.snowflake_id);
+        } else {
+          newMessage.snowflake_id = generateSnowflakeId();
+          console.log('🆕 生成新的 Snowflake ID:', newMessage.snowflake_id);
+        }
         
         // 打印消息创建信息
         console.log('📝 消息创建:', { id: newMessage.id, message_timestamp: newMessage.message_timestamp, snowflake_id: newMessage.snowflake_id });
@@ -1572,7 +1579,9 @@ export const useAppStore = create<AppState>()(
             updatedAt: new Date(session.updatedAt || Date.now()),
             messages: (session.messages || []).map((msg: any) => ({
               ...msg,
-              timestamp: new Date(msg.timestamp || Date.now())
+              timestamp: new Date(msg.timestamp || Date.now()),
+              // 🔒 确保 snowflake_id 保持字符串类型，防止 JSON.parse 导致的精度丢失
+              snowflake_id: msg.snowflake_id ? ensureSnowflakeIdString(msg.snowflake_id) : msg.snowflake_id
             }))
           }));
           
@@ -1710,7 +1719,9 @@ export const useAppStore = create<AppState>()(
                 updatedAt: new Date(session.updatedAt),
                 messages: session.messages.map((msg: any) => ({
                   ...msg,
-                  timestamp: new Date(msg.timestamp)
+                  timestamp: new Date(msg.timestamp),
+                  // 🔒 确保 snowflake_id 保持字符串类型，防止 JSON.parse 导致的精度丢失
+                  snowflake_id: msg.snowflake_id ? ensureSnowflakeIdString(msg.snowflake_id) : msg.snowflake_id
                 }))
               }));
             }

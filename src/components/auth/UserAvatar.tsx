@@ -194,7 +194,7 @@ export function UserAvatar({ onOpenSettings, onOpenProfileModal }: UserAvatarPro
               </span>
             </div>
             {syncError && (
-              <p className="text-xs text-error mt-1 truncate" title={syncError}>
+              <p className="text-xs text-error mt-1" title={syncError}>
                 {syncError}
               </p>
             )}
