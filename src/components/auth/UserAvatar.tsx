@@ -6,13 +6,15 @@ import { useAppStore } from '../../store'
 import { generateAvatar } from '../../utils/avatarUtils'
 import { debugSupabase, debugQuery, logNetwork } from '../../utils/supabaseDebug'
 import Avatar from '../Avatar'
+import clsx from 'clsx'
 
 interface UserAvatarProps {
   onOpenSettings?: () => void
   onOpenProfileModal?: () => void
+  className?: string
 }
 
-export function UserAvatar({ onOpenSettings, onOpenProfileModal }: UserAvatarProps) {
+export function UserAvatar({ onOpenSettings, onOpenProfileModal, className }: UserAvatarProps) {
   
   const { user, loading: authLoading, signOut } = useAuth()
   const { syncing, lastSyncTime, syncError } = useUserData()
@@ -106,12 +108,12 @@ export function UserAvatar({ onOpenSettings, onOpenProfileModal }: UserAvatarPro
 
   return (
     <>
-      <div className="dropdown dropdown-top dropdown-end">
+      <div className={clsx("dropdown dropdown-top dropdown-end", className)}>
         {/* 用户头像按钮 */}
         <div
           tabIndex={0}
           role="button"
-          className="btn btn-sm btn-ghost items-left pl-0 justify-start rounded-full w-full"
+          className="btn btn-ghost items-left pl-0 justify-start rounded-full w-full"
           title={`${displayName} (${displayUser.email})`}
         >
           {/* 头像 */}

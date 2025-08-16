@@ -227,9 +227,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="btn btn-ghost btn-sm"
+            className="btn btn-ghost md:btn-sm"
           >
-            <Filter className="h-4 w-4 mr-2" />
+            <Filter className="h-4 w-4 mr-1" />
             过滤器
             <ChevronDown className={cn(
               'h-4 w-4 ml-1 transition-transform',
@@ -254,7 +254,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
-                  className="select select-bordered w-full"
+                  className="select md:select-sm select-bordered w-full"
                 >
                   <option value="">所有角色</option>
                   {aiRoles.map(role => (
@@ -273,7 +273,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="select select-bordered w-full"
+                  className="select md:select-sm select-bordered w-full"
                 >
                   <option value="">所有模型</option>
                   {llmConfigs.map(config => (
@@ -293,7 +293,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as 'date' | 'title')}
-                    className="select select-bordered flex-1"
+                    className="select md:select-sm select-bordered flex-1"
                   >
                     <option value="date">时间</option>
                     <option value="title">标题</option>
@@ -301,7 +301,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
                   <select
                     value={sortOrder}
                     onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-                    className="select select-bordered flex-1"
+                    className="select md:select-sm select-bordered flex-1"
                   >
                     <option value="desc">降序</option>
                     <option value="asc">升序</option>

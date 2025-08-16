@@ -183,7 +183,7 @@ const RoleSelector: React.FC = () => {
         </p>
         <button
           onClick={() => window.location.hash = '#setting/roles'}
-          className="btn btn-link btn-sm text-primary"
+          className="btn btn-outline text-primary"
         >
           创建新角色
         </button>

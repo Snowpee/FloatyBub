@@ -205,11 +205,11 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
         >
           {/* 内容 */}
           <div className="space-y-3">
-            <div className="text-md font-medium text-gray-900 dark:text-white">
+            <div className="text-md font-medium text-gray-900">
               {title}
             </div>
             {description && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="text-sm text-gray-600">
                 {description}
               </div>
             )}
@@ -224,7 +224,7 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
               </button>
               <button
                 onClick={handleConfirm}
-                className="btn btn-sm btn-error text-sm"
+                className="btn btn-sm btn-primary text-sm"
               >
                 {okText}
               </button>

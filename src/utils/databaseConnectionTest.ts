@@ -121,22 +121,42 @@ class DatabaseConnectionTester {
     try {
       const startTime = Date.now()
       
-      // 简单的健康检查
-      const { error } = await Promise.race([
-        supabase.from('user_profiles').select('count').limit(1),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('连接超时')), 5000)
-        )
-      ]) as any
+      // 创建超时Promise
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('连接超时')), 5000)
+      )
+      
+      // 创建数据库查询Promise
+      const dbQueryPromise = supabase
+        .from('user_profiles')
+        .select('count')
+        .limit(1)
+      
+      // 使用Promise.race进行超时控制
+      const result = await Promise.race([
+        dbQueryPromise,
+        timeoutPromise
+      ])
 
       const responseTime = Date.now() - startTime
-      const isConnected = !error
-
-
+      const isConnected = !result.error
+      
+      console.log(`🔍 [quickConnectionCheck] 连接检查结果: ${isConnected ? '成功' : '失败'}, 耗时: ${responseTime}ms`)
+      if (result.error) {
+        console.log(`❌ [quickConnectionCheck] 错误详情:`, result.error)
+      }
       
       return isConnected
     } catch (error) {
-
+      const errorMessage = error instanceof Error ? error.message : '未知错误'
+      console.log(`❌ [quickConnectionCheck] 连接检查异常:`, errorMessage)
+      
+      // 如果是超时错误，返回false
+      if (errorMessage.includes('连接超时')) {
+        return false
+      }
+      
+      // 其他错误也返回false
       return false
     }
   }

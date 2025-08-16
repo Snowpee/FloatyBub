@@ -17,7 +17,9 @@ import {
   Edit3,
   User,
   Save,
-  X
+  X,
+  Search,
+  Clock
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Popconfirm from './Popconfirm';
@@ -25,6 +27,7 @@ import SettingsModal from './SettingsModal';
 import { useAuth } from '../hooks/useAuth';
 import { UserAvatar } from './auth/UserAvatar';
 import { AuthModal } from './auth/AuthModal';
+import HistoryModal from './HistoryModal';
 import Avatar from './Avatar';
 import VirtualScrollContainer from './VirtualScrollContainer';
 import AvatarUpload from './AvatarUpload';
@@ -32,7 +35,7 @@ import { useUserData } from '../hooks/useUserData';
 import { supabase } from '../lib/supabase';
 import { avatarCache } from '../utils/imageCache';
 
-type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data' | 'history';
+type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data';
 
 
 const Layout: React.FC = () => {
@@ -72,6 +75,9 @@ const Layout: React.FC = () => {
   // 设置弹窗状态
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState<TabType>('config');
+  
+  // 历史记录弹窗状态
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   
   // 用户资料modal状态
   const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
@@ -229,7 +235,7 @@ const Layout: React.FC = () => {
       if (hash.startsWith('#setting')) {
         // 解析设置页面类型
         const settingPath = hash.replace('#setting', '').replace('/', '');
-        const validTabs = ['config', 'roles', 'userProfiles', 'globalPrompts', 'voice', 'data', 'history'];
+        const validTabs = ['config', 'roles', 'userProfiles', 'globalPrompts', 'voice', 'data'];
         
         // 设置默认页面
         if (settingPath && validTabs.includes(settingPath)) {
@@ -630,10 +636,10 @@ const Layout: React.FC = () => {
           </div>
 
           {/* 新建聊天按钮 */}
-          <div className="p-4 pb-0 flex-shrink-0">
+          <div className="p-4 pb-0">
             <button
               onClick={handleNewChat}
-              className="btn btn-block"
+              className="btn mr-2 w-full"
             >
               <Plus className="h-4 w-4" />
               新建对话
@@ -641,7 +647,6 @@ const Layout: React.FC = () => {
           </div>
 
           {/* 导航菜单已移除，保留新建聊天按钮作为主要入口 */}
-
 
 
           {/* 历史对话列表 - 虚拟滚动 */}
@@ -670,7 +675,7 @@ const Layout: React.FC = () => {
           <div className="p-4 pt-0 flex-shrink-0">
             <div className="grid grid-cols-1 gap-2">
               
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex justify-between gap-2">
                 {isUserSystemEnabled ? (
                   (user || currentUser) ? (
                     <UserAvatar 
@@ -679,11 +684,12 @@ const Layout: React.FC = () => {
                     closeSidebarOnMobile();
                   }}
                   onOpenProfileModal={handleOpenUserProfileModal}
+                  className='grow'
                 />
                   ) : (
-                    <div className="dropdown dropdown-top dropdown-start">
+                    <div className="dropdown dropdown-top dropdown-start grow">
                       <button 
-                        className="btn btn-ghost btn-md md:btn-sm w-full"
+                        className="btn btn-ghost btn-md w-full"
                         tabIndex={0}
                         >
                         <User className="h-4 w-4" />
@@ -697,7 +703,7 @@ const Layout: React.FC = () => {
                         >
                           <button
                             onClick={() => setIsAuthModalOpen(true)}
-                            className="btn btn-md md:btn-sm btn-primary"
+                            className="btn btn-md btn-primary"
                             disabled={authLoading}
                           >
                             <LogIn className="h-4 w-4" />
@@ -711,7 +717,7 @@ const Layout: React.FC = () => {
                               (document.activeElement as HTMLElement)?.blur();
                               closeSidebarOnMobile();
                             }}
-                            className="btn btn-md md:btn-sm"
+                            className="btn btn-md"
                           >
                             <Settings className="h-4 w-4" />
                             设置
@@ -726,7 +732,7 @@ const Layout: React.FC = () => {
                       window.location.hash = '#setting';
                       closeSidebarOnMobile();
                     }}
-                    className="btn btn-ghost btn-md md:btn-sm"
+                    className="btn btn-ghost btn-md"
                   >
                     <Settings className="h-4 w-4" />
                     设置
@@ -735,23 +741,25 @@ const Layout: React.FC = () => {
 
                 
                 <div className="dropdown dropdown-top dropdown-end">
-                  <button
-                    tabIndex={0}
-                    className="btn btn-ghost btn-md md:btn-sm w-full justify-start"
-                    title="切换主题"
-                  >
-                    <Palette className="h-4 w-4" />
-                    {theme === 'floaty' ? '浮光' : theme === 'dark' ? '暗色' : theme === 'light' ? '简洁' : theme === 'cupcake' ? '纸杯蛋糕' : '主题'}
-                  </button>
+                  <div className="tooltip" data-tip="切换主题">
+                    <button
+                      tabIndex={0}
+                      className="btn btn-ghost btn-circle btn-md"
+                      title="切换主题"
+                    >
+                      <Palette className="h-4 w-4" />
+                      {/* {theme === 'floaty' ? '浮光' : theme === 'dark' ? '暗色' : theme === 'light' ? '简洁' : theme === 'cupcake' ? '纸杯蛋糕' : '主题'} */}
+                    </button>
+                  </div>
                   <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 w-32">
-                    <span className="text-base md:text-sm text-base-content/40 px-3 py-2">主题</span>
+                    <span className="text-base text-base-content/40 px-3 py-2">主题</span>
                     <li>
                       <button
                         onClick={() => {
                           setTheme('floaty');
                           (document.activeElement as HTMLElement)?.blur();
                         }}
-                        className={`text-base md:text-sm ${theme === 'floaty' ? 'bg-base-200' : ''}`}
+                        className={`text-base ${theme === 'floaty' ? 'bg-base-200' : ''}`}
                       >
                         浮光
                       </button>
@@ -762,7 +770,7 @@ const Layout: React.FC = () => {
                           setTheme('dark');
                           (document.activeElement as HTMLElement)?.blur();
                         }}
-                        className={`text-base md:text-sm ${theme === 'dark' ? 'bg-base-200' : ''}`}
+                        className={`text-base ${theme === 'dark' ? 'bg-base-200' : ''}`}
                       >
                         暗色
                       </button>
@@ -773,7 +781,7 @@ const Layout: React.FC = () => {
                           setTheme('light');
                           (document.activeElement as HTMLElement)?.blur();
                         }}
-                        className={`text-base md:text-sm ${theme === 'light' ? 'bg-base-200' : ''}`}
+                        className={`text-base ${theme === 'light' ? 'bg-base-200' : ''}`}
                       >
                         简洁
                       </button>
@@ -784,13 +792,23 @@ const Layout: React.FC = () => {
                           setTheme('cupcake');
                           (document.activeElement as HTMLElement)?.blur();
                         }}
-                        className={`text-base md:text-sm ${theme === 'cupcake' ? 'bg-base-200' : ''}`}
+                        className={`text-base ${theme === 'cupcake' ? 'bg-base-200' : ''}`}
                       >
                         纸杯蛋糕
                       </button>
                     </li>
 
                   </ul>
+                </div>
+                <div className="tooltip" data-tip="搜索对话">
+                  <button 
+                    type="button" 
+                    className='btn btn-circle btn-ghost btn-base'
+                    onClick={() => setIsHistoryModalOpen(true)}
+                    title="历史记录"
+                  >
+                    <Search className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -966,6 +984,12 @@ const Layout: React.FC = () => {
       <AuthModal 
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+      />
+      
+      {/* 历史记录弹窗 */}
+      <HistoryModal 
+        isOpen={isHistoryModalOpen} 
+        onClose={() => setIsHistoryModalOpen(false)}
       />
       
       {/* 用户资料编辑弹窗 */}

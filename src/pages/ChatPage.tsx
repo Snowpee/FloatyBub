@@ -29,6 +29,8 @@ import { useAnimatedText } from '../components/AnimatedText';
 import { getDefaultBaseUrl } from '../utils/providerUtils';
 import { playVoice, stopCurrentVoice, addVoiceStateListener, getVoiceState } from '../utils/voiceUtils';
 import { supabase } from '../lib/supabase';
+import { useUserData } from '../hooks/useUserData';
+import { useAuth } from '../hooks/useAuth';
 
 const ChatPage: React.FC = () => {
   const { sessionId } = useParams();
@@ -39,9 +41,18 @@ const ChatPage: React.FC = () => {
   const [editingContent, setEditingContent] = useState('');
   const [visibleActionButtons, setVisibleActionButtons] = useState<string | null>(null);
   const [voicePlayingState, setVoicePlayingState] = useState(getVoiceState());
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 获取数据同步功能
+  const { syncToCloud } = useUserData();
+  
+  // 获取用户认证信息
+  const { user } = useAuth();
 
   const {
     currentSessionId,
@@ -203,10 +214,55 @@ const ChatPage: React.FC = () => {
     }
   }, [currentSession?.id, debugMessageData]);
 
-  // 自动滚动到底部
+  // 用户滚动检测
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [currentSession?.messages]);
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      // 检测用户是否主动滚动（不在底部）
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 10; // 10px容差
+      
+      if (!isAtBottom) {
+        setIsUserScrolling(true);
+      } else {
+        // 如果用户滚动到底部，重置状态
+        setIsUserScrolling(false);
+      }
+
+      // 清除之前的定时器
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // 设置定时器，如果用户停止滚动一段时间后重置状态
+      scrollTimeoutRef.current = setTimeout(() => {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 10;
+        if (isAtBottom) {
+          setIsUserScrolling(false);
+        }
+      }, 1000); // 1秒后检查
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // 优化的自动滚动到底部
+  useEffect(() => {
+    // 只有在用户没有主动滚动时才自动滚动
+    if (!isUserScrolling) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [currentSession?.messages, isUserScrolling]);
 
   // 点击外部区域关闭按钮组
   useEffect(() => {
@@ -438,6 +494,31 @@ const ChatPage: React.FC = () => {
         content: userMessage
       });
 
+      // 🔍 [调试] 输出发送给 LLM 的消息结构
+      console.log('📤 [LLM消息] 发送给 LLM 的完整消息结构:', JSON.stringify({
+        timestamp: new Date().toISOString(),
+        sessionId,
+        messageId,
+        model: {
+          provider: currentModel.provider,
+          model: currentModel.model,
+          temperature: currentModel.temperature,
+          maxTokens: currentModel.maxTokens
+        },
+        role: {
+          id: currentRole.id,
+          name: currentRole.name
+        },
+        messages: messages.map((msg, index) => ({
+          index,
+          role: msg.role,
+          contentLength: msg.content.length,
+          contentPreview: msg.content.substring(0, 100) + (msg.content.length > 100 ? '...' : ''),
+          isSystemPrompt: msg.role === 'system',
+          isCurrentUserMessage: index === messages.length - 1 && msg.role === 'user'
+        }))
+      }, null, 2));
+
       // API调用准备
 
       // 根据不同的provider调用相应的API
@@ -515,6 +596,21 @@ const ChatPage: React.FC = () => {
       if (currentModel.proxyUrl) {
         apiUrl = currentModel.proxyUrl;
       }
+
+      // 🔍 [调试] 输出 API 请求体结构
+      console.log('🚀 [API请求] 发送给 LLM 提供商的请求结构:', JSON.stringify({
+        timestamp: new Date().toISOString(),
+        provider: currentModel.provider,
+        apiUrl,
+        headers: Object.keys(headers).reduce((acc, key) => {
+          // 隐藏敏感信息，只显示键名
+          acc[key] = key.toLowerCase().includes('key') || key.toLowerCase().includes('authorization') 
+            ? '[HIDDEN]' 
+            : headers[key];
+          return acc;
+        }, {} as Record<string, string>),
+        requestBody: body
+      }, null, 2));
 
       // API请求准备完成
 
@@ -635,6 +731,16 @@ const ChatPage: React.FC = () => {
         true
       );
       
+      // 强制触发数据同步，确保AI回复保存到数据库
+      try {
+        console.log('🚀 AI回复完成，强制触发数据同步');
+        await syncToCloud();
+        console.log('✅ AI回复同步完成');
+      } catch (syncError) {
+        console.error('❌ AI回复同步失败:', syncError);
+        // 同步失败不影响UI流程，但记录错误
+      }
+      
       // 检查是否需要生成标题
       if (checkSessionNeedsTitle(sessionId) && currentModel) {
         generateSessionTitle(sessionId, currentModel)
@@ -744,6 +850,7 @@ const ChatPage: React.FC = () => {
                                currentModel.name?.toLowerCase().includes('reasoning');
       
       // 重置目标消息的状态，根据模型能力决定是否设置思考过程字段
+      // 同时重置versions字段为空数组，准备接收新的重新生成内容
       if (supportsReasoning) {
         updateMessageWithReasoning(
           currentSession.id,
@@ -758,8 +865,33 @@ const ChatPage: React.FC = () => {
         updateMessage(currentSession.id, messageId, '', true);
       }
       
+      // 不需要重置versions数组，addMessageVersionWithOriginal会正确处理版本追加
+      // 只需要标记消息正在重新生成
+      useAppStore.setState((state) => ({
+        chatSessions: state.chatSessions.map(s => 
+          s.id === currentSession.id 
+            ? {
+                ...s,
+                messages: s.messages.map(m => 
+                  m.id === messageId ? {
+                    ...m,
+                    isStreaming: true // 标记为正在生成
+                  } : m
+                ),
+                updatedAt: new Date()
+              }
+            : s
+        )
+      }));
+      
       // 调用AI API生成新内容
       const newContent = await callAIAPIForRegeneration(messages, messageId, currentSession.id);
+      
+      console.log('🔄 重新生成完成，准备添加新版本:', {
+        messageId: messageId.substring(0, 8) + '...',
+        originalContentLength: originalContent.length,
+        newContentLength: newContent.length
+      });
 
       // 完成生成后，添加为新版本（传入原始内容）
       addMessageVersionWithOriginal(currentSession.id, messageId, originalContent, newContent);
@@ -775,6 +907,10 @@ const ChatPage: React.FC = () => {
 
   // 为重新生成调用AI API的函数
   const callAIAPIForRegeneration = async (messages: any[], messageId: string, sessionId: string) => {
+    console.log('🔄 开始重新生成API调用:', {
+      messageId: messageId.substring(0, 8) + '...',
+      sessionId: sessionId.substring(0, 8) + '...'
+    });
     if (!currentModel) {
       throw new Error('模型未配置');
     }
@@ -954,15 +1090,27 @@ const ChatPage: React.FC = () => {
                   currentReasoningContent += reasoningContent;
                 }
                 
-                // 内容累积更新
-                updateMessageWithReasoning(
-                  sessionId, 
-                  messageId, 
-                  currentContent || undefined,
-                  currentReasoningContent || undefined,
-                  true,
-                  isFirstContent // 如果是第一次收到正文内容，立即标记思考过程完成
-                );
+                // 重新生成模式：只显示流式效果，不更新versions
+                // 临时更新消息内容以显示流式效果，但不触发versions更新
+                useAppStore.setState((state) => ({
+                  chatSessions: state.chatSessions.map(s => 
+                    s.id === sessionId 
+                      ? {
+                          ...s,
+                          messages: s.messages.map(m => 
+                            m.id === messageId ? {
+                              ...m,
+                              content: currentContent,
+                              reasoningContent: currentReasoningContent,
+                              isStreaming: true,
+                              isReasoningComplete: isFirstContent
+                              // 注意：不更新versions字段，保持原有版本历史
+                            } : m
+                          )
+                        }
+                      : s
+                  )
+                }));
               }
             } catch (e) {
               // 忽略JSON解析错误
@@ -976,14 +1124,29 @@ const ChatPage: React.FC = () => {
 
 
     
-    updateMessageWithReasoning(
-      sessionId, 
-      messageId, 
-      currentContent || undefined,
-      currentReasoningContent || undefined,
-      false,
-      true
-    );
+    // 重新生成模式：流式输出完成，标记为非流式状态但不更新versions
+    // 最终的版本管理由handleRegenerateMessage中的addMessageVersionWithOriginal处理
+    useAppStore.setState((state) => ({
+      chatSessions: state.chatSessions.map(s => 
+        s.id === sessionId 
+          ? {
+              ...s,
+              messages: s.messages.map(m => 
+                m.id === messageId ? {
+                  ...m,
+                  content: currentContent,
+                  reasoningContent: currentReasoningContent,
+                  isStreaming: false,
+                  isReasoningComplete: true
+                  // 注意：不更新versions字段，保持原有版本历史
+                } : m
+              )
+            }
+          : s
+      )
+    }));
+    
+    console.log('✅ 重新生成流式输出完成，内容长度:', currentContent.length);
     
     // 检查是否需要生成标题（重新生成时也可能需要）
     if (checkSessionNeedsTitle(sessionId) && currentModel) {
@@ -1022,7 +1185,10 @@ const ChatPage: React.FC = () => {
 
 
       {/* 消息列表 */}
-      <div className="flex-1 overflow-y-auto p-4 pb-10 space-y-4 gradient-mask-y [--gradient-mask-padding:1rem] md:[--gradient-mask-padding:2rem]">
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 pb-10 space-y-4 gradient-mask-y [--gradient-mask-padding:1rem] md:[--gradient-mask-padding:2rem]"
+      >
         <div className="max-w-6xl mx-auto">
         {currentSession?.messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[calc(100vh-500px)] text-base-content/60">
@@ -1096,20 +1262,43 @@ const ChatPage: React.FC = () => {
                   })()
                 ) : (
                   (() => {
-                    // 根据消息的userProfileId获取对应的用户资料
-                    const messageUserProfile = msg.userProfileId ? userProfiles.find(p => p.id === msg.userProfileId) : currentUserProfile;
-                    return messageUserProfile ? (
-                      <Avatar
-                        name={messageUserProfile.name}
-                        avatar={messageUserProfile.avatar}
-                        size="md"
-                      />
-                    ) : (
-                      <div 
-                        className="w-8 h-8 rounded-full bg-base-300 flex items-center justify-items-center content-center text-center">
-                        <User className="h-4 w-4 text-accent" />
-                      </div>
-                    );
+                    // 修改头像显示逻辑：
+                    // 1. 如果设置了用户角色（有userProfileId），则使用角色头像
+                    // 2. 如果用户登录但未设置角色，则使用用户头像
+                    // 3. 如果用户未登录，则显示默认图标
+                    if (msg.userProfileId) {
+                      // 有角色ID，使用角色头像
+                      const messageUserProfile = userProfiles.find(p => p.id === msg.userProfileId);
+                      return messageUserProfile ? (
+                        <Avatar
+                          name={messageUserProfile.name}
+                          avatar={messageUserProfile.avatar}
+                          size="md"
+                        />
+                      ) : (
+                        <div 
+                          className="w-8 h-8 rounded-full bg-base-300 flex items-center justify-items-center content-center text-center">
+                          <User className="h-4 w-4 text-accent" />
+                        </div>
+                      );
+                    } else if (user) {
+                      // 用户已登录但未设置角色，使用用户头像
+                      return (
+                        <Avatar
+                          name={user.user_metadata?.full_name || user.email || '用户'}
+                          avatar={user.user_metadata?.avatar_url}
+                          size="md"
+                        />
+                      );
+                    } else {
+                      // 用户未登录，显示默认图标
+                      return (
+                        <div 
+                          className="w-8 h-8 rounded-full bg-base-300 flex items-center justify-items-center content-center text-center">
+                          <User className="h-4 w-4 text-accent" />
+                        </div>
+                      );
+                    }
                   })()
                 )}              </div>
               

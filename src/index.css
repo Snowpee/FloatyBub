@@ -189,7 +189,7 @@ dialog .modal-box {
 }
 /* 定义 hero-popover */
 .hero-popover {
-  @apply fixed z-[9999] w-64 p-3 bg-white dark:bg-gray-800 rounded-lg transition-opacity transition-transform duration-200 ease-out;
+  @apply fixed z-[9999] w-64 p-4 bg-white dark:bg-gray-800 rounded-lg transition-opacity transition-transform duration-200 ease-out;
   border-radius: var(--radius-box);
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1), 0 0 0 var(--border) rgb(0 0 0 / 5%);
 }

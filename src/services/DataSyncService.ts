@@ -228,7 +228,7 @@ export class DataSyncService {
       user_id: data.user_id,
       title: data.title,
       content: data.prompt,
-      category: data.description || 'general',
+      category: data.description || '',
       created_at: data.createdAt ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
       updated_at: data.updatedAt ? new Date(data.updatedAt).toISOString() : new Date().toISOString()
     }

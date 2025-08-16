@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Users, Database, History, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Settings, Users, Database, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useDragToClose } from '../hooks/useDragToClose';
 import ConfigPage from '../pages/ConfigPage';
 import RolesPage from '../pages/RolesPage';
 import UserProfilesPage from '../pages/UserProfilesPage';
 import DataPage from '../pages/DataPage';
-import HistoryPage from '../pages/HistoryPage';
+
 import GlobalPromptsPage from '../pages/GlobalPromptsPage';
 import VoiceSettingsPage from '../pages/VoiceSettingsPage';
 
-type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data' | 'history';
+type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -118,12 +118,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       icon: Database,
       component: DataPage
     },
-    {
-      id: 'history' as TabType,
-      name: '历史',
-      icon: History,
-      component: HistoryPage
-    }
+
   ];
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ConfigPage;

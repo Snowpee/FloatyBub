@@ -36,6 +36,79 @@ export function useAuth(): AuthState & AuthActions {
   
   // 组件挂载状态标志
   let isComponentMounted = true
+  
+  // 认证状态一致性检查
+  const authConsistencyCheckRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // 认证状态一致性检查函数
+  const checkAuthConsistency = useCallback(async () => {
+    if (!isComponentMounted) return
+    
+    try {
+      // 获取当前Supabase会话状态
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession()
+      
+      if (error) {
+        console.warn('⚠️ [useAuth] 认证状态检查失败:', error.message)
+        return
+      }
+      
+      const appHasUser = !!user
+      const supabaseHasSession = !!currentSession
+      
+      // 检查状态不一致
+      if (appHasUser && !supabaseHasSession) {
+        console.warn('🔄 [useAuth] 检测到认证状态不一致：应用显示已登录但Supabase会话无效')
+        console.log('🔄 [useAuth] 清除应用认证状态...')
+        
+        // 清除应用状态
+        setUser(null)
+        setSession(null)
+        setCurrentUser(null)
+        setError('会话已过期，请重新登录')
+        
+        // 强制刷新页面或重定向到登录页
+        // 这里可以根据应用需求选择合适的处理方式
+        
+      } else if (!appHasUser && supabaseHasSession) {
+        console.log('🔄 [useAuth] 检测到有效Supabase会话但应用未登录，恢复认证状态')
+        
+        // 恢复应用状态
+        setSession(currentSession)
+        setUser(currentSession.user)
+        setError(null)
+        
+        // 同步用户资料
+        await syncUserProfile(currentSession.user)
+      }
+      
+    } catch (error: any) {
+      console.warn('⚠️ [useAuth] 认证状态一致性检查异常:', error.message)
+    }
+  }, [user])
+  
+  // 启动定期认证状态检查
+  const startAuthConsistencyCheck = useCallback(() => {
+    if (authConsistencyCheckRef.current) {
+      clearInterval(authConsistencyCheckRef.current)
+    }
+    
+    // 每30秒检查一次认证状态一致性
+    authConsistencyCheckRef.current = setInterval(() => {
+      checkAuthConsistency()
+    }, 30000)
+    
+    console.log('🔄 [useAuth] 启动认证状态一致性检查 (30秒间隔)')
+  }, [checkAuthConsistency])
+  
+  // 停止认证状态检查
+  const stopAuthConsistencyCheck = useCallback(() => {
+    if (authConsistencyCheckRef.current) {
+      clearInterval(authConsistencyCheckRef.current)
+      authConsistencyCheckRef.current = null
+      console.log('🛑 [useAuth] 停止认证状态一致性检查')
+    }
+  }, [])
 
   // 云端数据同步重试函数
   const syncCloudDataWithRetry = useCallback(async (user: any, maxRetries = 3) => {
@@ -197,6 +270,7 @@ export function useAuth(): AuthState & AuthActions {
     return () => {
       isComponentMounted = false
       clearTimeout(initTimer)
+      stopAuthConsistencyCheck()
     }
     // 监听认证状态变化（改进的处理逻辑）
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -256,10 +330,16 @@ export function useAuth(): AuthState & AuthActions {
             // 即使用户资料已存在，也要尝试同步云端数据（带重试机制）
             await syncCloudDataWithRetry(session.user)
           }
+          
+          // 用户登录成功后启动认证状态一致性检查
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+            startAuthConsistencyCheck()
+          }
         } else {
           // 用户登出，清除所有状态
           console.log('🔄 [useAuth] 用户已登出，清除状态')
           setCurrentUser(null)
+          stopAuthConsistencyCheck()
         }
         
         setLoading(false)
@@ -270,6 +350,7 @@ export function useAuth(): AuthState & AuthActions {
         console.log('🧹 [useAuth] Hook 清理')
         isComponentMounted = false
         subscription.unsubscribe()
+        stopAuthConsistencyCheck()
         // 清理防抖定时器
         if (syncTimeoutRef.current) {
           clearTimeout(syncTimeoutRef.current)

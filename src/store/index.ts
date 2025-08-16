@@ -5,6 +5,72 @@ import { dataSyncService } from '../services/DataSyncService';
 import { supabase } from '../lib/supabase';
 import { generateSnowflakeId, ensureSnowflakeIdString } from '../utils/snowflakeId';
 
+// 🔧 自定义序列化器：保护 snowflake_id 字段的大整数精度
+const SNOWFLAKE_ID_PREFIX = '__SNOWFLAKE_ID__';
+
+/**
+ * 自定义序列化器：在序列化前保护 snowflake_id 字段
+ * 将 snowflake_id 字符串添加特殊前缀，防止 JSON.stringify 将其转换为数字
+ */
+function customSerializer(data: any): string {
+  // 深度遍历对象，保护所有 snowflake_id 字段
+  function protectSnowflakeIds(obj: any): any {
+    if (obj === null || typeof obj !== 'object') {
+      return obj;
+    }
+    
+    if (Array.isArray(obj)) {
+      return obj.map(protectSnowflakeIds);
+    }
+    
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === 'snowflake_id' && typeof value === 'string' && value) {
+        // 为 snowflake_id 添加保护前缀
+        result[key] = SNOWFLAKE_ID_PREFIX + value;
+      } else {
+        result[key] = protectSnowflakeIds(value);
+      }
+    }
+    return result;
+  }
+  
+  const protectedData = protectSnowflakeIds(data);
+  return JSON.stringify(protectedData);
+}
+
+/**
+ * 自定义反序列化器：恢复被保护的 snowflake_id 字段
+ * 移除特殊前缀，恢复原始的 snowflake_id 字符串
+ */
+function customDeserializer(str: string): any {
+  const data = JSON.parse(str);
+  
+  // 深度遍历对象，恢复所有被保护的 snowflake_id 字段
+  function restoreSnowflakeIds(obj: any): any {
+    if (obj === null || typeof obj !== 'object') {
+      return obj;
+    }
+    
+    if (Array.isArray(obj)) {
+      return obj.map(restoreSnowflakeIds);
+    }
+    
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === 'snowflake_id' && typeof value === 'string' && value.startsWith(SNOWFLAKE_ID_PREFIX)) {
+        // 移除保护前缀，恢复原始 snowflake_id
+        result[key] = value.substring(SNOWFLAKE_ID_PREFIX.length);
+      } else {
+        result[key] = restoreSnowflakeIds(value);
+      }
+    }
+    return result;
+  }
+  
+  return restoreSnowflakeIds(data);
+}
+
 // 默认头像路径（使用public目录下的静态资源）
 const avatar01 = '/avatars/avatar-01.png';
 const avatar02 = '/avatars/avatar-02.png';
@@ -1216,8 +1282,20 @@ export const useAppStore = create<AppState>()(
           // 设置 message_timestamp，确保只在首次创建时生成
           message_timestamp: message.message_timestamp || (message.timestamp || new Date()).toISOString(),
           roleId: session?.roleId,
-          userProfileId: message.role === 'user' ? state.currentUserProfile?.id : undefined
+          userProfileId: message.role === 'user' ? state.currentUserProfile?.id : undefined,
+          // 初始化版本管理字段
+          versions: message.versions || (message.content ? [message.content] : []),
+          currentVersionIndex: message.currentVersionIndex !== undefined ? message.currentVersionIndex : 0
         };
+        
+        // 调试日志：版本字段初始化
+        console.log('🔧 消息版本字段初始化:', {
+          messageId: newMessage.id,
+          role: message.role,
+          content: message.content,
+          versions: newMessage.versions,
+          currentVersionIndex: newMessage.currentVersionIndex
+        });
         
         // 🔒 Snowflake ID 保护机制：只有在不存在时才生成新的，已存在的绝不覆盖
         if (message.snowflake_id) {
@@ -1260,7 +1338,22 @@ export const useAppStore = create<AppState>()(
                   messages: s.messages.map(m => 
                     m.id === messageId ? { 
                       ...m, 
-                      content, 
+                      content,
+                      // 当流式输出完成时，更新versions数组
+                      versions: (() => {
+                        if (isStreaming === false && content) {
+                          const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
+                            [...m.versions.slice(0, -1), content] : [content];
+                          console.log('🔧 流式输出完成，更新versions:', {
+                            messageId: m.id,
+                            oldVersions: m.versions,
+                            newVersions,
+                            content
+                          });
+                          return newVersions;
+                        }
+                        return m.versions;
+                      })(),
                       isStreaming: isStreaming !== undefined ? isStreaming : m.isStreaming 
                     } : m
                   ),
@@ -1284,7 +1377,19 @@ export const useAppStore = create<AppState>()(
                       ...(content !== undefined && { content }),
                       ...(reasoningContent !== undefined && { reasoningContent }),
                       ...(isStreaming !== undefined && { isStreaming }),
-                      ...(isReasoningComplete !== undefined && { isReasoningComplete })
+                      ...(isReasoningComplete !== undefined && { isReasoningComplete }),
+                      // 当流式输出完成时，更新versions数组
+                      ...(isStreaming === false && content !== undefined && (() => {
+                        const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
+                          [...m.versions.slice(0, -1), content] : [content];
+                        console.log('🔧 推理模式流式输出完成，更新versions:', {
+                          messageId: m.id,
+                          oldVersions: m.versions,
+                          newVersions,
+                          content
+                        });
+                        return { versions: newVersions };
+                      })())
                     } : m
                   ),
                   updatedAt: new Date()
@@ -1330,24 +1435,131 @@ export const useAppStore = create<AppState>()(
       },
 
       addMessageVersionWithOriginal: (sessionId, messageId, originalContent, newContent) => {
-        set((state) => ({
-          chatSessions: state.chatSessions.map(s => 
-            s.id === sessionId 
-              ? {
-                  ...s,
-                  messages: s.messages.map(m => 
-                    m.id === messageId ? {
-                      ...m,
-                      versions: m.versions ? [...m.versions, newContent] : [originalContent, newContent],
-                      currentVersionIndex: m.versions ? m.versions.length : 1,
-                      content: newContent
-                    } : m
-                  ),
-                  updatedAt: new Date()
-                }
-              : s
-          )
-        }));
+        console.log('🔄 开始添加消息版本:', {
+          sessionId: sessionId.substring(0, 8) + '...',
+          messageId: messageId.substring(0, 8) + '...',
+          originalContent: originalContent.substring(0, 50) + '...',
+          newContent: newContent.substring(0, 50) + '...'
+        });
+        
+        set((state) => {
+          const targetSession = state.chatSessions.find(s => s.id === sessionId);
+          const targetMessage = targetSession?.messages.find(m => m.id === messageId);
+          
+          if (!targetMessage) {
+            console.error('❌ 未找到目标消息');
+            return state;
+          }
+          
+          console.log('📋 当前消息状态:', {
+            messageId: targetMessage.id.substring(0, 8) + '...',
+            currentVersions: targetMessage.versions,
+            currentVersionIndex: targetMessage.currentVersionIndex,
+            currentContent: targetMessage.content.substring(0, 50) + '...'
+          });
+          
+          // 确保versions数组存在且包含当前内容
+          let newVersions: string[];
+          let newVersionIndex: number;
+          
+          if (!targetMessage.versions || targetMessage.versions.length === 0) {
+            // 如果没有versions或为空，创建包含原始内容和新内容的数组
+            newVersions = [originalContent, newContent];
+            newVersionIndex = 1; // 指向新内容
+          } else {
+            // 如果已有versions，追加新内容
+            newVersions = [...targetMessage.versions, newContent];
+            newVersionIndex = newVersions.length - 1; // 指向新添加的版本
+          }
+          
+          console.log('✅ 新版本数据:', {
+            newVersions: newVersions.map((v, i) => `[${i}]: ${v.substring(0, 30)}...`),
+            newVersionIndex,
+            newContent: newContent.substring(0, 50) + '...'
+          });
+          
+          // 延迟验证数据库同步（等待同步完成）
+          setTimeout(async () => {
+            try {
+              console.log('🔍 [重新生成验证] 开始验证消息数据库同步:', {
+                messageId: messageId.substring(0, 8) + '...',
+                expectedVersionsCount: newVersions.length,
+                expectedVersionIndex: newVersionIndex
+              });
+              
+              const { data: dbMessage, error } = await supabase
+                .from('messages')
+                .select('id, content, versions, current_version_index')
+                .eq('id', messageId)
+                .single();
+              
+              if (error) {
+                console.error('❌ [重新生成验证] 查询数据库失败:', error);
+                return;
+              }
+              
+              if (!dbMessage) {
+                console.error('❌ [重新生成验证] 数据库中未找到消息:', messageId);
+                return;
+              }
+              
+              console.log('📊 [重新生成验证] 数据库中的消息数据:', {
+                messageId: dbMessage.id.substring(0, 8) + '...',
+                content: dbMessage.content?.substring(0, 50) + '...',
+                versions: dbMessage.versions ? `数组长度: ${dbMessage.versions.length}` : 'NULL',
+                versionsPreview: dbMessage.versions?.map((v, i) => `[${i}]: ${v?.substring(0, 30)}...`) || 'NULL',
+                currentVersionIndex: dbMessage.current_version_index
+              });
+              
+              // 验证数据一致性
+              const versionsMatch = JSON.stringify(dbMessage.versions) === JSON.stringify(newVersions);
+              const indexMatch = dbMessage.current_version_index === newVersionIndex;
+              const contentMatch = dbMessage.content === newContent;
+              
+              if (versionsMatch && indexMatch && contentMatch) {
+                console.log('✅ [重新生成验证] 数据库同步验证成功 - 所有字段一致');
+              } else {
+                console.error('❌ [重新生成验证] 数据库同步验证失败:', {
+                  versionsMatch,
+                  indexMatch,
+                  contentMatch,
+                  expected: {
+                    versions: newVersions.map((v, i) => `[${i}]: ${v.substring(0, 30)}...`),
+                    currentVersionIndex: newVersionIndex,
+                    content: newContent.substring(0, 50) + '...'
+                  },
+                  actual: {
+                    versions: dbMessage.versions?.map((v, i) => `[${i}]: ${v?.substring(0, 30)}...`) || 'NULL',
+                    currentVersionIndex: dbMessage.current_version_index,
+                    content: dbMessage.content?.substring(0, 50) + '...'
+                  }
+                });
+              }
+            } catch (error) {
+              console.error('❌ [重新生成验证] 验证过程出错:', error);
+            }
+          }, 3000); // 等待3秒让同步完成
+          
+          return {
+            chatSessions: state.chatSessions.map(s => 
+              s.id === sessionId 
+                ? {
+                    ...s,
+                    messages: s.messages.map(m => 
+                      m.id === messageId ? {
+                        ...m,
+                        versions: newVersions,
+                        currentVersionIndex: newVersionIndex,
+                        content: newContent,
+                        isStreaming: false // 完成生成
+                      } : m
+                    ),
+                    updatedAt: new Date()
+                  }
+                : s
+            )
+          };
+        });
       },
 
       switchMessageVersion: (sessionId, messageId, versionIndex) => {
@@ -1368,6 +1580,9 @@ export const useAppStore = create<AppState>()(
               : s
           )
         }));
+        
+        // 触发数据库同步 - 通过更新时间戳触发同步检测
+        // 注意：queueDataSync不支持chat_sessions类型，所以通过updatedAt触发同步
       },
 
       deleteMessage: async (sessionId, messageId) => {
@@ -1689,7 +1904,8 @@ export const useAppStore = create<AppState>()(
           const str = localStorage.getItem(name);
           if (!str) return null;
           try {
-            const { state } = JSON.parse(str);
+            // 🔧 使用自定义反序列化器恢复被保护的 snowflake_id
+            const { state } = customDeserializer(str);
             // 恢复Date对象
             if (state.aiRoles) {
               state.aiRoles = state.aiRoles.map((role: any) => ({
@@ -1720,7 +1936,7 @@ export const useAppStore = create<AppState>()(
                 messages: session.messages.map((msg: any) => ({
                   ...msg,
                   timestamp: new Date(msg.timestamp),
-                  // 🔒 确保 snowflake_id 保持字符串类型，防止 JSON.parse 导致的精度丢失
+                  // 🔒 确保 snowflake_id 保持字符串类型，防止精度丢失
                   snowflake_id: msg.snowflake_id ? ensureSnowflakeIdString(msg.snowflake_id) : msg.snowflake_id
                 }))
               }));
@@ -1732,10 +1948,12 @@ export const useAppStore = create<AppState>()(
           }
         },
         setItem: (name, value) => {
-          localStorage.setItem(name, JSON.stringify({
+          // 🔧 使用自定义序列化器保护 snowflake_id 字段
+          const serializedData = customSerializer({
             state: value,
             version: 1
-          }));
+          });
+          localStorage.setItem(name, serializedData);
         },
         removeItem: (name) => localStorage.removeItem(name)
       }

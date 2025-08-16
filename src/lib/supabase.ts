@@ -27,9 +27,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   // 重要：配置数据类型转换，确保 BIGINT 类型作为字符串返回
   // 这解决了 JavaScript Number 类型精度丢失的问题
   realtime: {
-    params: {
-      eventsPerSecond: 10
-    }
+    // 使用默认配置，避免无效属性导致的TypeScript错误
   }
 })
 
