@@ -1,31 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useAppStore, UserProfile } from '../store';
-import {
-  Plus,
-  Edit,
-  Trash2,
-  Save,
-  X,
-  User,
-  CheckCircle
-} from 'lucide-react';
+import { Plus, Edit, Trash2, Save, X, User, CheckCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { toast } from '../hooks/useToast';
-import ConfirmDialog from '../components/ConfirmDialog';
+import { useAppStore, UserProfile } from '../store';
+import { generateRandomLocalAvatar } from '../utils/avatarUtils';
 import EmptyState from '../components/EmptyState';
-import { generateAvatar, generateRandomLocalAvatar } from '../utils/avatarUtils';
-// 生成随机头像
-const generateRandomAvatar = () => {
-  return generateRandomLocalAvatar();
-};
+import ConfirmDialog from '../components/ConfirmDialog';
+import RoleAvatarUpload from '../components/RoleAvatarUpload';
+import { toast } from '../hooks/useToast';
 
-interface UserProfilesPageProps {
+
+interface userRolesPageProps {
   onCloseModal?: () => void;
 }
 
-const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => {
+const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal }) => {
   const {
-    userProfiles,
+    userRoles,
     currentUserProfile,
     addUserProfile,
     updateUserProfile,
@@ -61,7 +51,7 @@ const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => 
   }>({ name: '', description: '', avatar: '' });
 
   const handleAdd = () => {
-    const newAvatar = generateRandomAvatar();
+    const newAvatar = generateRandomLocalAvatar();
     setFormData({ name: '', description: '', avatar: newAvatar });
     setIsEditing(true);
     setEditingId(null);
@@ -113,7 +103,7 @@ const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => 
   };
 
   const handleDelete = (id: string) => {
-    const profile = userProfiles.find(p => p.id === id);
+    const profile = userRoles.find(p => p.id === id);
     setConfirmDialog({
       isOpen: true,
       profileId: id,
@@ -136,9 +126,7 @@ const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => 
     toast.success(`已切换到用户：${profile.name}`);
   };
 
-  const generateNewAvatar = () => {
-    setFormData({ ...formData, avatar: generateRandomAvatar() });
-  };
+
 
   return (
     <div className="max-w-6xl mx-auto p-6 md:pt-0">
@@ -185,14 +173,14 @@ const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => 
       )}
              
       {/* 用户资料列表 */}
-      {userProfiles.length > 0 && (
+      {userRoles.length > 0 && (
         <p className="text-base-content mb-4">用户资料列表</p>
       )}
-      {userProfiles.length === 0 ? (
+      {userRoles.length === 0 ? (
         <EmptyState message="暂无用户资料，点击上方按钮添加第一个用户资料" />
       ) : (
         <div className="grid gap-4">
-          {userProfiles.map((profile) => (
+          {userRoles.map((profile) => (
             <div
               key={profile.id}
               className={cn(
@@ -276,19 +264,12 @@ const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => 
                 <legend className="fieldset-legend">基本信息</legend>
                 
                 {/* 头像 */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="avatar">
-                    <div className="w-16 h-16 rounded-full">
-                      <img src={formData.avatar} alt="头像预览" />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={generateNewAvatar}
-                    className="btn btn-outline btn-sm border-base-300 bg-base-100 hover:bg-base-200"
-                  >
-                    随机生成
-                  </button>
+                <div className="mb-4">
+                  <RoleAvatarUpload
+                    name={formData.name || '用户'}
+                    currentAvatar={formData.avatar}
+                    onAvatarChange={(avatar) => setFormData({ ...formData, avatar: avatar || '' })}
+                  />
                 </div>
 
                 <label className="input w-full mb-1">
@@ -352,4 +333,4 @@ const UserProfilesPage: React.FC<UserProfilesPageProps> = ({ onCloseModal }) => 
   );
 };
 
-export default UserProfilesPage;
+export default userRolesPage;

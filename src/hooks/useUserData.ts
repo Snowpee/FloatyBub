@@ -536,10 +536,22 @@ export const useUserData = () => {
       
       // 获取最新的会话数据（迁移后的）
       const currentSessions = useAppStore.getState().chatSessions
+      const tempSessionId = useAppStore.getState().tempSessionId
+      
+      // 过滤掉临时会话，确保临时会话不会被同步到数据库
+      const sessionsToSync = currentSessions.filter(session => {
+        const isTemporarySession = tempSessionId && session.id === tempSessionId
+        if (isTemporarySession) {
+          console.log(`🚫 [临时会话过滤] 跳过同步临时会话: ${session.id} (${session.title})`)
+        }
+        return !isTemporarySession
+      })
+      
+      console.log(`📊 [会话过滤] 总会话数: ${currentSessions.length}, 过滤后: ${sessionsToSync.length}, 临时会话ID: ${tempSessionId || '无'}`)
       
       // 检查并转换 ID 格式（使用迁移后的数据）
        const sessionsToUpdate: ChatSession[] = []
-       const updatedSessions = currentSessions.map(session => {
+       const updatedSessions = sessionsToSync.map(session => {
         const originalSessionId = session.id
         const newSessionId = convertToUUID(session.id)
         const sessionNeedsUpdate = originalSessionId !== newSessionId
@@ -716,12 +728,12 @@ export const useUserData = () => {
           if (messagesWithSnowflake.length > 0 && messagesWithoutSnowflake.length > 0) {
             // 如果同时有两种类型的消息，分别处理
             
-            // 对于有 snowflake_id 的消息，使用更安全的策略
+            // 对于有 snowflake_id 的消息，允许更新以支持版本字段同步
             const withSnowflakeResult = await supabase
               .from('messages')
               .upsert(messagesWithSnowflake, { 
                 onConflict: 'id',
-                ignoreDuplicates: true // 如果存在冲突，忽略重复插入
+                ignoreDuplicates: false // 允许更新现有消息的版本字段
               })
             
             if (withSnowflakeResult.error) {
@@ -748,7 +760,7 @@ export const useUserData = () => {
               .from('messages')
               .upsert(messagesWithSnowflake, { 
                 onConflict: 'id',
-                ignoreDuplicates: true // 对于有 snowflake_id 的消息，忽略重复
+                ignoreDuplicates: false // 允许更新现有消息的版本字段
               })
             messagePromise = Promise.resolve(result)
           } else {
@@ -807,15 +819,18 @@ export const useUserData = () => {
       console.log(`🎉 [同步结果] 同步完成，共同步了${sessionsData.length}个会话，${allMessages.length}条消息`);
       
       // 数据库验证：检查同步后的数据是否正确存储
-      try {
-        console.log(`🔍 ===== 开始数据库验证 =====`);
-        // 从chatSessions中提取ChatMessage对象进行验证
-        const chatMessagesToVerify = chatSessions.flatMap(session => session.messages || []);
-        await verifyDatabaseSync(chatMessagesToVerify);
-        console.log(`✅ ===== 数据库验证完成 =====`);
-      } catch (verifyError) {
-        console.error(`❌ [数据库验证失败]`, verifyError);
-      }
+      // 添加延迟以确保数据库写入操作完全完成
+      setTimeout(async () => {
+        try {
+          console.log(`🔍 ===== 开始数据库验证 (延迟5秒) =====`);
+          // 从chatSessions中提取ChatMessage对象进行验证
+          const chatMessagesToVerify = chatSessions.flatMap(session => session.messages || []);
+          await verifyDatabaseSync(chatMessagesToVerify);
+          console.log(`✅ ===== 数据库验证完成 =====`);
+        } catch (verifyError) {
+          console.error(`❌ [数据库验证失败]`, verifyError);
+        }
+      }, 5000); // 延迟5秒进行验证
       
       // 2秒后重置进度
       setTimeout(() => {

@@ -35,7 +35,7 @@ import { useUserData } from '../hooks/useUserData';
 import { supabase } from '../lib/supabase';
 import { avatarCache } from '../utils/imageCache';
 
-type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data';
+type TabType = 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data';
 
 
 const Layout: React.FC = () => {
@@ -61,6 +61,7 @@ const Layout: React.FC = () => {
     aiRoles,
     currentModelId,
     tempSessionId,
+    tempSession,
     deleteTempSession
   } = useAppStore();
   
@@ -235,7 +236,7 @@ const Layout: React.FC = () => {
       if (hash.startsWith('#setting')) {
         // 解析设置页面类型
         const settingPath = hash.replace('#setting', '').replace('/', '');
-        const validTabs = ['config', 'roles', 'userProfiles', 'globalPrompts', 'voice', 'data'];
+        const validTabs = ['config', 'roles', 'userRoles', 'globalPrompts', 'voice', 'data'];
         
         // 设置默认页面
         if (settingPath && validTabs.includes(settingPath)) {
@@ -304,10 +305,7 @@ const Layout: React.FC = () => {
       if (session.isHidden) {
         return false;
       }
-      // 过滤掉临时对话
-      if (tempSessionId === session.id) {
-        return false;
-      }
+      // 临时会话现在存储在tempSession字段中，不在chatSessions数组里，所以不需要过滤
       // 只显示包含至少一条用户消息的对话
       const hasUserMessage = session.messages.some(message => message.role === 'user');
       return hasUserMessage;
@@ -837,7 +835,10 @@ const Layout: React.FC = () => {
             
             {/* 对话标题 - 绝对居中显示 */}
             {location.pathname.startsWith('/chat') && currentSessionId && (() => {
-              const currentSession = chatSessions.find(s => s.id === currentSessionId);
+              // 优先从临时会话获取标题，如果不是临时会话则从正式会话获取
+              const currentSession = currentSessionId === tempSessionId 
+                ? tempSession 
+                : chatSessions.find(s => s.id === currentSessionId);
               return currentSession ? (
                 <div className="absolute left-1/2 transform -translate-x-1/2">
                   <h1 className="text-lg font-medium text-base-content truncate max-w-xs">

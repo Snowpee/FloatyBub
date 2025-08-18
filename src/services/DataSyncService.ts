@@ -4,7 +4,7 @@ import type { Database } from '../lib/supabase'
 // 同步项目类型
 export interface SyncItem {
   id: string
-  type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'user_profile'
+  type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'user_profile' | 'user_role'
   data: any
   timestamp: number
   retries: number
@@ -154,6 +154,9 @@ export class DataSyncService {
         break
       case 'user_profile':
         await this.syncUserProfile(dataWithUserId)
+        break
+      case 'user_role':
+        await this.syncUserRole(dataWithUserId)
         break
       default:
         throw new Error(`未知的同步类型: ${type}`)
@@ -305,12 +308,42 @@ export class DataSyncService {
     console.log('✅ DataSyncService.syncUserProfile: 同步成功')
   }
 
+  // 同步用户角色
+  private async syncUserRole(data: any): Promise<void> {
+    console.log('🔄 DataSyncService.syncUserRole: 开始同步用户角色', data)
+    
+    // 将前端用户角色数据映射到数据库结构
+    const dbData = {
+      id: data.id,
+      user_id: data.user_id,
+      name: data.name,
+      description: data.description || '',
+      avatar: data.avatar || '',
+      created_at: data.createdAt ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
+      updated_at: data.updatedAt ? new Date(data.updatedAt).toISOString() : new Date().toISOString()
+    }
+
+    console.log('📤 DataSyncService.syncUserRole: 准备写入数据库', dbData)
+
+    const { error } = await supabase
+      .from('user_roles')
+      .upsert(dbData, { onConflict: 'id' })
+    
+    if (error) {
+      console.error('❌ DataSyncService.syncUserRole: 同步失败', error)
+      throw new Error(`用户角色同步失败: ${error.message}`)
+    }
+    
+    console.log('✅ DataSyncService.syncUserRole: 同步成功')
+  }
+
   // 从云端拉取数据
   async pullFromCloud(userParam?: any): Promise<{
     llmConfigs: any[]
     aiRoles: any[]
     globalPrompts: any[]
     voiceSettings: any | null
+    userRoles: any[]
   }> {
     let user = userParam
     if (!user) {
@@ -321,11 +354,12 @@ export class DataSyncService {
       throw new Error('用户未登录')
     }
 
-    const [llmConfigsResult, aiRolesResult, globalPromptsResult, voiceSettingsResult] = await Promise.all([
+    const [llmConfigsResult, aiRolesResult, globalPromptsResult, voiceSettingsResult, userRolesResult] = await Promise.all([
       supabase.from('llm_configs').select('*').eq('user_id', user.id),
       supabase.from('ai_roles').select('*').eq('user_id', user.id),
       supabase.from('global_prompts').select('*').eq('user_id', user.id),
-      supabase.from('voice_settings').select('*').eq('user_id', user.id).maybeSingle()
+      supabase.from('voice_settings').select('*').eq('user_id', user.id).maybeSingle(),
+      supabase.from('user_roles').select('*').eq('user_id', user.id)
     ])
 
     if (llmConfigsResult.error) {
@@ -336,6 +370,9 @@ export class DataSyncService {
     }
     if (globalPromptsResult.error) {
       throw new Error(`拉取全局提示词失败: ${globalPromptsResult.error.message}`)
+    }
+    if (userRolesResult.error) {
+      throw new Error(`拉取用户角色失败: ${userRolesResult.error.message}`)
     }
     // 语音设置可能不存在，不抛出错误
 
@@ -393,11 +430,22 @@ export class DataSyncService {
       }
     }
 
+    // 将用户角色数据库格式转换回前端格式
+    const userRoles = (userRolesResult.data || []).map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description || '',
+      avatar: item.avatar || '',
+      createdAt: item.created_at,
+      updatedAt: item.updated_at
+    }))
+
     return {
       llmConfigs,
       aiRoles,
       globalPrompts,
-      voiceSettings
+      voiceSettings,
+      userRoles
     }
   }
 

@@ -141,7 +141,7 @@ class DatabaseSetupService {
     return !error && data.length > 0;
   }
   
-  async createUserProfilesTable(): Promise<SetupResult> {
+  async createuserRolesTable(): Promise<SetupResult> {
     if (await this.checkTableExists('user_profiles')) {
       return { success: true, message: '表已存在，跳过创建' };
     }
@@ -158,7 +158,7 @@ class DatabaseSetupService {
   
   async setupDatabase(): Promise<SetupProgress> {
     const steps = [
-      { name: '创建用户资料表', fn: () => this.createUserProfilesTable() },
+      { name: '创建用户资料表', fn: () => this.createuserRolesTable() },
       { name: '创建聊天会话表', fn: () => this.createChatSessionsTable() },
       { name: '创建消息表', fn: () => this.createMessagesTable() },
       { name: '配置安全策略', fn: () => this.setupRLSPolicies() },

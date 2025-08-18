@@ -187,7 +187,7 @@ interface AppState {
   aiRoles: AIRole[];
   
   // 用户资料
-  userProfiles: UserProfile[];
+  userRoles: UserProfile[];
   currentUserProfile: UserProfile | null;
   
   // 用户认证
@@ -200,6 +200,7 @@ interface AppState {
   chatSessions: ChatSession[];
   currentSessionId: string | null;
   tempSessionId: string | null; // 临时会话ID
+  tempSession: ChatSession | null; // 临时会话数据存储
   sessionsNeedingTitle: Set<string>; // 需要生成标题的会话ID集合
   
   // UI状态
@@ -302,7 +303,7 @@ const convertToUUID = (oldId: string): string => {
 };
 
 // 数据同步辅助函数
-const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'user_profile', data: any) => {
+const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'user_profile' | 'user_role', data: any) => {
   try {
     console.log('🔄 queueDataSync: 准备同步数据', { type, data })
     
@@ -409,13 +410,14 @@ export const useAppStore = create<AppState>()(
       llmConfigs: [],
       currentModelId: null,
       aiRoles: defaultRoles,
-      userProfiles: [],
+      userRoles: [],
       currentUserProfile: null,
       currentUser: null,
       globalPrompts: [],
       chatSessions: [],
       currentSessionId: null,
       tempSessionId: null,
+      tempSession: null,
       sessionsNeedingTitle: new Set(),
       theme: 'floaty',
       sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
@@ -602,8 +604,10 @@ export const useAppStore = create<AppState>()(
           updatedAt: new Date()
         };
         set((state) => ({
-          userProfiles: [...state.userProfiles, newProfile]
+          userRoles: [...state.userRoles, newProfile]
         }));
+        // 自动同步到云端
+        queueDataSync('user_role', newProfile);
       },
       
       updateUserProfile: (id, profile) => {
@@ -611,7 +615,7 @@ export const useAppStore = create<AppState>()(
         
         let updatedProfile: UserProfile | null = null;
         set((state) => {
-          const newProfiles = state.userProfiles.map(p => {
+          const newProfiles = state.userRoles.map(p => {
             if (p.id === id) {
               updatedProfile = { ...p, ...profile, updatedAt: new Date() };
               return updatedProfile;
@@ -619,32 +623,32 @@ export const useAppStore = create<AppState>()(
             return p;
           });
           console.log('✅ Store: 本地状态已更新', updatedProfile)
-          return { userProfiles: newProfiles };
+          return { userRoles: newProfiles };
         });
         
         // 自动同步到云端
         if (updatedProfile) {
           console.log('📤 Store: 准备同步到云端', updatedProfile)
-          queueDataSync('user_profile', updatedProfile);
+          queueDataSync('user_role', updatedProfile);
         }
       },
       
       deleteUserProfile: async (id) => {
         // 先保存原始状态，以便在失败时回滚
         const originalState = get();
-        const originalProfile = originalState.userProfiles.find(p => p.id === id);
+        const originalProfile = originalState.userRoles.find(p => p.id === id);
         const originalCurrentProfile = originalState.currentUserProfile;
         
         // 先从本地状态删除
         set((state) => ({
-          userProfiles: state.userProfiles.filter(p => p.id !== id),
+          userRoles: state.userRoles.filter(p => p.id !== id),
           currentUserProfile: state.currentUserProfile?.id === id ? null : state.currentUserProfile
         }));
         
         // 同步删除到数据库
         try {
           const { error } = await supabase
-            .from('user_profiles')
+            .from('user_roles')
             .delete()
             .eq('id', id);
           
@@ -652,7 +656,7 @@ export const useAppStore = create<AppState>()(
             // 回滚本地状态
             if (originalProfile) {
               set((state) => ({
-                userProfiles: [...state.userProfiles, originalProfile],
+                userRoles: [...state.userRoles, originalProfile],
                 currentUserProfile: originalCurrentProfile
               }));
             }
@@ -668,7 +672,7 @@ export const useAppStore = create<AppState>()(
           // 回滚本地状态
           if (originalProfile) {
             set((state) => ({
-              userProfiles: [...state.userProfiles, originalProfile],
+              userRoles: [...state.userRoles, originalProfile],
               currentUserProfile: originalCurrentProfile
             }));
           }
@@ -810,16 +814,29 @@ export const useAppStore = create<AppState>()(
           updatedAt: new Date()
         };
         
+        // 将临时会话存储在单独的字段中，不添加到chatSessions数组
         set((state) => ({
-          chatSessions: [newSession, ...state.chatSessions],
           currentSessionId: sessionId,
-          tempSessionId: sessionId
+          tempSessionId: sessionId,
+          tempSession: newSession
         }));
         return sessionId;
       },
       
       saveTempSession: () => {
-        set({ tempSessionId: null });
+        const state = get();
+        if (state.tempSession) {
+          // 将临时会话正式添加到chatSessions数组中，并设置为当前会话
+          set((state) => ({
+            chatSessions: [state.tempSession!, ...state.chatSessions],
+            currentSessionId: state.tempSession!.id, // 设置为当前会话
+            tempSessionId: null,
+            tempSession: null
+          }));
+        } else {
+          // 如果没有临时会话，只清空tempSessionId
+          set({ tempSessionId: null });
+        }
       },
       
       generateSessionTitle: async (sessionId, llmConfig) => {
@@ -1112,7 +1129,8 @@ export const useAppStore = create<AppState>()(
             chatSessions: state.chatSessions.filter(s => s.id !== tempSessionId),
             // 只有当要删除的临时会话确实是当前会话时，才清空currentSessionId
             currentSessionId: currentSessionId === tempSessionId ? null : currentSessionId,
-            tempSessionId: null
+            tempSessionId: null,
+            tempSession: null
           }));
         }
       },
@@ -1137,8 +1155,23 @@ export const useAppStore = create<AppState>()(
           currentSessionId: state.currentSessionId === id ? null : state.currentSessionId
         }));
         
-        // 同步删除到数据库
+        // 检查用户认证状态
         try {
+          const { data: { user }, error: authError } = await supabase.auth.getUser();
+          
+          if (authError) {
+            console.warn('⚠️ 获取用户认证状态失败:', authError.message);
+          }
+          
+          // 如果用户未登录（访客模式），只执行本地删除，不同步数据库
+          if (!user) {
+            console.log('👤 访客模式：只执行本地删除，跳过数据库同步');
+            return; // 直接返回，不执行数据库操作
+          }
+          
+          // 用户已登录，同步删除到数据库
+          console.log('🔐 用户已登录：执行数据库同步删除');
+          
           // 先删除会话中的所有消息
           const { error: messagesError } = await supabase
             .from('messages')
@@ -1158,6 +1191,9 @@ export const useAppStore = create<AppState>()(
           if (sessionError) {
             throw new Error(`删除会话失败: ${sessionError.message}`);
           }
+          
+          console.log('✅ 数据库同步删除成功');
+          
         } catch (error) {
           // 回滚本地状态
           if (originalSession) {
@@ -1273,7 +1309,8 @@ export const useAppStore = create<AppState>()(
       
       addMessage: (sessionId, message, onTempSessionSaved) => {
         const state = get();
-        const session = state.chatSessions.find(s => s.id === sessionId);
+        // 首先检查是否是临时会话
+        const session = state.tempSession?.id === sessionId ? state.tempSession : state.chatSessions.find(s => s.id === sessionId);
         
         const newMessage: ChatMessage = {
           ...message,
@@ -1320,83 +1357,167 @@ export const useAppStore = create<AppState>()(
           }
         }
         
-        set((state) => ({
-          chatSessions: state.chatSessions.map(s => 
-            s.id === sessionId 
-              ? { ...s, messages: [...s.messages, newMessage], updatedAt: new Date() }
-              : s
-          )
-        }));
+        // 更新会话状态：区分临时会话和正式会话
+        set((state) => {
+          if (state.tempSession?.id === sessionId) {
+            // 如果是临时会话，更新tempSession
+            return {
+              tempSession: {
+                ...state.tempSession,
+                messages: [...state.tempSession.messages, newMessage],
+                updatedAt: new Date()
+              }
+            };
+          } else {
+            // 如果是正式会话，更新chatSessions
+            return {
+              chatSessions: state.chatSessions.map(s => 
+                s.id === sessionId 
+                  ? { ...s, messages: [...s.messages, newMessage], updatedAt: new Date() }
+                  : s
+              )
+            };
+          }
+        });
       },
       
       updateMessage: (sessionId, messageId, content, isStreaming) => {
-        set((state) => ({
-          chatSessions: state.chatSessions.map(s => 
-            s.id === sessionId 
-              ? {
-                  ...s,
-                  messages: s.messages.map(m => 
-                    m.id === messageId ? { 
-                      ...m, 
-                      content,
-                      // 当流式输出完成时，更新versions数组
-                      versions: (() => {
-                        if (isStreaming === false && content) {
-                          const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
-                            [...m.versions.slice(0, -1), content] : [content];
-                          console.log('🔧 流式输出完成，更新versions:', {
-                            messageId: m.id,
-                            oldVersions: m.versions,
-                            newVersions,
-                            content
-                          });
-                          return newVersions;
-                        }
-                        return m.versions;
-                      })(),
-                      isStreaming: isStreaming !== undefined ? isStreaming : m.isStreaming 
-                    } : m
-                  ),
-                  updatedAt: new Date()
-                }
-              : s
-          )
-        }));
-      },
-
-      updateMessageWithReasoning: (sessionId, messageId, content, reasoningContent, isStreaming, isReasoningComplete) => {
-        
-        set((state) => ({
-          chatSessions: state.chatSessions.map(s => 
-            s.id === sessionId 
-              ? {
-                  ...s,
-                  messages: s.messages.map(m => 
-                    m.id === messageId ? { 
-                      ...m, 
-                      ...(content !== undefined && { content }),
-                      ...(reasoningContent !== undefined && { reasoningContent }),
-                      ...(isStreaming !== undefined && { isStreaming }),
-                      ...(isReasoningComplete !== undefined && { isReasoningComplete }),
-                      // 当流式输出完成时，更新versions数组
-                      ...(isStreaming === false && content !== undefined && (() => {
+        set((state) => {
+          if (state.tempSession?.id === sessionId) {
+            // 如果是临时会话，更新tempSession
+            return {
+              tempSession: {
+                ...state.tempSession,
+                messages: state.tempSession.messages.map(m => 
+                  m.id === messageId ? { 
+                    ...m, 
+                    content,
+                    // 当流式输出完成时，更新versions数组
+                    versions: (() => {
+                      if (isStreaming === false && content) {
                         const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
                           [...m.versions.slice(0, -1), content] : [content];
-                        console.log('🔧 推理模式流式输出完成，更新versions:', {
+                        console.log('🔧 流式输出完成，更新versions:', {
                           messageId: m.id,
                           oldVersions: m.versions,
                           newVersions,
                           content
                         });
-                        return { versions: newVersions };
-                      })())
-                    } : m
-                  ),
-                  updatedAt: new Date()
-                }
-              : s
-          )
-        }));
+                        return newVersions;
+                      }
+                      return m.versions;
+                    })(),
+                    isStreaming: isStreaming !== undefined ? isStreaming : m.isStreaming 
+                  } : m
+                ),
+                updatedAt: new Date()
+              }
+            };
+          } else {
+            // 如果是正式会话，更新chatSessions
+            return {
+              chatSessions: state.chatSessions.map(s => 
+                s.id === sessionId 
+                  ? {
+                      ...s,
+                      messages: s.messages.map(m => 
+                        m.id === messageId ? { 
+                          ...m, 
+                          content,
+                          // 当流式输出完成时，更新versions数组
+                          versions: (() => {
+                            if (isStreaming === false && content) {
+                              const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
+                                [...m.versions.slice(0, -1), content] : [content];
+                              console.log('🔧 流式输出完成，更新versions:', {
+                                messageId: m.id,
+                                oldVersions: m.versions,
+                                newVersions,
+                                content
+                              });
+                              return newVersions;
+                            }
+                            return m.versions;
+                          })(),
+                          isStreaming: isStreaming !== undefined ? isStreaming : m.isStreaming 
+                        } : m
+                      ),
+                      updatedAt: new Date()
+                    }
+                  : s
+              )
+            };
+          }
+        });
+      },
+
+      updateMessageWithReasoning: (sessionId, messageId, content, reasoningContent, isStreaming, isReasoningComplete) => {
+        
+        set((state) => {
+          if (state.tempSession?.id === sessionId) {
+            // 如果是临时会话，更新tempSession
+            return {
+              tempSession: {
+                ...state.tempSession,
+                messages: state.tempSession.messages.map(m => 
+                  m.id === messageId ? { 
+                    ...m, 
+                    ...(content !== undefined && { content }),
+                    ...(reasoningContent !== undefined && { reasoningContent }),
+                    ...(isStreaming !== undefined && { isStreaming }),
+                    ...(isReasoningComplete !== undefined && { isReasoningComplete }),
+                    // 当流式输出完成时，更新versions数组
+                    ...(isStreaming === false && content !== undefined && (() => {
+                      const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
+                        [...m.versions.slice(0, -1), content] : [content];
+                      console.log('🔧 推理模式流式输出完成，更新versions:', {
+                        messageId: m.id,
+                        oldVersions: m.versions,
+                        newVersions,
+                        content
+                      });
+                      return { versions: newVersions };
+                    })())
+                  } : m
+                ),
+                updatedAt: new Date()
+              }
+            };
+          } else {
+            // 如果是正式会话，更新chatSessions
+            return {
+              chatSessions: state.chatSessions.map(s => 
+                s.id === sessionId 
+                  ? {
+                      ...s,
+                      messages: s.messages.map(m => 
+                        m.id === messageId ? { 
+                          ...m, 
+                          ...(content !== undefined && { content }),
+                          ...(reasoningContent !== undefined && { reasoningContent }),
+                          ...(isStreaming !== undefined && { isStreaming }),
+                          ...(isReasoningComplete !== undefined && { isReasoningComplete }),
+                          // 当流式输出完成时，更新versions数组
+                          ...(isStreaming === false && content !== undefined && (() => {
+                            const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
+                              [...m.versions.slice(0, -1), content] : [content];
+                            console.log('🔧 推理模式流式输出完成，更新versions:', {
+                              messageId: m.id,
+                              oldVersions: m.versions,
+                              newVersions,
+                              content
+                            });
+                            return { versions: newVersions };
+                          })())
+                        } : m
+                      ),
+                      updatedAt: new Date()
+                    }
+                  : s
+              )
+            };
+          }
+        });
         
         // 输出简洁的状态变化日志
         if (isReasoningComplete) {
@@ -1603,8 +1724,23 @@ export const useAppStore = create<AppState>()(
           )
         }));
         
-        // 同步删除到数据库
+        // 检查用户认证状态
         try {
+          const { data: { user }, error: authError } = await supabase.auth.getUser();
+          
+          if (authError) {
+            console.warn('⚠️ 获取用户认证状态失败:', authError.message);
+          }
+          
+          // 如果用户未登录（访客模式），只执行本地删除，不同步数据库
+          if (!user) {
+            console.log('👤 访客模式：只执行本地删除消息，跳过数据库同步');
+            return; // 直接返回，不执行数据库操作
+          }
+          
+          // 用户已登录，同步删除到数据库
+          console.log('🔐 用户已登录：执行消息数据库同步删除');
+          
           const { error } = await supabase
             .from('messages')
             .delete()
@@ -1622,6 +1758,9 @@ export const useAppStore = create<AppState>()(
             console.error('删除消息失败:', error);
             throw new Error(`删除消息失败: ${error.message}`);
           }
+          
+          console.log('✅ 消息数据库同步删除成功');
+          
         } catch (error) {
           // 如果是我们抛出的错误，直接重新抛出
           if (error instanceof Error && error.message.includes('删除消息失败')) {
@@ -1730,7 +1869,7 @@ export const useAppStore = create<AppState>()(
         }));
         
         // 转换用户资料中的头像路径
-        const userProfiles = state.userProfiles.map(profile => ({
+        const userRoles = state.userRoles.map(profile => ({
           ...profile,
           avatar: convertAvatarForExport(profile.avatar)
         }));
@@ -1744,7 +1883,7 @@ export const useAppStore = create<AppState>()(
         const exportData = {
           llmConfigs: state.llmConfigs,
           aiRoles,
-          userProfiles,
+          userRoles,
           globalPrompts: state.globalPrompts,
           chatSessions: state.chatSessions,
           currentModelId: state.currentModelId,
@@ -1775,7 +1914,7 @@ export const useAppStore = create<AppState>()(
             updatedAt: new Date(role.updatedAt || Date.now())
           }));
           
-          const userProfiles = (data.userProfiles || []).map((profile: any) => ({
+          const userRoles = (data.userRoles || []).map((profile: any) => ({
             ...profile,
             avatar: convertAvatarFromImport(profile.avatar),
             createdAt: new Date(profile.createdAt || Date.now()),
@@ -1810,7 +1949,7 @@ export const useAppStore = create<AppState>()(
           set({
             llmConfigs: data.llmConfigs,
             aiRoles,
-            userProfiles,
+            userRoles,
             globalPrompts,
             chatSessions,
             currentModelId: data.currentModelId || null,
@@ -1832,7 +1971,7 @@ export const useAppStore = create<AppState>()(
           currentModelId: null,
           aiRoles: defaultRoles,
 
-          userProfiles: [],
+          userRoles: [],
           currentUserProfile: null,
           globalPrompts: [],
           chatSessions: [],
@@ -1888,7 +2027,7 @@ export const useAppStore = create<AppState>()(
         llmConfigs: state.llmConfigs,
         currentModelId: state.currentModelId,
         aiRoles: state.aiRoles,
-        userProfiles: state.userProfiles,
+        userRoles: state.userRoles,
         currentUserProfile: state.currentUserProfile,
         currentUser: state.currentUser, // 添加currentUser到持久化状态
         globalPrompts: state.globalPrompts,
@@ -1914,8 +2053,8 @@ export const useAppStore = create<AppState>()(
                 updatedAt: new Date(role.updatedAt)
               }));
             }
-            if (state.userProfiles) {
-              state.userProfiles = state.userProfiles.map((profile: any) => ({
+            if (state.userRoles) {
+              state.userRoles = state.userRoles.map((profile: any) => ({
                 ...profile,
                 createdAt: new Date(profile.createdAt),
                 updatedAt: new Date(profile.updatedAt)

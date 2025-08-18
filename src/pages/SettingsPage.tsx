@@ -5,13 +5,13 @@ import { SyncStatusIndicator } from '../components/SyncStatusIndicator';
 import { DatabaseConnectionIndicator } from '../components/DatabaseConnectionIndicator';
 import ConfigPage from './ConfigPage';
 import RolesPage from './RolesPage';
-import UserProfilesPage from './UserProfilesPage';
+import userRolesPage from './UserRolesPage';
 import DataPage from './DataPage';
 import HistoryPage from './HistoryPage';
 import GlobalPromptsPage from './GlobalPromptsPage';
 import VoiceSettingsPage from './VoiceSettingsPage';
 
-type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data' | 'history';
+type TabType = 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'history';
 
 const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('config');
@@ -30,10 +30,10 @@ const SettingsPage: React.FC = () => {
       component: RolesPage
     },
     {
-      id: 'userProfiles' as TabType,
+      id: 'userRoles' as TabType,
       name: '用户角色',
       icon: UserCircle,
-      component: UserProfilesPage
+      component: userRolesPage
     },
     {
       id: 'globalPrompts' as TabType,

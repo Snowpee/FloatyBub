@@ -140,7 +140,8 @@ export function useAuth(): AuthState & AuthActions {
           ...(cloudData.llmConfigs && { llmConfigs: cloudData.llmConfigs }),
           aiRoles: mergedAiRoles,
           ...(cloudData.globalPrompts && { globalPrompts: cloudData.globalPrompts }),
-          ...(cloudData.voiceSettings && { voiceSettings: cloudData.voiceSettings })
+          ...(cloudData.voiceSettings && { voiceSettings: cloudData.voiceSettings }),
+          ...(cloudData.userRoles && { userRoles: cloudData.userRoles })
         })
         
         console.log('✅ [useAuth] 云端数据同步成功')

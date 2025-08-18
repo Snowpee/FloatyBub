@@ -8,6 +8,7 @@ start-tts-server.sh
 test-scripts.sh
 quick-commit.sh
 GIT_SCRIPTS_README.md
+scripts/
 
 # 排除 Node.js 相关
 node_modules/

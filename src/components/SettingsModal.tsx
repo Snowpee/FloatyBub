@@ -4,13 +4,13 @@ import { cn } from '../lib/utils';
 import { useDragToClose } from '../hooks/useDragToClose';
 import ConfigPage from '../pages/ConfigPage';
 import RolesPage from '../pages/RolesPage';
-import UserProfilesPage from '../pages/UserProfilesPage';
+import userRolesPage from '../pages/UserRolesPage';
 import DataPage from '../pages/DataPage';
 
 import GlobalPromptsPage from '../pages/GlobalPromptsPage';
 import VoiceSettingsPage from '../pages/VoiceSettingsPage';
 
-type TabType = 'config' | 'roles' | 'userProfiles' | 'globalPrompts' | 'voice' | 'data';
+type TabType = 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -95,10 +95,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       component: RolesPage
     },
     {
-      id: 'userProfiles' as TabType,
+      id: 'userRoles' as TabType,
       name: '用户角色',
       icon: UserCircle,
-      component: UserProfilesPage
+      component: userRolesPage
     },
     {
       id: 'globalPrompts' as TabType,

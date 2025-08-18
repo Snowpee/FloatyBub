@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore, generateId } from '../store';
 import {
@@ -58,10 +58,11 @@ const ChatPage: React.FC = () => {
     currentSessionId,
     chatSessions,
     aiRoles,
-    userProfiles,
+    userRoles,
     llmConfigs,
     currentModelId,
     tempSessionId,
+    tempSession,
     globalPrompts,
     currentUserProfile,
     voiceSettings,
@@ -86,8 +87,15 @@ const ChatPage: React.FC = () => {
   // 获取启用的模型
   const enabledModels = llmConfigs.filter(m => m.enabled);
 
-  // 获取当前会话
-  const currentSession = chatSessions.find(s => s.id === sessionId);
+  // 获取当前会话：优先从tempSession获取临时会话数据
+  const currentSession = useMemo(() => {
+    // 如果当前sessionId匹配tempSessionId，且tempSession存在，则使用tempSession
+    if (sessionId === tempSessionId && tempSession) {
+      return tempSession;
+    }
+    // 否则从chatSessions数组中查找
+    return chatSessions.find(s => s.id === sessionId);
+  }, [sessionId, tempSessionId, tempSession, chatSessions]);
   
 
   // 临时会话和正式会话使用相同的角色获取逻辑
@@ -1182,14 +1190,12 @@ const ChatPage: React.FC = () => {
 
   return (
     <div className="chat-container flex flex-col h-full bg-base-100">
-
-
       {/* 消息列表 */}
       <div 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-4 pb-10 space-y-4 gradient-mask-y [--gradient-mask-padding:1rem] md:[--gradient-mask-padding:2rem]"
       >
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-4xl mx-auto">
         {currentSession?.messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[calc(100vh-500px)] text-base-content/60">
             {/* 添加加载状态检查和默认值 */}
@@ -1268,7 +1274,7 @@ const ChatPage: React.FC = () => {
                     // 3. 如果用户未登录，则显示默认图标
                     if (msg.userProfileId) {
                       // 有角色ID，使用角色头像
-                      const messageUserProfile = userProfiles.find(p => p.id === msg.userProfileId);
+                      const messageUserProfile = userRoles.find(p => p.id === msg.userProfileId);
                       return messageUserProfile ? (
                         <Avatar
                           name={messageUserProfile.name}
@@ -1602,7 +1608,7 @@ const ChatPage: React.FC = () => {
 
       {/* 输入区域 */}
       <div className="p-4 pt-0">
-        <div className="chat-input max-w-6xl mx-auto">
+        <div className="chat-input max-w-4xl mx-auto">
         {/* 输入框 - 单独一行 */}
         <div className="mb-3">
           <textarea

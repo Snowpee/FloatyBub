@@ -441,7 +441,7 @@ class DataMigrationService {
       globalPrompts: [],
       voiceSettings: null,
       chatSessions: [],
-      userProfiles: []
+      userRoles: []
     };
     
     // 检测LLM配置
