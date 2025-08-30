@@ -389,7 +389,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
 
 
   return (
-    <div className="p-6 max-w-6xl mx-auto md:pt-0">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto md:pt-0">
       <div className="mb-0">
         <p className="text-base-content/70">
           配置文本转语音功能的相关设置
@@ -397,26 +397,29 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
       </div>
 
       {/* 供应商选择 */}
-      <h2 className="text-lg font-medium pt-4 pb-2 md:py-6">供应商配置</h2>
-      <div className="form-control w-full flex">
-        <p className="text-base mb-4 hidden md:block">语音供应商</p>
-        <label className="select w-full md:w-1/2 ml-auto">
-          <span className="label md:!hidden">语音供应商</span>
-          <select 
-            value={settings.provider}
-            onChange={(e) => {
-              const newSettings = { ...settings, provider: e.target.value as 'fish-audio' | 'other' };
-              saveSettings(newSettings);
-            }}
-          >
-            <option value="fish-audio">Fish Audio</option>
-            <option value="other">其它</option>
-          </select>
-        </label>
-      </div>
+      <div className="card mt-4 mb-4">
+        <div className="card-body pt-4 md:pt-6 gap-4">
+          <h3 className="font-medium text-base mb-2">供应商配置</h3>
+          <div className="form-control w-full flex">
+            <p className="text-base mb-4 hidden md:block">语音供应商</p>
+            <label className="select w-full md:w-1/2 ml-auto">
+              <span className="label md:!hidden">语音供应商</span>
+              <select 
+                value={settings.provider}
+                onChange={(e) => {
+                  const newSettings = { ...settings, provider: e.target.value as 'fish-audio' | 'other' };
+                  saveSettings(newSettings);
+                }}
+              >
+                <option value="fish-audio">Fish Audio</option>
+                <option value="other">其它</option>
+              </select>
+            </label>
+          </div>
+
       
       {settings.provider === 'other' && (
-        <div className="alert alert-warning my-4">
+        <div className="alert alert-warning mb-4">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
@@ -426,9 +429,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
 
       {/* API 配置 */}
       {settings.provider === 'fish-audio' && (
-        <div className="card mt-4">
-          <div className="card-body">
-            <h3 className="font-medium text-base mb-2">API 配置</h3>
+          <div>
             <div className="grid grid-cols-1 gap-4">
               <div className="flex hero-fieldset">
                 <p className="hero-label-md text-base mb-4 hidden md:block">API 地址</p>
@@ -514,13 +515,14 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
               </div>
             </div>
           </div>
-        </div>
-      )}
 
+      )}
+          </div>
+        </div>
       {/* 自定义模型管理 */}
       {settings.provider === 'fish-audio' && (
         <div className="card my-4">
-          <div className="card-body">
+          <div className="card-body pt-4 md:pt-6">
             <h3 className="font-medium text-base mb-4">语音模型管理</h3>
             
             {/* 添加新模型按钮 */}
@@ -616,8 +618,8 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
 
       {/* 朗读设置 - 始终显示 */}
       <div className="card bg-base-100 shadow-sm mb-4">
-        <div className="card-body">
-          <h2 className="card-title mb-4">朗读设置</h2>
+        <div className="card-body pt-4 md:pt-6">
+          <h3 className="font-medium text-base mb-4">朗读设置</h3>
           
           {/* 默认语音模型选择 */}
           <div className="form-control flex hero-fieldset mb-2">
@@ -666,8 +668,8 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
       </div>
 
       <div className="card bg-base-100 shadow-sm mb-6">
-        <div className="card-body">
-          <h2 className="card-title">缓存管理</h2>
+        <div className="card-body pt-4 md:pt-6">
+          <h3 className="font-medium text-base mb-4">缓存管理</h3>
           
           {/* 缓存管理 */}
           <div className="mb-4">

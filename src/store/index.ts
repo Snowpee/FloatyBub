@@ -80,7 +80,7 @@ const avatar03 = '/avatars/avatar-03.png';
 export interface LLMConfig {
   id: string;
   name: string;
-  provider: 'openai' | 'claude' | 'gemini' | 'kimi' | 'deepseek' | 'custom';
+  provider: 'openai' | 'claude' | 'gemini' | 'kimi' | 'deepseek' | 'openrouter' | 'custom';
   apiKey: string;
   baseUrl?: string;
   proxyUrl?: string;
@@ -140,6 +140,7 @@ export interface ChatMessage {
   currentVersionIndex?: number; // 当前显示的版本索引
   reasoningContent?: string; // DeepSeek等模型的思考过程内容
   isReasoningComplete?: boolean; // 思考过程是否完成
+  images?: string[]; // 图片数据数组，存储base64格式的图片
 }
 
 // 聊天会话接口
@@ -243,10 +244,10 @@ interface AppState {
   migrateIdsToUUID: () => boolean;
   addMessage: (sessionId: string, message: Omit<ChatMessage, 'id'> & { id?: string }, onTempSessionSaved?: (sessionId: string) => void) => void;
   updateMessage: (sessionId: string, messageId: string, content: string, isStreaming?: boolean) => void;
-  updateMessageWithReasoning: (sessionId: string, messageId: string, content?: string, reasoningContent?: string, isStreaming?: boolean, isReasoningComplete?: boolean) => void;
+  updateMessageWithReasoning: (sessionId: string, messageId: string, content?: string, reasoningContent?: string, isStreaming?: boolean, isReasoningComplete?: boolean, images?: string[]) => void;
   regenerateMessage: (sessionId: string, messageId: string) => Promise<void>;
   addMessageVersion: (sessionId: string, messageId: string, newContent: string) => void;
-  addMessageVersionWithOriginal: (sessionId: string, messageId: string, originalContent: string, newContent: string) => void;
+  addMessageVersionWithOriginal: (sessionId: string, messageId: string, originalContent: string, newContent: string, newImages?: string[]) => void;
   switchMessageVersion: (sessionId: string, messageId: string, versionIndex: number) => void;
   deleteMessage: (sessionId: string, messageId: string) => Promise<void>;
   
@@ -420,7 +421,7 @@ export const useAppStore = create<AppState>()(
       tempSession: null,
       sessionsNeedingTitle: new Set(),
       theme: 'floaty',
-      sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
+      sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
       voiceSettings: loadVoiceSettingsFromStorage(),
       
       // LLM配置相关actions
@@ -1451,7 +1452,20 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      updateMessageWithReasoning: (sessionId, messageId, content, reasoningContent, isStreaming, isReasoningComplete) => {
+      updateMessageWithReasoning: (sessionId, messageId, content, reasoningContent, isStreaming, isReasoningComplete, images) => {
+        
+        // 添加调试日志记录images参数
+        console.log('🔧 [updateMessageWithReasoning] 函数调用:', {
+          sessionId: sessionId?.substring(0, 8) + '...',
+          messageId: messageId?.substring(0, 8) + '...',
+          hasContent: content !== undefined,
+          hasReasoningContent: reasoningContent !== undefined,
+          isStreaming,
+          isReasoningComplete,
+          hasImages: images !== undefined,
+          imagesLength: images ? images.length : 0,
+          imagesPreview: images ? images.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`) : 'undefined'
+        });
         
         set((state) => {
           if (state.tempSession?.id === sessionId) {
@@ -1466,6 +1480,14 @@ export const useAppStore = create<AppState>()(
                     ...(reasoningContent !== undefined && { reasoningContent }),
                     ...(isStreaming !== undefined && { isStreaming }),
                     ...(isReasoningComplete !== undefined && { isReasoningComplete }),
+                    ...(images !== undefined && (() => {
+                      console.log('🔧 [updateMessageWithReasoning] 临时会话 - 设置images:', {
+                        messageId: messageId?.substring(0, 8) + '...',
+                        imagesLength: images.length,
+                        imagesContent: images.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`)
+                      });
+                      return { images };
+                    })()),
                     // 当流式输出完成时，更新versions数组
                     ...(isStreaming === false && content !== undefined && (() => {
                       const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
@@ -1497,6 +1519,14 @@ export const useAppStore = create<AppState>()(
                           ...(reasoningContent !== undefined && { reasoningContent }),
                           ...(isStreaming !== undefined && { isStreaming }),
                           ...(isReasoningComplete !== undefined && { isReasoningComplete }),
+                          ...(images !== undefined && (() => {
+                            console.log('🔧 [updateMessageWithReasoning] 正式会话 - 设置images:', {
+                              messageId: messageId?.substring(0, 8) + '...',
+                              imagesLength: images.length,
+                              imagesContent: images.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`)
+                            });
+                            return { images };
+                          })()),
                           // 当流式输出完成时，更新versions数组
                           ...(isStreaming === false && content !== undefined && (() => {
                             const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
@@ -1555,12 +1585,20 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
-      addMessageVersionWithOriginal: (sessionId, messageId, originalContent, newContent) => {
+      addMessageVersionWithOriginal: (sessionId, messageId, originalContent, newContent, newImages) => {
         console.log('🔄 开始添加消息版本:', {
           sessionId: sessionId.substring(0, 8) + '...',
           messageId: messageId.substring(0, 8) + '...',
           originalContent: originalContent.substring(0, 50) + '...',
-          newContent: newContent.substring(0, 50) + '...'
+          newContent: newContent.substring(0, 50) + '...',
+          hasNewImages: newImages && newImages.length > 0,
+          newImagesCount: newImages ? newImages.length : 0
+        });
+        
+        console.log('【流式图片问题调试】🔄 [版本添加] addMessageVersionWithOriginal接收到的图片数据:', {
+          newImages: newImages,
+          newImagesType: typeof newImages,
+          newImagesLength: newImages ? newImages.length : 0
         });
         
         set((state) => {
@@ -1661,7 +1699,7 @@ export const useAppStore = create<AppState>()(
             }
           }, 3000); // 等待3秒让同步完成
           
-          return {
+          const updatedState = {
             chatSessions: state.chatSessions.map(s => 
               s.id === sessionId 
                 ? {
@@ -1672,6 +1710,7 @@ export const useAppStore = create<AppState>()(
                         versions: newVersions,
                         currentVersionIndex: newVersionIndex,
                         content: newContent,
+                        images: newImages || m.images, // 更新图片数据
                         isStreaming: false // 完成生成
                       } : m
                     ),
@@ -1680,6 +1719,21 @@ export const useAppStore = create<AppState>()(
                 : s
             )
           };
+          
+          // 验证图片数据是否正确保存
+          const updatedMessage = updatedState.chatSessions
+            .find(s => s.id === sessionId)?.messages
+            .find(m => m.id === messageId);
+          
+          console.log('【流式图片问题调试】✅ [状态更新] 消息状态已更新:', {
+            messageId: messageId.substring(0, 8) + '...',
+            hasImages: updatedMessage?.images && updatedMessage.images.length > 0,
+            imagesCount: updatedMessage?.images ? updatedMessage.images.length : 0,
+            images: updatedMessage?.images,
+            contentLength: updatedMessage?.content ? updatedMessage.content.length : 0
+          });
+          
+          return updatedState;
         });
       },
 

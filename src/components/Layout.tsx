@@ -268,13 +268,15 @@ const Layout: React.FC = () => {
   // 监听窗口大小变化，在移动端和桌面端切换时调整侧边栏状态
   useEffect(() => {
     const handleResize = () => {
+      const isDesktop = window.innerWidth >= 1024;
       const isMobile = window.innerWidth < 768;
-      // 如果从桌面端切换到移动端，自动关闭侧边栏
-      if (isMobile && sidebarOpen) {
+      
+      // 如果从桌面端切换到平板/移动端，自动关闭侧边栏
+      if (!isDesktop && sidebarOpen) {
         toggleSidebar();
       }
-      // 如果从移动端切换到桌面端，自动打开侧边栏
-      else if (!isMobile && !sidebarOpen) {
+      // 如果从平板/移动端切换到桌面端，自动打开侧边栏
+      else if (isDesktop && !sidebarOpen) {
         toggleSidebar();
       }
     };
@@ -385,8 +387,8 @@ const Layout: React.FC = () => {
     return window.innerWidth < 1024; // lg breakpoint
   };
 
-  // 在移动端自动关闭侧边栏
-  const closeSidebarOnMobile = () => {
+  // 在非桌面端（移动端和平板端）自动关闭侧边栏
+  const closeSidebarOnNonDesktop = () => {
     if (isMobile() && sidebarOpen) {
       toggleSidebar();
     }
@@ -405,7 +407,7 @@ const Layout: React.FC = () => {
         onClick={() => {
           setCurrentSession(session.id);
           // 在移动端自动关闭侧边栏
-          closeSidebarOnMobile();
+          closeSidebarOnNonDesktop();
         }}
         className={cn(
           "chat-list p-3 my-1 transition-colors group block group",
@@ -582,13 +584,13 @@ const Layout: React.FC = () => {
         </div>
       </Link>
     );
-  }, [currentSessionId, renamingSessionId, renamingTitle, setCurrentSession, closeSidebarOnMobile, getAIRole, updateChatSession, hideSession, deleteSession, sessionRefs, ITEM_HEIGHT]);
+  }, [currentSessionId, renamingSessionId, renamingTitle, setCurrentSession, closeSidebarOnNonDesktop, getAIRole, updateChatSession, hideSession, deleteSession, sessionRefs, ITEM_HEIGHT]);
 
   const handleNewChat = () => {
     // 导航到聊天页面，让用户选择角色
     navigate('/chat');
     // 在移动端自动关闭侧边栏
-    closeSidebarOnMobile();
+    closeSidebarOnNonDesktop();
   };
 
   const handleNewSession = () => {
@@ -600,7 +602,7 @@ const Layout: React.FC = () => {
     if (!roleId || !modelId) {
       // 如果没有当前对话或缺少角色/模型信息，导航到角色选择页面
       navigate('/chat');
-      closeSidebarOnMobile();
+      closeSidebarOnNonDesktop();
       return;
     }
     
@@ -609,7 +611,7 @@ const Layout: React.FC = () => {
     
     // 导航到新对话页面
     navigate(`/chat/${newSessionId}`);
-    closeSidebarOnMobile();
+    closeSidebarOnNonDesktop();
   };
 
   return (
@@ -679,7 +681,7 @@ const Layout: React.FC = () => {
                     <UserAvatar 
                   onOpenSettings={() => {
                     window.location.hash = '#setting';
-                    closeSidebarOnMobile();
+                    closeSidebarOnNonDesktop();
                   }}
                   onOpenProfileModal={handleOpenUserProfileModal}
                   className='grow'
@@ -713,7 +715,7 @@ const Layout: React.FC = () => {
                             onClick={() => {
                               window.location.hash = '#setting';
                               (document.activeElement as HTMLElement)?.blur();
-                              closeSidebarOnMobile();
+                              closeSidebarOnNonDesktop();
                             }}
                             className="btn btn-md"
                           >
@@ -728,7 +730,7 @@ const Layout: React.FC = () => {
                   <button
                     onClick={() => {
                       window.location.hash = '#setting';
-                      closeSidebarOnMobile();
+                      closeSidebarOnNonDesktop();
                     }}
                     className="btn btn-ghost btn-md"
                   >

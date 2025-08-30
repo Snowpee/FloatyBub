@@ -15,6 +15,8 @@ export const getDefaultBaseUrl = (provider: string): string => {
       return 'https://api.moonshot.cn';
     case 'deepseek':
       return 'https://api.deepseek.com';
+    case 'openrouter':
+      return 'https://openrouter.ai/api';
     default:
       return 'https://api.openai.com';
   }

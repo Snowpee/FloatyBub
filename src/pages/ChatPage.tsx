@@ -42,6 +42,7 @@ const ChatPage: React.FC = () => {
   const [visibleActionButtons, setVisibleActionButtons] = useState<string | null>(null);
   const [voicePlayingState, setVoicePlayingState] = useState(getVoiceState());
   const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const [chatStyle, setChatStyle] = useState<'conversation' | 'document'>('conversation');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -53,6 +54,26 @@ const ChatPage: React.FC = () => {
   
   // 获取用户认证信息
   const { user } = useAuth();
+
+  // 初始化聊天样式
+  useEffect(() => {
+    const savedStyle = localStorage.getItem('chatStyle') as 'conversation' | 'document' | null;
+    if (savedStyle) {
+      setChatStyle(savedStyle);
+    }
+  }, []);
+
+  // 监听聊天样式变更事件
+  useEffect(() => {
+    const handleChatStyleChange = (event: CustomEvent<{ style: 'conversation' | 'document' }>) => {
+      setChatStyle(event.detail.style);
+    };
+
+    window.addEventListener('chatStyleChanged', handleChatStyleChange as EventListener);
+    return () => {
+      window.removeEventListener('chatStyleChanged', handleChatStyleChange as EventListener);
+    };
+  }, []);
 
   const {
     currentSessionId,
@@ -197,7 +218,7 @@ const ChatPage: React.FC = () => {
         };
       });
 
-      console.log('🔍 [调试] 会话消息数据结构:', {
+      console.log('【流式图片问题调试】🔍 [调试] 会话消息数据结构:', {
         sessionId: currentSession.id,
         sessionTitle: currentSession.title,
         messageCount: currentSession.messages.length,
@@ -561,25 +582,42 @@ const ChatPage: React.FC = () => {
           break;
 
         case 'gemini':
-          // Gemini使用特殊的API格式
-          apiUrl = currentModel.baseUrl || getDefaultBaseUrl('gemini');
-          if (!apiUrl.includes('/v1beta/models/')) {
-            apiUrl = apiUrl.replace(/\/$/, '') + `/v1beta/models/${currentModel.model}:streamGenerateContent?key=${currentModel.apiKey}`;
-          }
-          body = {
-            contents: messages.filter(m => m.role !== 'system').map(m => ({
-              role: m.role === 'assistant' ? 'model' : 'user',
-              parts: [{ text: m.content }]
-            })),
-            generationConfig: {
-              temperature: currentModel.temperature,
-              maxOutputTokens: currentModel.maxTokens
+          // 只有真正的Google Gemini API才使用原生格式
+          // OpenRouter的Gemini模型应该使用OpenAI兼容格式
+          if (currentModel.provider === 'gemini' && !currentModel.baseUrl?.includes('openrouter')) {
+            apiUrl = currentModel.baseUrl || getDefaultBaseUrl('gemini');
+            if (!apiUrl.includes('/v1beta/models/')) {
+              apiUrl = apiUrl.replace(/\/$/, '') + `/v1beta/models/${currentModel.model}:streamGenerateContent?key=${currentModel.apiKey}`;
             }
-          };
-          // 只有当系统提示词不为空时才添加 systemInstruction
-          if (systemPrompt) {
-            body.systemInstruction = {
-              parts: [{ text: systemPrompt }]
+            body = {
+              contents: messages.filter(m => m.role !== 'system').map(m => ({
+                role: m.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: m.content }]
+              })),
+              generationConfig: {
+                temperature: currentModel.temperature,
+                maxOutputTokens: currentModel.maxTokens
+              }
+            };
+            // 只有当系统提示词不为空时才添加 systemInstruction
+            if (systemPrompt) {
+              body.systemInstruction = {
+                parts: [{ text: systemPrompt }]
+              };
+            }
+          } else {
+            // OpenRouter的Gemini模型使用OpenAI兼容格式
+            apiUrl = currentModel.baseUrl || getDefaultBaseUrl(currentModel.provider);
+            if (!apiUrl.endsWith('/v1/chat/completions')) {
+              apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+            }
+            headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
+            body = {
+              model: currentModel.model,
+              messages,
+              temperature: currentModel.temperature,
+              max_tokens: currentModel.maxTokens,
+              stream: true
             };
           }
           break;
@@ -646,6 +684,7 @@ const ChatPage: React.FC = () => {
       const decoder = new TextDecoder();
       let currentContent = '';
       let currentReasoningContent = '';
+      let currentImages: string[] = [];
 
       try {
         while (true) {
@@ -664,38 +703,183 @@ const ChatPage: React.FC = () => {
                 const parsed = JSON.parse(data);
                 let content = '';
                 let reasoningContent = '';
+                let images: string[] = [];
 
                 // 简化的API响应日志
 
                 // 根据不同provider解析响应
-                if (currentModel.provider === 'openai' || currentModel.provider === 'custom') {
+                if (currentModel.provider === 'openai' || currentModel.provider === 'custom' || currentModel.provider === 'openrouter') {
                   content = parsed.choices?.[0]?.delta?.content || '';
                   // 检查是否是DeepSeek的reasoning模型响应
                   reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || '';
                   
+                  // 处理图片数据
+                  if (parsed.choices?.[0]?.delta?.images) {
+                    const rawImages = parsed.choices[0].delta.images;
+                    console.log('【流式图片问题调试】🖼️ [图片数据] 原始格式:', JSON.stringify(rawImages, null, 2));
+                    
+                    // 处理不同格式的图片数据
+                    if (Array.isArray(rawImages)) {
+                      images = rawImages.map((img: any) => {
+                        if (typeof img === 'string') {
+                          // 如果是字符串，直接使用
+                          return img;
+                        } else if (img && typeof img === 'object') {
+                          // 如果是对象，尝试提取URL
+                          if (img.image_url && img.image_url.url) {
+                            return img.image_url.url;
+                          } else if (img.url) {
+                            return img.url;
+                          }
+                        }
+                        return null;
+                      }).filter(Boolean);
+                    } else {
+                      images = [rawImages];
+                    }
+                    
+                    console.log('【流式图片问题调试】🖼️ [图片数据] 解析后格式:', images);
+                  }
+                  
                   // OpenAI/Custom解析结果
                 } else if (currentModel.provider === 'kimi') {
                   content = parsed.choices?.[0]?.delta?.content || '';
+                  
+                  // 处理图片数据
+                  if (parsed.choices?.[0]?.delta?.images) {
+                    const rawImages = parsed.choices[0].delta.images;
+                    console.log('【流式图片问题调试】🖼️ [Kimi图片数据] 原始格式:', JSON.stringify(rawImages, null, 2));
+                    
+                    // 处理不同格式的图片数据
+                    if (Array.isArray(rawImages)) {
+                      images = rawImages.map((img: any) => {
+                        if (typeof img === 'string') {
+                          return img;
+                        } else if (img && typeof img === 'object') {
+                          if (img.image_url && img.image_url.url) {
+                            return img.image_url.url;
+                          } else if (img.url) {
+                            return img.url;
+                          }
+                        }
+                        return null;
+                      }).filter(Boolean);
+                    } else {
+                      images = [rawImages];
+                    }
+                    
+                    console.log('【流式图片问题调试】🖼️ [Kimi图片数据] 解析后格式:', images);
+                  }
+                  
                   // Kimi解析结果
                 } else if (currentModel.provider === 'deepseek') {
                   content = parsed.choices?.[0]?.delta?.content || '';
                   // 检查是否是DeepSeek的reasoning模型响应
                   reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || '';
+                  
+                  // 处理图片数据
+                  if (parsed.choices?.[0]?.delta?.images) {
+                    const rawImages = parsed.choices[0].delta.images;
+                    console.log('【流式图片问题调试】🖼️ [DeepSeek图片数据] 原始格式:', JSON.stringify(rawImages, null, 2));
+                    
+                    // 处理不同格式的图片数据
+                    if (Array.isArray(rawImages)) {
+                      images = rawImages.map((img: any) => {
+                        if (typeof img === 'string') {
+                          return img;
+                        } else if (img && typeof img === 'object') {
+                          if (img.image_url && img.image_url.url) {
+                            return img.image_url.url;
+                          } else if (img.url) {
+                            return img.url;
+                          }
+                        }
+                        return null;
+                      }).filter(Boolean);
+                    } else {
+                      images = [rawImages];
+                    }
+                    
+                    console.log('【流式图片问题调试】🖼️ [DeepSeek图片数据] 解析后格式:', images);
+                  }
+                  
                   // DeepSeek解析结果
                 } else if (currentModel.provider === 'claude') {
                   if (parsed.type === 'content_block_delta') {
                     content = parsed.delta?.text || '';
                   }
+                  
+                  // 处理图片数据
+                  if (parsed.delta?.images) {
+                    const rawImages = parsed.delta.images;
+                    console.log('【流式图片问题调试】🖼️ [Claude图片数据] 原始格式:', JSON.stringify(rawImages, null, 2));
+                    
+                    // 处理不同格式的图片数据
+                    if (Array.isArray(rawImages)) {
+                      images = rawImages.map((img: any) => {
+                        if (typeof img === 'string') {
+                          return img;
+                        } else if (img && typeof img === 'object') {
+                          if (img.image_url && img.image_url.url) {
+                            return img.image_url.url;
+                          } else if (img.url) {
+                            return img.url;
+                          }
+                        }
+                        return null;
+                      }).filter(Boolean);
+                    } else {
+                      images = [rawImages];
+                    }
+                    
+                    console.log('【流式图片问题调试】🖼️ [Claude图片数据] 解析后格式:', images);
+                  }
+                  
                   // Claude解析结果
                 } else if (currentModel.provider === 'gemini') {
                   content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                  
+                  // 处理图片数据
+                  if (parsed.candidates?.[0]?.content?.parts) {
+                    const parts = parsed.candidates[0].content.parts;
+                    const imageParts = parts.filter((part: any) => part.inline_data);
+                    if (imageParts.length > 0) {
+                      console.log('【流式图片问题调试】🖼️ [Gemini图片数据] 原始格式:', JSON.stringify(imageParts, null, 2));
+                      images = imageParts.map((part: any) => {
+                        if (part.inline_data && part.inline_data.data) {
+                          return `data:${part.inline_data.mime_type};base64,${part.inline_data.data}`;
+                        }
+                        return null;
+                      }).filter(Boolean);
+                      console.log('【流式图片问题调试】🖼️ [Gemini图片数据] 解析后格式:', images);
+                    }
+                  }
+                  
                   // Gemini解析结果
                 }
 
 
 
+                // 累积图片数据
+                if (images && images.length > 0) {
+                  console.log('【流式图片问题调试】📥 [图片累积] 累积前状态:', {
+                    累积前currentImages长度: currentImages.length,
+                    累积前currentImages内容: currentImages.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`),
+                    新增images长度: images.length,
+                    新增images内容: images.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`)
+                  });
+                  
+                  currentImages = [...currentImages, ...images];
+                  
+                  console.log('【流式图片问题调试】📥 [图片累积] 累积后状态:', {
+                    累积后currentImages长度: currentImages.length,
+                    累积后currentImages内容: currentImages.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`),
+                    累积是否成功: currentImages.length > 0
+                  });
+                }
+
                 // 更新消息内容
-                if (content || reasoningContent) {
+                if (content || reasoningContent || (images && images.length > 0)) {
                   const beforeContent = currentContent;
                   const beforeReasoning = currentReasoningContent;
                   
@@ -715,7 +899,8 @@ const ChatPage: React.FC = () => {
                     currentContent || undefined,
                     currentReasoningContent || undefined,
                     true,
-                    isFirstContent // 如果是第一次收到正文内容，立即标记思考过程完成
+                    isFirstContent, // 如果是第一次收到正文内容，立即标记思考过程完成
+                    currentImages.length > 0 ? currentImages : undefined
                   );
                 }
               } catch (e) {
@@ -736,7 +921,8 @@ const ChatPage: React.FC = () => {
         currentContent || undefined,
         currentReasoningContent || undefined,
         false,
-        true
+        true,
+        currentImages.length > 0 ? currentImages : undefined
       );
       
       // 强制触发数据同步，确保AI回复保存到数据库
@@ -796,7 +982,16 @@ const ChatPage: React.FC = () => {
 
   // 重新生成消息
   const handleRegenerateMessage = async (messageId: string) => {
+    console.log('【流式图片问题调试】🔄 [重新生成] handleRegenerateMessage被调用!', {
+      messageId: messageId.substring(0, 8) + '...',
+      hasCurrentSession: !!currentSession,
+      hasCurrentModel: !!currentModel,
+      hasCurrentRole: !!currentRole,
+      isLoading
+    });
+    
     if (!currentSession || !currentModel || !currentRole || isLoading) {
+      console.log('【流式图片问题调试】❌ [重新生成] 前置条件检查失败，退出重新生成');
       return;
     }
 
@@ -893,16 +1088,43 @@ const ChatPage: React.FC = () => {
       }));
       
       // 调用AI API生成新内容
-      const newContent = await callAIAPIForRegeneration(messages, messageId, currentSession.id);
+      const result = await callAIAPIForRegeneration(messages, messageId, currentSession.id);
+      
+      console.log('【流式图片问题调试】📥 [结果接收] callAIAPIForRegeneration返回结果:', {
+        resultType: typeof result,
+        isString: typeof result === 'string',
+        isObject: typeof result === 'object',
+        hasContent: result && (typeof result === 'string' || result.content),
+        hasImages: result && typeof result === 'object' && result.images,
+        imagesCount: result && typeof result === 'object' && result.images ? result.images.length : 0,
+        result: result
+      });
+      
+      const newContent = typeof result === 'string' ? result : result.content;
+      const newImages = typeof result === 'object' ? result.images : undefined;
+      
+      console.log('【流式图片问题调试】🔍 [数据提取] 提取后的数据:', {
+        newContentLength: newContent ? newContent.length : 0,
+        newImagesType: typeof newImages,
+        newImagesCount: newImages ? newImages.length : 0,
+        newImages: newImages
+      });
       
       console.log('🔄 重新生成完成，准备添加新版本:', {
         messageId: messageId.substring(0, 8) + '...',
         originalContentLength: originalContent.length,
-        newContentLength: newContent.length
+        newContentLength: newContent.length,
+        hasImages: newImages && newImages.length > 0
       });
 
-      // 完成生成后，添加为新版本（传入原始内容）
-      addMessageVersionWithOriginal(currentSession.id, messageId, originalContent, newContent);
+      // 完成生成后，添加为新版本（传入原始内容和图片数据）
+      console.log('【流式图片问题调试】📝 [版本保存] 准备保存消息版本:', {
+        hasNewImages: newImages && newImages.length > 0,
+        newImagesCount: newImages ? newImages.length : 0,
+        newImages: newImages
+      });
+      
+      addMessageVersionWithOriginal(currentSession.id, messageId, originalContent, newContent, newImages);
       
       toast.success('重新生成完成');
     } catch (error) {
@@ -915,9 +1137,12 @@ const ChatPage: React.FC = () => {
 
   // 为重新生成调用AI API的函数
   const callAIAPIForRegeneration = async (messages: any[], messageId: string, sessionId: string) => {
-    console.log('🔄 开始重新生成API调用:', {
+    console.log('【流式图片问题调试】🔄 [函数入口] callAIAPIForRegeneration被调用!');
+    console.log('【流式图片问题调试】🔄 [函数入口] 参数信息:', {
       messageId: messageId.substring(0, 8) + '...',
-      sessionId: sessionId.substring(0, 8) + '...'
+      sessionId: sessionId.substring(0, 8) + '...',
+      messagesCount: messages.length,
+      currentProvider: currentModel?.provider
     });
     if (!currentModel) {
       throw new Error('模型未配置');
@@ -969,24 +1194,42 @@ const ChatPage: React.FC = () => {
         break;
 
       case 'gemini':
-        apiUrl = currentModel.baseUrl || 'https://generativelanguage.googleapis.com';
-        if (!apiUrl.includes('/v1beta/models/')) {
-          apiUrl = apiUrl.replace(/\/$/, '') + `/v1beta/models/${currentModel.model}:streamGenerateContent?key=${currentModel.apiKey}`;
-        }
-        const systemMsg = messages.find(m => m.role === 'system');
-        body = {
-          contents: messages.filter(m => m.role !== 'system').map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }]
-          })),
-          generationConfig: {
-            temperature: currentModel.temperature,
-            maxOutputTokens: currentModel.maxTokens
+        // 只有真正的Google Gemini API才使用原生格式
+        // OpenRouter的Gemini模型应该使用OpenAI兼容格式
+        if (currentModel.provider === 'gemini' && !currentModel.baseUrl?.includes('openrouter')) {
+          apiUrl = currentModel.baseUrl || 'https://generativelanguage.googleapis.com';
+          if (!apiUrl.includes('/v1beta/models/')) {
+            apiUrl = apiUrl.replace(/\/$/, '') + `/v1beta/models/${currentModel.model}:streamGenerateContent?key=${currentModel.apiKey}`;
           }
-        };
-        if (systemMsg) {
-          body.systemInstruction = {
-            parts: [{ text: systemMsg.content }]
+          const systemMsg = messages.find(m => m.role === 'system');
+          body = {
+            contents: messages.filter(m => m.role !== 'system').map(m => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: m.content }]
+            })),
+            generationConfig: {
+              temperature: currentModel.temperature,
+              maxOutputTokens: currentModel.maxTokens
+            }
+          };
+          if (systemMsg) {
+            body.systemInstruction = {
+              parts: [{ text: systemMsg.content }]
+            };
+          }
+        } else {
+          // OpenRouter的Gemini模型使用OpenAI兼容格式
+          apiUrl = currentModel.baseUrl || '';
+          if (!apiUrl.endsWith('/v1/chat/completions')) {
+            apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+          }
+          headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
+          body = {
+            model: currentModel.model,
+            messages,
+            temperature: currentModel.temperature,
+            max_tokens: currentModel.maxTokens,
+            stream: true
           };
         }
         break;
@@ -1038,42 +1281,343 @@ const ChatPage: React.FC = () => {
     const decoder = new TextDecoder();
     let currentContent = '';
     let currentReasoningContent = '';
+    let currentImages: string[] = [];
 
     try {
+      console.log('【流式图片问题调试】🔄 [流式响应] 开始读取流式响应数据...');
+      
       while (true) {
+        console.log('【流式图片问题调试】🔄 [流式响应] 等待下一个chunk...');
         const { done, value } = await reader.read();
-        if (done) break;
+        
+        if (done) {
+          console.log('【流式图片问题调试】🔄 [流式响应] 流式响应读取完成');
+          break;
+        }
 
         const chunk = decoder.decode(value, { stream: true });
+        console.log('📦 [原始chunk] 接收到chunk数据:', {
+          chunkLength: chunk.length,
+          chunkPreview: chunk.substring(0, 200) + (chunk.length > 200 ? '...' : ''),
+          chunkFull: chunk
+        });
+        
         const lines = chunk.split('\n');
+        console.log('📝 [chunk分割] 分割后的lines数组:', {
+          linesCount: lines.length,
+          lines: lines.map((line, index) => `${index}: "${line}"`)
+        });
 
         for (const line of lines) {
+          console.log('📄 [处理line] 当前处理的line:', `"${line}"`);
+          
           if (line.startsWith('data: ')) {
             const data = line.slice(6).trim();
-            if (data === '[DONE]') continue;
+            console.log('📊 [data提取] 提取的data内容:', {
+              dataLength: data.length,
+              dataPreview: data.substring(0, 200) + (data.length > 200 ? '...' : ''),
+              dataFull: data
+            });
+            
+            if (data === '[DONE]') {
+              console.log('🏁 [流式结束] 接收到[DONE]标记');
+              continue;
+            }
 
             try {
+              console.log('【流式图片问题调试】🔍 [JSON解析] 准备解析JSON数据:', data);
               const parsed = JSON.parse(data);
+              console.log('✅ [JSON解析] JSON解析成功:', JSON.stringify(parsed, null, 2));
               let content = '';
               let reasoningContent = '';
+              let images: string[] = [];
+
+              // 🔍 [全面调试] 记录完整的parsed对象结构
+              console.log('【流式图片问题调试】🔍 [完整响应] 当前provider:', currentModel.provider);
+              console.log('【流式图片问题调试】🔍 [完整响应] 完整parsed对象:', JSON.stringify(parsed, null, 2));
+              
+              // 🔍 [结构分析] 检查choices数组结构
+              if (parsed.choices && Array.isArray(parsed.choices)) {
+                console.log('【流式图片问题调试】🔍 [结构分析] choices数组长度:', parsed.choices.length);
+                parsed.choices.forEach((choice: any, index: number) => {
+                  console.log(`【流式图片问题调试】🔍 [结构分析] choice[${index}]完整结构:`, JSON.stringify(choice, null, 2));
+                });
+              }
+              
+              // 🔍 [图片搜索] 在整个响应中搜索可能的图片字段
+              const searchForImages = (obj: any, path: string = '') => {
+                if (!obj || typeof obj !== 'object') return;
+                
+                for (const [key, value] of Object.entries(obj)) {
+                  const currentPath = path ? `${path}.${key}` : key;
+                  
+                  // 检查可能包含图片的字段名
+                  if (key.toLowerCase().includes('image') || 
+                      key.toLowerCase().includes('img') || 
+                      key.toLowerCase().includes('picture') ||
+                      key.toLowerCase().includes('photo')) {
+                    console.log(`【流式图片问题调试】🔍 [图片搜索] 发现可能的图片字段: ${currentPath}`, value);
+                  }
+                  
+                  // 检查base64数据
+                  if (typeof value === 'string' && value.includes('base64')) {
+                    console.log(`【流式图片问题调试】🔍 [图片搜索] 发现base64数据: ${currentPath}`, value.substring(0, 100) + '...');
+                  }
+                  
+                  // 递归搜索
+                  if (typeof value === 'object' && value !== null) {
+                    searchForImages(value, currentPath);
+                  }
+                }
+              };
+              
+              searchForImages(parsed);
 
               // 根据不同provider解析响应
-              if (currentModel.provider === 'openai' || currentModel.provider === 'custom') {
+              if (currentModel.provider === 'openai' || currentModel.provider === 'custom' || currentModel.provider === 'openrouter') {
                 content = parsed.choices?.[0]?.delta?.content || '';
                 // 检查是否是DeepSeek的reasoning模型响应
                 reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || '';
+                
+                // 详细调试：检查整个delta对象
+                console.log('【流式图片问题调试】🔍 [调试] 当前provider:', currentModel.provider);
+                console.log('【流式图片问题调试】🔍 [调试] 完整delta对象:', JSON.stringify(parsed.choices?.[0]?.delta, null, 2));
+                
+                // 🔍 [OpenRouter特殊检查] 检查OpenRouter特有的响应格式
+                if (currentModel.provider === 'openrouter') {
+                  console.log('【流式图片问题调试】🔍 [OpenRouter] 检查choice完整结构:', JSON.stringify(parsed.choices?.[0], null, 2));
+                  
+                  // 检查是否在choice级别有图片数据
+                  if (parsed.choices?.[0]?.images) {
+                    console.log('【流式图片问题调试】🔍 [OpenRouter] 在choice级别发现图片数据:', parsed.choices[0].images);
+                  }
+                  
+                  // 检查是否在顶级有图片数据
+                  if (parsed.images) {
+                    console.log('【流式图片问题调试】🔍 [OpenRouter] 在顶级发现图片数据:', parsed.images);
+                  }
+                  
+                  // 检查是否在message级别有图片数据
+                  if (parsed.choices?.[0]?.message?.images) {
+                    console.log('【流式图片问题调试】🔍 [OpenRouter] 在message级别发现图片数据:', parsed.choices[0].message.images);
+                  }
+                }
+                
+                // 🔍 [关键修复] 统一的图片数据检测和处理逻辑
+                let rawImages = null;
+                
+                console.log('【流式图片问题调试】🔍 [图片检测] 开始检查图片数据位置...');
+                console.log('【流式图片问题调试】🔍 [图片检测] delta对象完整结构:', JSON.stringify(parsed.choices?.[0]?.delta, null, 2));
+                console.log('【流式图片问题调试】🔍 [图片检测] delta.images存在:', !!parsed.choices?.[0]?.delta?.images);
+                console.log('【流式图片问题调试】🔍 [图片检测] delta.images内容:', parsed.choices?.[0]?.delta?.images);
+                console.log('【流式图片问题调试】🔍 [图片检测] choice.images存在:', !!parsed.choices?.[0]?.images);
+                console.log('【流式图片问题调试】🔍 [图片检测] 顶级images存在:', !!parsed.images);
+                console.log('【流式图片问题调试】🔍 [图片检测] message.images存在:', !!parsed.choices?.[0]?.message?.images);
+                
+                // 首先检查delta.images（标准位置）
+                if (parsed.choices?.[0]?.delta?.images) {
+                  rawImages = parsed.choices[0].delta.images;
+                  console.log('【流式图片问题调试】🖼️ [图片数据] ✅ 在delta.images中检测到图片数据!');
+                  console.log('【流式图片问题调试】🖼️ [图片数据] delta.images原始数据:', JSON.stringify(rawImages, null, 2));
+                }
+                // 检查choice级别的images
+                else if (parsed.choices?.[0]?.images) {
+                  rawImages = parsed.choices[0].images;
+                  console.log('【流式图片问题调试】🖼️ [图片数据] ✅ 在choice.images中检测到图片数据!', rawImages);
+                }
+                // 检查顶级images
+                else if (parsed.images) {
+                  rawImages = parsed.images;
+                  console.log('【流式图片问题调试】🖼️ [图片数据] ✅ 在顶级images中检测到图片数据!', rawImages);
+                }
+                // 检查message级别的images
+                else if (parsed.choices?.[0]?.message?.images) {
+                  rawImages = parsed.choices[0].message.images;
+                  console.log('【流式图片问题调试】🖼️ [图片数据] ✅ 在message.images中检测到图片数据!', rawImages);
+                }
+                else {
+                  console.log('【流式图片问题调试】🔍 [图片检测] ❌ 未在任何位置检测到图片数据');
+                }
+                
+                // 🔍 [关键修复] 统一处理图片数据
+                if (rawImages) {
+                  console.log('【流式图片问题调试】🖼️ [图片数据] 开始处理原始图片数据...');
+                  console.log('【流式图片问题调试】🖼️ [图片数据] 原始格式:', JSON.stringify(rawImages, null, 2));
+                  console.log('【流式图片问题调试】🖼️ [图片数据] 数组长度:', Array.isArray(rawImages) ? rawImages.length : 'not array');
+                  console.log('【流式图片问题调试】🖼️ [图片数据] 数据类型:', typeof rawImages);
+                  
+                  // 处理不同格式的图片数据
+                  if (Array.isArray(rawImages)) {
+                    console.log('【流式图片问题调试】🖼️ [图片数据] 处理数组格式的图片数据，数组长度:', rawImages.length);
+                    images = rawImages.map((img: any, index: number) => {
+                      console.log(`【流式图片问题调试】🖼️ [图片数据] 处理第${index + 1}个图片:`);
+                      console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片完整结构:`, JSON.stringify(img, null, 2));
+                      console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片类型:`, typeof img);
+                      
+                      if (typeof img === 'string') {
+                        // 如果是字符串，直接使用
+                        console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片是字符串:`, img.substring(0, 50) + '...');
+                        return img;
+                      } else if (img && typeof img === 'object') {
+                        console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片是对象，检查字段...`);
+                        console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片.image_url存在:`, !!img.image_url);
+                        console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片.image_url.url存在:`, !!img.image_url?.url);
+                        console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片.url存在:`, !!img.url);
+                        
+                        // 如果是对象，尝试提取URL
+                        if (img.image_url && img.image_url.url) {
+                          console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片从image_url.url提取:`, img.image_url.url.substring(0, 50) + '...');
+                          return img.image_url.url;
+                        } else if (img.url) {
+                          console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片从url提取:`, img.url.substring(0, 50) + '...');
+                          return img.url;
+                        } else {
+                          console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片对象中未找到url字段`);
+                        }
+                      }
+                      console.log(`【流式图片问题调试】🖼️ [图片数据] 第${index + 1}个图片无法提取URL`);
+                      return null;
+                    }).filter(Boolean); // 过滤掉null值
+                    
+                    console.log('【流式图片问题调试】🖼️ [图片数据] 数组处理完成，过滤后长度:', images.length);
+                  } else if (typeof rawImages === 'string') {
+                    console.log('【流式图片问题调试】🖼️ [图片数据] 字符串格式，直接使用:', rawImages.substring(0, 50) + '...');
+                    images = [rawImages];
+                  } else {
+                    console.log('【流式图片问题调试】🖼️ [图片数据] 其他格式，尝试转换:', rawImages);
+                    images = [rawImages];
+                  }
+                  
+                  console.log('【流式图片问题调试】🖼️ [图片数据] 最终解析结果:');
+                  console.log('【流式图片问题调试】🖼️ [图片数据] 解析后数量:', images.length);
+                  console.log('【流式图片问题调试】🖼️ [图片数据] 解析后格式:', images.map((img, i) => `${i + 1}: ${typeof img === 'string' ? img.substring(0, 50) + '...' : img}`));
+                  
+                  // 验证每个图片URL的格式
+                  images.forEach((img, i) => {
+                    if (typeof img === 'string') {
+                      console.log(`【流式图片问题调试】🖼️ [图片验证] 第${i + 1}个图片URL格式检查:`, {
+                        长度: img.length,
+                        是否以data开头: img.startsWith('data:'),
+                        是否包含base64: img.includes('base64'),
+                        前缀: img.substring(0, 30)
+                      });
+                    }
+                  });
+                } else {
+                  console.log('【流式图片问题调试】🔍 [调试] 未检测到图片数据');
+                }
               } else if (currentModel.provider === 'kimi') {
                 content = parsed.choices?.[0]?.delta?.content || '';
+                if (parsed.choices?.[0]?.delta?.images) {
+                  const rawImages = parsed.choices[0].delta.images;
+                  console.log('【流式图片问题调试】🖼️ [Kimi图片数据] 原始格式:', JSON.stringify(rawImages, null, 2));
+                  
+                  // 处理不同格式的图片数据
+                  if (Array.isArray(rawImages)) {
+                    images = rawImages.map((img: any) => {
+                      if (typeof img === 'string') {
+                        return img;
+                      } else if (img && typeof img === 'object') {
+                        if (img.image_url && img.image_url.url) {
+                          return img.image_url.url;
+                        } else if (img.url) {
+                          return img.url;
+                        }
+                      }
+                      return null;
+                    }).filter(Boolean);
+                  } else {
+                    images = [rawImages];
+                  }
+                  
+                  console.log('【流式图片问题调试】🖼️ [Kimi图片数据] 解析后格式:', images);
+                }
               } else if (currentModel.provider === 'deepseek') {
                 content = parsed.choices?.[0]?.delta?.content || '';
                 // 检查是否是DeepSeek的reasoning模型响应
                 reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || '';
+                if (parsed.choices?.[0]?.delta?.images) {
+                  const rawImages = parsed.choices[0].delta.images;
+                  console.log('【流式图片问题调试】🖼️ [DeepSeek图片数据] 原始格式:', JSON.stringify(rawImages, null, 2));
+                  
+                  // 处理不同格式的图片数据
+                  if (Array.isArray(rawImages)) {
+                    images = rawImages.map((img: any) => {
+                      if (typeof img === 'string') {
+                        return img;
+                      } else if (img && typeof img === 'object') {
+                        if (img.image_url && img.image_url.url) {
+                          return img.image_url.url;
+                        } else if (img.url) {
+                          return img.url;
+                        }
+                      }
+                      return null;
+                    }).filter(Boolean);
+                  } else {
+                    images = [rawImages];
+                  }
+                  
+                  console.log('【流式图片问题调试】🖼️ [DeepSeek图片数据] 解析后格式:', images);
+                }
               } else if (currentModel.provider === 'claude') {
                 if (parsed.type === 'content_block_delta') {
                   content = parsed.delta?.text || '';
                 }
+                // Claude可能在其他地方包含图片数据
+                if (parsed.delta?.images) {
+                  const rawImages = parsed.delta.images;
+                  console.log('【流式图片问题调试】🖼️ [Claude图片数据] 原始格式:', JSON.stringify(rawImages, null, 2));
+                  
+                  // 处理不同格式的图片数据
+                  if (Array.isArray(rawImages)) {
+                    images = rawImages.map((img: any) => {
+                      if (typeof img === 'string') {
+                        return img;
+                      } else if (img && typeof img === 'object') {
+                        if (img.image_url && img.image_url.url) {
+                          return img.image_url.url;
+                        } else if (img.url) {
+                          return img.url;
+                        }
+                      }
+                      return null;
+                    }).filter(Boolean);
+                  } else {
+                    images = [rawImages];
+                  }
+                  
+                  console.log('【流式图片问题调试】🖼️ [Claude图片数据] 解析后格式:', images);
+                }
               } else if (currentModel.provider === 'gemini') {
                 content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                // Gemini的图片数据可能在parts中
+                const parts = parsed.candidates?.[0]?.content?.parts || [];
+                const imageParts = parts.filter((part: any) => part.images);
+                if (imageParts.length > 0) {
+                  const rawImages = imageParts.flatMap((part: any) => part.images);
+                  console.log('【流式图片问题调试】🖼️ [Gemini图片数据] 原始格式:', JSON.stringify(rawImages, null, 2));
+                  
+                  // 处理不同格式的图片数据
+                  if (Array.isArray(rawImages)) {
+                    images = rawImages.map((img: any) => {
+                      if (typeof img === 'string') {
+                        return img;
+                      } else if (img && typeof img === 'object') {
+                        if (img.image_url && img.image_url.url) {
+                          return img.image_url.url;
+                        } else if (img.url) {
+                          return img.url;
+                        }
+                      }
+                      return null;
+                    }).filter(Boolean);
+                  } else {
+                    images = [rawImages];
+                  }
+                  
+                  console.log('【流式图片问题调试】🖼️ [Gemini图片数据] 解析后格式:', images);
+                }
               }
 
               // 关键节点：检测到内容开始
@@ -1087,7 +1631,7 @@ const ChatPage: React.FC = () => {
               }
 
               // 更新消息内容
-              if (content || reasoningContent) {
+              if (content || reasoningContent || images.length > 0) {
                 // 检测到正文内容开始时，立即标记思考过程完成
                 const isFirstContent = content && !currentContent;
                 
@@ -1098,27 +1642,122 @@ const ChatPage: React.FC = () => {
                   currentReasoningContent += reasoningContent;
                 }
                 
+                // 累积图片数据
+                if (images.length > 0) {
+                  console.log('【流式图片问题调试】📥 [状态更新] 累积图片数据前 currentImages长度:', currentImages.length);
+                  console.log('【流式图片问题调试】📥 [状态更新] 累积图片数据前 currentImages内容:', currentImages.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`));
+                  console.log('【流式图片问题调试】📥 [状态更新] 新增图片数据:', images);
+                  console.log('【流式图片问题调试】📥 [状态更新] 新增图片数据详细:', images.map((img, i) => `${i + 1}: ${typeof img} - ${img.substring(0, 100)}...`));
+                  
+                  // 检查currentImages是否被意外修改
+                  const beforeLength = currentImages.length;
+                  const beforeContent = [...currentImages];
+                  
+                  currentImages.push(...images);
+                  
+                  console.log('【流式图片问题调试】📥 [状态更新] 累积图片数据后 currentImages长度:', currentImages.length);
+                  console.log('【流式图片问题调试】📥 [状态更新] 累积图片数据后 currentImages内容:', currentImages.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`));
+                  
+                  // 验证累积是否成功
+                  if (currentImages.length !== beforeLength + images.length) {
+                    console.error('【流式图片问题调试】❌ [状态更新] 图片累积异常! 期望长度:', beforeLength + images.length, '实际长度:', currentImages.length);
+                  }
+                  
+                  // 检查是否有重复或丢失
+                  console.log('【流式图片问题调试】📊 [状态更新] 图片累积统计:', {
+                    累积前数量: beforeLength,
+                    新增数量: images.length,
+                    累积后数量: currentImages.length,
+                    期望数量: beforeLength + images.length,
+                    累积成功: currentImages.length === beforeLength + images.length
+                  });
+                }
+                
                 // 重新生成模式：只显示流式效果，不更新versions
                 // 临时更新消息内容以显示流式效果，但不触发versions更新
-                useAppStore.setState((state) => ({
-                  chatSessions: state.chatSessions.map(s => 
-                    s.id === sessionId 
-                      ? {
-                          ...s,
-                          messages: s.messages.map(m => 
-                            m.id === messageId ? {
-                              ...m,
-                              content: currentContent,
-                              reasoningContent: currentReasoningContent,
-                              isStreaming: true,
-                              isReasoningComplete: isFirstContent
-                              // 注意：不更新versions字段，保持原有版本历史
-                            } : m
-                          )
-                        }
-                      : s
-                  )
-                }));
+                console.log('【流式图片问题调试】🔄 [状态更新] 重新生成模式 - 更新消息状态前检查:', {
+                  messageId,
+                  currentImagesLength: currentImages.length,
+                  currentImagesIsArray: Array.isArray(currentImages),
+                  currentImagesType: typeof currentImages,
+                  currentImagesContent: currentImages.map((img, i) => `${i + 1}: ${typeof img} - ${img.substring(0, 50)}...`),
+                  willSetImages: currentImages.length > 0 ? [...currentImages] : undefined,
+                  willSetImagesLength: currentImages.length > 0 ? currentImages.length : 0
+                });
+                
+                // 额外检查：确保currentImages没有被意外清空
+                 if (currentImages.length === 0 && images.length > 0) {
+                   console.error('【流式图片问题调试】❌ [状态更新] 严重错误: currentImages被意外清空!', {
+                     刚刚处理的图片数量: images.length,
+                     当前currentImages长度: currentImages.length,
+                     currentImages内容: currentImages
+                   });
+                 }
+                 
+                 // 创建要设置的images值（流式过程中）
+                 const streamingImagesToSet = currentImages.length > 0 ? [...currentImages] : undefined;
+                 console.log('【流式图片问题调试】🔄 [状态更新] 流式过程中要设置的images值:', {
+                   类型: typeof streamingImagesToSet,
+                   是否为数组: Array.isArray(streamingImagesToSet),
+                   长度: streamingImagesToSet?.length || 0,
+                   内容预览: streamingImagesToSet?.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`) || '无内容'
+                 });
+                 
+                // 🔧 [关键修复] 流式过程中也使用函数式更新确保状态一致性
+                useAppStore.setState((state) => {
+                  console.log('【流式图片问题调试】🔄 [状态更新] 流式setState函数内部检查:', {
+                    当前状态中的会话数量: state.chatSessions.length,
+                    目标sessionId: sessionId,
+                    找到目标会话: !!state.chatSessions.find(s => s.id === sessionId),
+                    目标messageId: messageId,
+                    streamingImagesToSet长度: streamingImagesToSet?.length || 0
+                  });
+                  
+                  const updatedSessions = state.chatSessions.map(s => {
+                    if (s.id !== sessionId) return s;
+                    
+                    const updatedMessages = s.messages.map(m => {
+                      if (m.id !== messageId) return m;
+                      
+                      console.log('【流式图片问题调试】🔄 [状态更新] 流式更新目标消息:', {
+                        messageId: m.id,
+                        原始images: m.images,
+                        原始images长度: m.images?.length || 0,
+                        新的images: streamingImagesToSet,
+                        新的images长度: streamingImagesToSet?.length || 0
+                      });
+                      
+                      const updatedMessage = {
+                        ...m,
+                        content: currentContent,
+                        reasoningContent: currentReasoningContent,
+                        images: streamingImagesToSet,
+                        isStreaming: true,
+                        isReasoningComplete: isFirstContent
+                        // 注意：不更新versions字段，保持原有版本历史
+                      };
+                      
+                      console.log('【流式图片问题调试】🔄 [状态更新] 流式消息更新完成:', {
+                        messageId: updatedMessage.id,
+                        更新后images: updatedMessage.images,
+                        更新后images长度: updatedMessage.images?.length || 0,
+                        更新后images类型: typeof updatedMessage.images,
+                        更新后images是数组: Array.isArray(updatedMessage.images)
+                      });
+                      
+                      return updatedMessage;
+                    });
+                    
+                    return {
+                      ...s,
+                      messages: updatedMessages
+                    };
+                  });
+                  
+                  return {
+                    chatSessions: updatedSessions
+                  };
+                });
               }
             } catch (e) {
               // 忽略JSON解析错误
@@ -1134,25 +1773,186 @@ const ChatPage: React.FC = () => {
     
     // 重新生成模式：流式输出完成，标记为非流式状态但不更新versions
     // 最终的版本管理由handleRegenerateMessage中的addMessageVersionWithOriginal处理
-    useAppStore.setState((state) => ({
-      chatSessions: state.chatSessions.map(s => 
-        s.id === sessionId 
-          ? {
-              ...s,
-              messages: s.messages.map(m => 
-                m.id === messageId ? {
-                  ...m,
-                  content: currentContent,
-                  reasoningContent: currentReasoningContent,
-                  isStreaming: false,
-                  isReasoningComplete: true
-                  // 注意：不更新versions字段，保持原有版本历史
-                } : m
-              )
-            }
-          : s
-      )
-    }));
+    console.log('【流式图片问题调试】✅ [状态更新] 重新生成完成 - 最终状态更新前检查:', {
+      messageId,
+      finalCurrentImagesLength: currentImages.length,
+      finalCurrentImagesIsArray: Array.isArray(currentImages),
+      finalCurrentImagesType: typeof currentImages,
+      finalCurrentImagesContent: currentImages.map((img, i) => `${i + 1}: ${typeof img} - ${img.substring(0, 50)}...`),
+      finalWillSetImages: currentImages.length > 0 ? [...currentImages] : undefined,
+      finalWillSetImagesLength: currentImages.length > 0 ? currentImages.length : 0,
+      条件判断结果: currentImages.length > 0,
+      最终设置的images值: currentImages.length > 0 ? '数组副本' : 'undefined'
+    });
+    
+    // 最终检查：如果currentImages有内容但条件判断失败
+    if (currentImages.length > 0) {
+      console.log('【流式图片问题调试】✅ [状态更新] 最终状态 - currentImages有内容，将设置到消息状态');
+    } else {
+      console.warn('【流式图片问题调试】⚠️ [状态更新] 最终状态 - currentImages为空，消息状态的images将设置为undefined');
+    }
+    
+    // 创建要设置的images值
+    console.log('【流式图片问题调试】🎯 [状态更新] 创建finalImagesToSet前检查:', {
+      currentImages长度: currentImages.length,
+      currentImages类型: typeof currentImages,
+      currentImages是数组: Array.isArray(currentImages),
+      currentImages内容: currentImages.map((img, i) => `${i + 1}: ${typeof img} - ${img.substring(0, 50)}...`),
+      条件判断: currentImages.length > 0,
+      将创建的值: currentImages.length > 0 ? '数组副本' : 'undefined'
+    });
+    
+    const finalImagesToSet = currentImages.length > 0 ? [...currentImages] : undefined;
+    
+    console.log('【流式图片问题调试】🎯 [状态更新] finalImagesToSet创建完成:', {
+      类型: typeof finalImagesToSet,
+      是否为数组: Array.isArray(finalImagesToSet),
+      长度: finalImagesToSet?.length || 0,
+      内容预览: finalImagesToSet?.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`) || '无内容',
+      与currentImages长度对比: {
+        currentImages长度: currentImages.length,
+        finalImagesToSet长度: finalImagesToSet?.length || 0,
+        长度一致: currentImages.length === (finalImagesToSet?.length || 0)
+      }
+    });
+    
+    // 🔧 [关键修复] 使用函数式更新确保状态一致性
+    useAppStore.setState((state) => {
+      console.log('【流式图片问题调试】🔧 [状态更新] setState函数内部检查:', {
+        当前状态中的会话数量: state.chatSessions.length,
+        目标sessionId: sessionId,
+        找到目标会话: !!state.chatSessions.find(s => s.id === sessionId),
+        目标messageId: messageId,
+        finalImagesToSet长度: finalImagesToSet?.length || 0
+      });
+      
+      const updatedSessions = state.chatSessions.map(s => {
+        if (s.id !== sessionId) return s;
+        
+        console.log('【流式图片问题调试】🔧 [状态更新] 处理目标会话:', {
+          sessionId: s.id,
+          消息数量: s.messages.length,
+          目标消息存在: !!s.messages.find(m => m.id === messageId)
+        });
+        
+        const updatedMessages = s.messages.map(m => {
+          if (m.id !== messageId) return m;
+          
+          console.log('【流式图片问题调试】🔧 [状态更新] 更新目标消息:', {
+            messageId: m.id,
+            原始images: m.images,
+            原始images长度: m.images?.length || 0,
+            新的images: finalImagesToSet,
+            新的images长度: finalImagesToSet?.length || 0
+          });
+          
+          // 🔧 [关键修复] 确保images字段正确设置
+          console.log('【流式图片问题调试】🔧 [状态更新] 设置images字段前检查:', {
+            finalImagesToSet: finalImagesToSet,
+            finalImagesToSet类型: typeof finalImagesToSet,
+            finalImagesToSet长度: finalImagesToSet?.length || 0,
+            finalImagesToSet是数组: Array.isArray(finalImagesToSet),
+            备用值: [],
+            最终将设置的值: finalImagesToSet || [],
+            最终值类型: typeof (finalImagesToSet || []),
+            最终值长度: (finalImagesToSet || []).length,
+            最终值是数组: Array.isArray(finalImagesToSet || [])
+          });
+          
+          const updatedMessage = {
+            ...m,
+            content: currentContent,
+            reasoningContent: currentReasoningContent,
+            images: finalImagesToSet || [], // 确保images始终是数组
+            isStreaming: false,
+            isReasoningComplete: true
+            // 注意：不更新versions字段，保持原有版本历史
+          };
+          
+          console.log('【流式图片问题调试】🔧 [状态更新] updatedMessage创建完成:', {
+            messageId: updatedMessage.id,
+            images字段: updatedMessage.images,
+            images类型: typeof updatedMessage.images,
+            images长度: updatedMessage.images?.length || 0,
+            images是数组: Array.isArray(updatedMessage.images),
+            images内容预览: updatedMessage.images?.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`) || '无内容'
+          });
+          
+          console.log('【流式图片问题调试】🔧 [状态更新] 消息更新完成:', {
+            messageId: updatedMessage.id,
+            更新后images: updatedMessage.images,
+            更新后images长度: updatedMessage.images?.length || 0,
+            更新后images类型: typeof updatedMessage.images,
+            更新后images是数组: Array.isArray(updatedMessage.images)
+          });
+          
+          return updatedMessage;
+        });
+        
+        return {
+          ...s,
+          messages: updatedMessages
+        };
+      });
+      
+      const newState = {
+        ...state,
+        chatSessions: updatedSessions
+      };
+      
+      // 🔧 [关键修复] 立即验证状态更新
+      const verifySession = newState.chatSessions.find(s => s.id === sessionId);
+      const verifyMessage = verifySession?.messages.find(m => m.id === messageId);
+      console.log('【流式图片问题调试】🔍 [状态更新] 立即验证新状态:', {
+        找到会话: !!verifySession,
+        找到消息: !!verifyMessage,
+        验证消息images: verifyMessage?.images,
+        验证消息images长度: verifyMessage?.images?.length || 0,
+        验证消息images类型: typeof verifyMessage?.images,
+        验证消息images是数组: Array.isArray(verifyMessage?.images)
+      });
+      
+      return newState;
+    });
+    
+    // 验证状态更新后的实际数据
+    const updatedState = useAppStore.getState();
+    const updatedSession = updatedState.chatSessions.find(s => s.id === sessionId);
+    const updatedMessage = updatedSession?.messages.find(m => m.id === messageId);
+    console.log('【流式图片问题调试】🔍 [状态验证] 更新后的消息状态详细检查:', {
+      messageId,
+      找到会话: !!updatedSession,
+      找到消息: !!updatedMessage,
+      updatedMessageImages: updatedMessage?.images,
+      updatedMessageImagesType: typeof updatedMessage?.images,
+      updatedMessageImagesIsArray: Array.isArray(updatedMessage?.images),
+      updatedMessageImagesLength: updatedMessage?.images?.length || 0,
+      updatedMessageImagesContent: updatedMessage?.images?.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`) || '无内容',
+      消息其他字段: {
+        content: updatedMessage?.content?.substring(0, 50) + '...',
+        isStreaming: updatedMessage?.isStreaming,
+        isReasoningComplete: updatedMessage?.isReasoningComplete
+      }
+    });
+    
+    // 最终验证：对比设置前后的数据
+    console.log('【流式图片问题调试】📊 [状态验证] 设置前后对比:', {
+      设置前currentImages长度: currentImages.length,
+      设置前finalImagesToSet长度: finalImagesToSet?.length || 0,
+      设置后消息images长度: updatedMessage?.images?.length || 0,
+      数据一致性: (finalImagesToSet?.length || 0) === (updatedMessage?.images?.length || 0)
+    });
+    
+    // 如果数据不一致，输出错误信息
+    if ((finalImagesToSet?.length || 0) !== (updatedMessage?.images?.length || 0)) {
+      console.error('【流式图片问题调试】❌ [状态验证] 数据不一致错误!', {
+        期望设置的图片数量: finalImagesToSet?.length || 0,
+        实际消息中的图片数量: updatedMessage?.images?.length || 0,
+        原始currentImages: currentImages,
+        设置的finalImagesToSet: finalImagesToSet,
+        实际消息images: updatedMessage?.images
+      });
+    }
     
     console.log('✅ 重新生成流式输出完成，内容长度:', currentContent.length);
     
@@ -1172,7 +1972,14 @@ const ChatPage: React.FC = () => {
     abortControllerRef.current = null;
     setIsGenerating(false);
 
-    return currentContent;
+    console.log('【流式图片问题调试】✅ [函数返回] callAIAPIForRegeneration即将返回结果:', {
+      contentLength: currentContent.length,
+      imagesCount: currentImages.length,
+      images: currentImages,
+      contentPreview: currentContent.substring(0, 100) + '...'
+    });
+
+    return { content: currentContent, images: currentImages };
   };
 
   // 处理键盘事件
@@ -1195,7 +2002,7 @@ const ChatPage: React.FC = () => {
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-4 pb-10 space-y-4 gradient-mask-y [--gradient-mask-padding:1rem] md:[--gradient-mask-padding:2rem]"
       >
-        <div className="max-w-4xl mx-auto">
+        <div className={cn('max-w-4xl mx-auto', chatStyle === 'document' && 'px-4')}>
         {currentSession?.messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-[calc(100vh-500px)] text-base-content/60">
             {/* 添加加载状态检查和默认值 */}
@@ -1231,11 +2038,13 @@ const ChatPage: React.FC = () => {
                }
             })
             .map((msg) => (
+                            
             <div
               key={msg.id}
               className={cn(
                 'mb-2 chat',
-                msg.role === 'user' ? 'chat-end' : 'chat-start'
+                msg.role === 'user' ? 'chat-end' : 'chat-start',
+                chatStyle === 'document' && 'chat-box'
               )}
             >
               <div className="chat-image avatar">
@@ -1307,12 +2116,10 @@ const ChatPage: React.FC = () => {
                     }
                   })()
                 )}              </div>
-              
-              <div className="group relative">
+
                 <div
                   className={cn(
-                    'chat-bubble max-w-xs lg:max-w-md xl:max-w-lg cursor-pointer md:cursor-default',
-                    'min-h-fit h-auto flex flex-col relative',
+                    'chat-bubble cursor-pointer md:max-w-xl md:cursor-default relative group',
                     msg.role === 'user'
                       ? 'chat-bubble-accent'
                       : ''
@@ -1350,11 +2157,63 @@ const ChatPage: React.FC = () => {
                       <MarkdownRenderer content={processedContent} />
                     );
                   })()}
+                  
+                  {/* 渲染图片 - 当消息包含images时显示 */}
+                  {(() => {
+                    console.log('【流式图片问题调试】🖼️ [消息渲染] 检查图片数据:', {
+                      messageId: msg.id?.substring(0, 8) + '...',
+                      hasImages: !!msg.images,
+                      imagesLength: msg.images ? msg.images.length : 0,
+                      imagesContent: msg.images ? msg.images.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`) : 'undefined',
+                      willRenderImages: !!(msg.images && msg.images.length > 0)
+                    });
+                    
+                    return msg.images && msg.images.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {msg.images.map((imageData, index) => {
+                          console.log(`【流式图片问题调试】🖼️ [消息渲染] 渲染图片 ${index + 1}:`, {
+                            messageId: msg.id?.substring(0, 8) + '...',
+                            imageIndex: index,
+                            imageDataLength: imageData.length,
+                            imageDataPreview: imageData.substring(0, 100) + '...',
+                            startsWithData: imageData.startsWith('data:'),
+                            finalSrc: imageData.startsWith('data:') ? imageData.substring(0, 50) + '...' : `data:image/png;base64,${imageData.substring(0, 50)}...`
+                          });
+                          
+                          return (
+                            <div key={index} className="relative">
+                              <img
+                                src={imageData.startsWith('data:') ? imageData : `data:image/png;base64,${imageData}`}
+                                alt={`Generated image ${index + 1}`}
+                                className="max-w-full h-auto rounded-lg shadow-md border border-base-300"
+                                style={{ maxHeight: '400px' }}
+                                onLoad={() => {
+                                  console.log(`【流式图片问题调试】✅ [消息渲染] 图片 ${index + 1} 加载成功:`, {
+                                    messageId: msg.id?.substring(0, 8) + '...',
+                                    imageIndex: index
+                                  });
+                                }}
+                                onError={(e) => {
+                                  console.error(`【流式图片问题调试】❌ [消息渲染] 图片 ${index + 1} 加载失败:`, {
+                                    messageId: msg.id?.substring(0, 8) + '...',
+                                    imageIndex: index,
+                                    error: e,
+                                    src: e.currentTarget.src.substring(0, 100) + '...'
+                                  });
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null;
+                  })()}
+                  
                   {msg.isStreaming && (
                     <Loader2 className="h-4 w-4 animate-spin mt-2" />
                   )}
-                </div>
-                
+
                 {/* 操作按钮组 - hover时显示或移动端点击显示 */}
                 <div className={cn(
                   'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-md transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
@@ -1598,8 +2457,11 @@ const ChatPage: React.FC = () => {
                     </>
                   )}
                   </div>
+                </div>
+                
+
               </div>
-            </div>
+
           ))
         )}
         <div ref={messagesEndRef} />

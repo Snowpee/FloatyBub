@@ -162,7 +162,7 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
       {globalPrompts.length === 0 ? (
         <EmptyState message="点击上方按钮创建您的第一个全局提示词" />
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
           {globalPrompts.map((prompt) => (
             <div key={prompt.id} className="card bg-base-100 shadow-sm">
               <div className="card-body flex flex-col justify-between h-full pb-4 group">

@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Users, Database, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Settings, Users, Database, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useDragToClose } from '../hooks/useDragToClose';
 import ConfigPage from '../pages/ConfigPage';
 import RolesPage from '../pages/RolesPage';
 import userRolesPage from '../pages/UserRolesPage';
 import DataPage from '../pages/DataPage';
-
+import GlobalSettingsPage from '../pages/GlobalSettingsPage';
 import GlobalPromptsPage from '../pages/GlobalPromptsPage';
 import VoiceSettingsPage from '../pages/VoiceSettingsPage';
 
-type TabType = 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data';
+type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -18,7 +18,7 @@ interface SettingsModalProps {
   defaultTab?: TabType;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultTab = 'config' }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultTab = 'global' }) => {
   const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
   const [showList, setShowList] = useState(true); // 移动端是否显示列表视图
   const [isClosing, setIsClosing] = useState(false); // 控制关闭动画
@@ -82,6 +82,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
   }, [isOpen]); // 只依赖isOpen，避免循环依赖
 
   const tabs = [
+    {
+      id: 'global' as TabType,
+      name: '全局设置',
+      icon: Globe,
+      component: GlobalSettingsPage
+    },
     {
       id: 'config' as TabType,
       name: '模型',
@@ -216,7 +222,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
         }}
       >
         {/* 左侧导航栏 */}
-        <div className="w-64 bg-base-100 border-r border-base-300 flex-shrink-0 hidden md:flex flex-col">
+        <div className="w-64 bg-base-100 border-r-[length:var(--border)] border-base-300/50 flex-shrink-0 hidden md:flex flex-col">
           {/* 标题栏 */}
           <div className="p-6 pb-4">
             <h2 className="text-lg font-semibold text-base-content">设置</h2>

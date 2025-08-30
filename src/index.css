@@ -83,6 +83,25 @@ code:not(pre > code)  {
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1), 0 0 0 var(--border) color-mix(in oklab, var(--color-base-content) 5%, #0000);
   }
 }
+/* 文档模式下的样式 */
+.chat-box {
+  column-gap: unset;
+  .chat-image {
+    display: none;
+  }
+  .chat-bubble {
+    max-width: 100%;
+    &::before {
+      display: none;
+    }
+  }
+  &.chat-start {
+    .chat-bubble {
+      @apply bg-base-100 p-0;
+      width: 100%;
+    }
+  }
+}
 /* 
 =====
 自定义类
@@ -96,6 +115,37 @@ code:not(pre > code)  {
     outline: var(--border) solid  color-mix(in oklab, var(--color-primary) 10%, #0000);
     border-color: color-mix(in oklab, var(--color-primary) 50%, #0000);
   }
+}
+.hero-mobile-group {
+  @media (max-width: 767px) {
+      font-size: 1rem;
+      text-align: right;
+      text-align-last: right;
+      border: none;
+      outline: none;
+      /* width: auto; */
+      margin-left: auto;
+      &.select {
+        background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWNoZXZyb25zLXVwLWRvd24taWNvbiBsdWNpZGUtY2hldnJvbnMtdXAtZG93biI+PHBhdGggZD0ibTcgMTUgNSA1IDUtNSIvPjxwYXRoIGQ9Im03IDkgNS01IDUgNSIvPjwvc3ZnPg==');
+        background-position: right center;
+        background-size: 1rem;
+      }
+      &.input {
+        padding-right: 0;
+      }
+      &:focus-within {
+        outline: 0 none !important;
+        border-color: transparent !important;
+      }
+    }
+  }
+
+.join-vertical {
+    &.hero-join-items .join-item {
+        &:where(*:not(:first-child)) {
+            margin-block-start: 0;
+        }
+    }
 }
 .card {
   border: var(--border) solid var(--color-base-300);
@@ -165,7 +215,7 @@ dialog .modal-box {
   
   /* 桌面端：居中弹窗 */
   @media (min-width: 768px) {
-    @apply w-full max-w-6xl mx-4;
+    @apply w-full max-w-5xl mx-4;
     height: 800px;
     max-height: calc(100vh - 2rem);
     border-radius: var(--radius-box);
@@ -185,7 +235,8 @@ dialog .modal-box {
   border: var(--border) solid var(--color-base-300);
 }
 .chat-container .chat-bubble em {
-  opacity: .4;
+  opacity: .7;
+  font-weight: 400;
 }
 /* 定义 hero-popover */
 .hero-popover {

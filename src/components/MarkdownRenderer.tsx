@@ -109,6 +109,16 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
               {children}
             </p>
           ),
+          // 自定义图片样式
+          img: ({ src, alt, ...props }) => (
+            <img
+              src={src}
+              alt={alt || '图片'}
+              className="max-w-full h-auto rounded-lg shadow-md my-4 mx-auto block"
+              loading="lazy"
+              {...props}
+            />
+          ),
         }}
       >
         {content}

@@ -83,6 +83,17 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
       'kimi-thinking-preview'
     ] },
     { value: 'deepseek', label: 'DeepSeek', models: ['deepseek-chat', 'deepseek-reasoner'] },
+    { value: 'openrouter', label: 'OpenRouter', models: [
+      'openai/gpt-4o',
+      'openai/gpt-4o-mini',
+      'anthropic/claude-3.5-sonnet',
+      'anthropic/claude-3-haiku',
+      'google/gemini-pro-1.5',
+      'meta-llama/llama-3.1-405b-instruct',
+      'meta-llama/llama-3.1-70b-instruct',
+      'mistralai/mistral-large',
+      'cohere/command-r-plus'
+    ] },
     { value: 'custom', label: '自定义', models: [] }
   ];
 
@@ -209,8 +220,14 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
       };
       
       // 根据不同提供商设置认证头
-      if (config.provider === 'openai' || config.provider === 'kimi' || config.provider === 'deepseek') {
+      if (config.provider === 'openai' || config.provider === 'kimi' || config.provider === 'deepseek' || config.provider === 'openrouter') {
         headers['Authorization'] = `Bearer ${config.apiKey}`;
+        
+        // 为OpenRouter添加可选的识别头部
+        if (config.provider === 'openrouter') {
+          headers['HTTP-Referer'] = window.location.origin;
+          headers['X-Title'] = 'Floaty Bub';
+        }
       } else if (config.provider === 'claude') {
         headers['x-api-key'] = config.apiKey;
         headers['anthropic-version'] = '2023-06-01';
@@ -261,6 +278,7 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
       case 'openai':
       case 'kimi':
       case 'deepseek':
+      case 'openrouter':
       case 'custom':
         return `${baseUrl}/v1/chat/completions`;
       case 'claude':
@@ -282,7 +300,7 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
   
   // 检查提供商是否支持/v1/models接口
   const supportsModelsApi = (provider: string) => {
-    return ['openai', 'kimi', 'deepseek', 'custom'].includes(provider);
+    return ['openai', 'kimi', 'deepseek', 'openrouter', 'custom'].includes(provider);
   };
   
   // 获取模型列表
@@ -306,8 +324,15 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
       const endpoint = `${url}/v1/models`;
       
       const headers: Record<string, string> = {
-        'Authorization': `Bearer ${formData.apiKey}`
+        'Authorization': `Bearer ${formData.apiKey}`,
+        'Content-Type': 'application/json'
       };
+      
+      // 为OpenRouter添加可选的识别头部
+      if (formData.provider === 'openrouter') {
+        headers['HTTP-Referer'] = window.location.origin;
+        headers['X-Title'] = 'Floaty Bub';
+      }
       
       const response = await fetch(endpoint, {
         method: 'GET',
@@ -381,7 +406,7 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
       {llmConfigs.length === 0 ? (
         <EmptyState message="点击上方按钮添加您的第一个模型配置" />
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
           {llmConfigs.map((config) => (
             <div
               key={config.id}
