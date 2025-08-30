@@ -887,43 +887,37 @@ export const useAppStore = create<AppState>()(
           console.log('🧠 是否为thinking模型:', isThinkingModel, '模型名称:', llmConfig.model);
           
           // 根据不同provider构建请求
-          switch (llmConfig.provider) {
-            case 'openai':
-            case 'deepseek':
-            case 'custom':
-              apiUrl = llmConfig.baseUrl || 'https://api.openai.com';
-              if (!apiUrl.endsWith('/v1/chat/completions')) {
-                apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
-              }
-              headers['Authorization'] = `Bearer ${llmConfig.apiKey}`;
-              body = {
-                model: llmConfig.model,
-                messages: [{ role: 'user', content: titlePrompt }],
-                temperature: 0.3,
-                max_tokens: 20,
-                // 对于thinking模型，使用流式调用以获取完整内容
-                stream: isThinkingModel
-              };
-              break;
-              
-            case 'claude':
-              apiUrl = llmConfig.baseUrl || 'https://api.anthropic.com';
-              if (!apiUrl.endsWith('/v1/messages')) {
-                apiUrl = apiUrl.replace(/\/$/, '') + '/v1/messages';
-              }
-              headers['x-api-key'] = llmConfig.apiKey;
-              headers['anthropic-version'] = '2023-06-01';
-              body = {
-                model: llmConfig.model,
-                messages: [{ role: 'user', content: titlePrompt }],
-                max_tokens: 20,
-                temperature: 0.3
-              };
-              break;
-              
-            default:
-              console.warn('❌ 不支持的模型provider，跳过标题生成:', llmConfig.provider);
-              return;
+          // 将provider分为两大类：Claude特殊格式 和 OpenAI兼容格式
+          if (llmConfig.provider === 'claude') {
+            // Claude使用特殊的API格式
+            apiUrl = llmConfig.baseUrl || 'https://api.anthropic.com';
+            if (!apiUrl.endsWith('/v1/messages')) {
+              apiUrl = apiUrl.replace(/\/$/, '') + '/v1/messages';
+            }
+            headers['x-api-key'] = llmConfig.apiKey;
+            headers['anthropic-version'] = '2023-06-01';
+            body = {
+              model: llmConfig.model,
+              messages: [{ role: 'user', content: titlePrompt }],
+              max_tokens: 20,
+              temperature: 0.3
+            };
+          } else {
+            // 其他所有provider都使用OpenAI兼容格式
+            // 包括：openai, kimi, deepseek, custom, openrouter 等
+            apiUrl = llmConfig.baseUrl || 'https://api.openai.com';
+            if (!apiUrl.endsWith('/v1/chat/completions')) {
+              apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+            }
+            headers['Authorization'] = `Bearer ${llmConfig.apiKey}`;
+            body = {
+              model: llmConfig.model,
+              messages: [{ role: 'user', content: titlePrompt }],
+              temperature: 0.3,
+              max_tokens: 20,
+              // 对于thinking模型，使用流式调用以获取完整内容
+              stream: isThinkingModel
+            };
           }
           
           // 如果配置了代理URL，使用代理
