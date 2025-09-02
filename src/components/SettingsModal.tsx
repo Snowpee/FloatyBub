@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Users, Database, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
+import { X, Settings, Users, Database, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight, Globe, BookOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useDragToClose } from '../hooks/useDragToClose';
 import ConfigPage from '../pages/ConfigPage';
@@ -9,8 +9,9 @@ import DataPage from '../pages/DataPage';
 import GlobalSettingsPage from '../pages/GlobalSettingsPage';
 import GlobalPromptsPage from '../pages/GlobalPromptsPage';
 import VoiceSettingsPage from '../pages/VoiceSettingsPage';
+import KnowledgePage from '../pages/KnowledgePage';
 
-type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data';
+type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'knowledge';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -24,6 +25,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
   const [isClosing, setIsClosing] = useState(false); // 控制关闭动画
   const [shouldRender, setShouldRender] = useState(isOpen); // 控制组件渲染
   const [isVisible, setIsVisible] = useState(false); // 控制弹窗可见性
+  
+  // 二级页面检测状态
+  const [isDetailView, setIsDetailView] = useState(false);
+  const [detailTitle, setDetailTitle] = useState('');
 
   // 使用拖动关闭Hook
   const {
@@ -48,6 +53,68 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
   useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab]);
+
+  // 检测二级页面状态
+  useEffect(() => {
+    const detectDetailView = () => {
+      const activeTabElement = document.querySelector(`[data-${activeTab}-page]`);
+      
+      if (activeTabElement) {
+        const isDetail = activeTabElement.getAttribute('data-is-detail-view') === 'true';
+        const title = activeTabElement.getAttribute('data-detail-title') || '';
+        
+        setIsDetailView(isDetail);
+        setDetailTitle(title);
+      } else {
+        setIsDetailView(false);
+        setDetailTitle('');
+      }
+    };
+
+    // 多次检测确保状态正确
+    const detectWithRetry = () => {
+      detectDetailView();
+      // 额外的延迟检测，确保DOM完全更新
+      setTimeout(detectDetailView, 50);
+      setTimeout(detectDetailView, 100);
+    };
+
+    // 初始检测
+    const timer = setTimeout(detectWithRetry, 10);
+    
+    // 监听DOM属性变化
+    const observer = new MutationObserver(() => {
+      // 延迟检测，确保属性变化完全生效
+      setTimeout(detectDetailView, 10);
+    });
+    
+    // 开始观察
+    const startObserving = () => {
+      const activeTabElement = document.querySelector(`[data-${activeTab}-page]`);
+      if (activeTabElement) {
+        observer.observe(activeTabElement, {
+          attributes: true,
+          attributeFilter: ['data-is-detail-view', 'data-detail-title']
+        });
+        // 观察子树变化，捕获更多DOM变化
+        observer.observe(activeTabElement, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['data-is-detail-view', 'data-detail-title']
+        });
+      }
+    };
+    
+    // 延迟开始观察，确保元素已存在
+    const observerTimer = setTimeout(startObserving, 50);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(observerTimer);
+      observer.disconnect();
+    };
+  }, [activeTab, isOpen]); // 依赖activeTab和isOpen变化
 
   // 处理弹窗打开逻辑
   useEffect(() => {
@@ -107,6 +174,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       component: userRolesPage
     },
     {
+      id: 'knowledge' as TabType,
+      name: '知识库',
+      icon: BookOpen,
+      component: KnowledgePage
+    },
+    {
       id: 'globalPrompts' as TabType,
       name: '全局提示词',
       icon: FileText,
@@ -133,10 +206,56 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
   const handleMobileTabClick = (tabId: TabType) => {
     setActiveTab(tabId);
     setShowList(false);
+    
+    // 强制更新状态检测，确保视图切换时状态正确
+    const forceUpdateState = () => {
+      const activeTabElement = document.querySelector(`[data-${tabId}-page]`);
+      if (activeTabElement) {
+        const isDetail = activeTabElement.getAttribute('data-is-detail-view') === 'true';
+        const title = activeTabElement.getAttribute('data-detail-title') || '';
+        setIsDetailView(isDetail);
+        setDetailTitle(title);
+      } else {
+        setIsDetailView(false);
+        setDetailTitle('');
+      }
+    };
+    
+    // 多次检测确保状态正确更新
+    setTimeout(forceUpdateState, 10);
+    setTimeout(forceUpdateState, 50);
+    setTimeout(forceUpdateState, 100);
   };
 
   const handleBackToList = () => {
     setShowList(true);
+    // 返回列表时重置详情视图状态
+    setIsDetailView(false);
+    setDetailTitle('');
+  };
+
+  // 桌面端标签切换处理函数
+  const handleDesktopTabClick = (tabId: TabType) => {
+    setActiveTab(tabId);
+    
+    // 强制更新状态检测，确保视图切换时状态正确
+    const forceUpdateState = () => {
+      const activeTabElement = document.querySelector(`[data-${tabId}-page]`);
+      if (activeTabElement) {
+        const isDetail = activeTabElement.getAttribute('data-is-detail-view') === 'true';
+        const title = activeTabElement.getAttribute('data-detail-title') || '';
+        setIsDetailView(isDetail);
+        setDetailTitle(title);
+      } else {
+        setIsDetailView(false);
+        setDetailTitle('');
+      }
+    };
+    
+    // 多次检测确保状态正确更新
+    setTimeout(forceUpdateState, 10);
+    setTimeout(forceUpdateState, 50);
+    setTimeout(forceUpdateState, 100);
   };
 
   const handleClose = () => {
@@ -236,7 +355,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
                 return (
                   <li key={tab.id}>
                     <button
-                      onClick={() => setActiveTab(tab.id)}
+                      onClick={() => handleDesktopTabClick(tab.id)}
                       className={cn(
                         'flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 transition-colors',
                         activeTab === tab.id
@@ -322,15 +441,70 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
                   isDragging && "bg-base-200/50"
                 )}
               >
-                <button
-                  onClick={handleBackToList}
-                  className="btn btn-ghost btn-sm btn-circle"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <h2 className="text-lg font-semibold text-base-content flex-1">
-                  {tabs.find(tab => tab.id === activeTab)?.name}
-                </h2>
+                {(() => {
+                  // 使用React状态而不是实时DOM查询，确保状态一致性
+                  if (isDetailView && detailTitle) {
+                    return (
+                      <>                        <button
+                          onClick={() => {
+                            // 对于二级页面，我们需要返回到上一级而不是关闭整个模态框
+                            // 查找知识库条目管理器的返回按钮并触发点击
+                            const knowledgeEntryBackButton = document.querySelector('.knowledge-entry-manager [data-back-button]') as HTMLButtonElement;
+                            if (knowledgeEntryBackButton) {
+                              knowledgeEntryBackButton.click();
+                            } else {
+                              // 如果没找到特定的返回按钮，则查找通用返回按钮
+                              const backButton = document.querySelector('[data-back-button]') as HTMLButtonElement;
+                              if (backButton) {
+                                backButton.click();
+                              }
+                            }
+                            
+                            // 强制更新状态，确保返回后状态正确
+                            const forceUpdateState = () => {
+                              const activeTabElement = document.querySelector(`[data-${activeTab}-page]`);
+                              if (activeTabElement) {
+                                const isDetail = activeTabElement.getAttribute('data-is-detail-view') === 'true';
+                                const title = activeTabElement.getAttribute('data-detail-title') || '';
+                                setIsDetailView(isDetail);
+                                setDetailTitle(title);
+                              } else {
+                                setIsDetailView(false);
+                                setDetailTitle('');
+                              }
+                            };
+                            
+                            // 多次检测确保状态正确更新
+                            setTimeout(forceUpdateState, 10);
+                            setTimeout(forceUpdateState, 50);
+                            setTimeout(forceUpdateState, 100);
+                          }}
+                          className="btn btn-ghost btn-sm btn-circle"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <h2 className="text-lg font-semibold text-base-content flex-1">
+                          {detailTitle}
+                        </h2>
+                      </>
+                    );
+                  }
+                  
+                  // 主视图或无详情时显示默认标题
+                  return (
+                    <>
+                      <button
+                        onClick={handleBackToList}
+                        className="btn btn-ghost btn-sm btn-circle"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <h2 className="text-lg font-semibold text-base-content flex-1">
+                        {tabs.find(tab => tab.id === activeTab)?.name}
+                      </h2>
+                    </>
+                  );
+                })()}
                 <button
                    onClick={handleClose}
                    className="btn btn-ghost btn-sm btn-circle"
@@ -351,9 +525,55 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
         <div className="hidden md:flex flex-1 flex-col min-h-0">
           {/* 桌面端标题栏 */}
           <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0">
-            <h3 className="text-lg font-medium text-base-content">
-              {tabs.find(tab => tab.id === activeTab)?.name}
-            </h3>
+            <div className="flex items-center gap-3">
+              {isDetailView && detailTitle ? (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      // 对于二级页面，我们需要返回到上一级而不是关闭整个模态框
+                      // 查找知识库条目管理器的返回按钮并触发点击
+                      const knowledgeEntryBackButton = document.querySelector('.knowledge-entry-manager [data-back-button]') as HTMLButtonElement;
+                      if (knowledgeEntryBackButton) {
+                        knowledgeEntryBackButton.click();
+                      } else {
+                        // 如果没找到特定的返回按钮，则查找通用返回按钮
+                        const backButton = document.querySelector('[data-back-button]') as HTMLButtonElement;
+                        if (backButton) {
+                          backButton.click();
+                        }
+                      }
+                      
+                      // 强制更新状态，确保返回后状态正确
+                      const forceUpdateState = () => {
+                        const activeTabElement = document.querySelector(`[data-${activeTab}-page]`);
+                        if (activeTabElement) {
+                          const isDetail = activeTabElement.getAttribute('data-is-detail-view') === 'true';
+                          const title = activeTabElement.getAttribute('data-detail-title') || '';
+                          setIsDetailView(isDetail);
+                          setDetailTitle(title);
+                        } else {
+                          setIsDetailView(false);
+                          setDetailTitle('');
+                        }
+                      };
+                      
+                      // 多次检测确保状态正确更新
+                      setTimeout(forceUpdateState, 10);
+                      setTimeout(forceUpdateState, 50);
+                      setTimeout(forceUpdateState, 100);
+                    }}
+                    className="btn btn-ghost btn-sm btn-circle"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <h1 className="text-xl font-semibold text-base-content">{detailTitle}</h1>
+                </div>
+              ) : (
+                <h1 className="text-xl font-semibold text-base-content">
+                  {tabs.find(tab => tab.id === activeTab)?.name}
+                </h1>
+              )}
+            </div>
             <button
               onClick={handleClose}
               className="btn btn-ghost btn-sm btn-circle"

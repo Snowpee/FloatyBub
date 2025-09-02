@@ -13,6 +13,8 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import Avatar from '../components/Avatar';
 import RoleAvatarUpload from '../components/RoleAvatarUpload';
 import { generateAvatar, generateRandomLocalAvatar } from '../utils/avatarUtils';
+import { KnowledgeService } from '../services/knowledgeService';
+import type { KnowledgeBase } from '../types/knowledge';
 
 interface RolesPageProps {
   onCloseModal?: () => void;
@@ -45,8 +47,10 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
     currentOpeningIndex: 0,
     avatar: '',
     globalPromptId: '',
-    voiceModelId: ''
+    voiceModelId: '',
+    knowledgeBaseId: ''
   });
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
 
   // 移除roleIcons，现在使用Avatar组件
 
@@ -56,20 +60,56 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
     'creative-writer'
   ];
 
-  const handleEdit = (role: AIRole) => {
-    setFormData({
-      name: role.name,
-      description: role.description,
-      systemPrompt: role.systemPrompt,
-      openingMessages: role.openingMessages || [''],
-      currentOpeningIndex: role.currentOpeningIndex || 0,
-      avatar: role.avatar,
-      globalPromptId: role.globalPromptId || '',
-      voiceModelId: role.voiceModelId || ''
-    });
-    setEditingId(role.id);
-    setIsEditing(true);
-    modalRef.current?.showModal();
+  // 加载知识库列表
+  useEffect(() => {
+    const loadKnowledgeBases = async () => {
+      try {
+        const bases = await KnowledgeService.getKnowledgeBases();
+        setKnowledgeBases(bases);
+      } catch (error) {
+        console.error('加载知识库列表失败:', error);
+      }
+    };
+    loadKnowledgeBases();
+  }, []);
+
+  const handleEdit = async (role: AIRole) => {
+    try {
+      // 获取角色关联的知识库ID
+      const knowledgeBaseId = await KnowledgeService.getRoleKnowledgeBaseId(role.id);
+      
+      setFormData({
+        name: role.name,
+        description: role.description,
+        systemPrompt: role.systemPrompt,
+        openingMessages: role.openingMessages || [''],
+        currentOpeningIndex: role.currentOpeningIndex || 0,
+        avatar: role.avatar,
+        globalPromptId: role.globalPromptId || '',
+        voiceModelId: role.voiceModelId || '',
+        knowledgeBaseId: knowledgeBaseId || ''
+      });
+      setEditingId(role.id);
+      setIsEditing(true);
+      modalRef.current?.showModal();
+    } catch (error) {
+      console.error('获取角色知识库关联失败:', error);
+      // 即使获取失败也允许编辑，只是不显示知识库关联
+      setFormData({
+        name: role.name,
+        description: role.description,
+        systemPrompt: role.systemPrompt,
+        openingMessages: role.openingMessages || [''],
+        currentOpeningIndex: role.currentOpeningIndex || 0,
+        avatar: role.avatar,
+        globalPromptId: role.globalPromptId || '',
+        voiceModelId: role.voiceModelId || '',
+        knowledgeBaseId: ''
+      });
+      setEditingId(role.id);
+      setIsEditing(true);
+      modalRef.current?.showModal();
+    }
   };
 
   const handleAdd = () => {
@@ -86,14 +126,15 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
       currentOpeningIndex: 0,
       avatar: generateRandomAvatar(),
       globalPromptId: '',
-      voiceModelId: ''
+      voiceModelId: '',
+      knowledgeBaseId: ''
     });
     setEditingId(null);
     setIsEditing(true);
     modalRef.current?.showModal();
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name?.trim()) {
       toast.error('请输入角色名称');
       return;
@@ -111,17 +152,37 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
       currentOpeningIndex: Math.min(formData.currentOpeningIndex, filteredOpeningMessages.length - 1)
     };
 
-    if (editingId) {
-      updateAIRole(editingId, roleData);
-      toast.success('角色更新成功');
-    } else {
-      addAIRole(roleData as Omit<AIRole, 'id' | 'createdAt' | 'updatedAt'>);
-      toast.success('角色创建成功');
-    }
+    try {
+      let roleId: string;
+      
+      if (editingId) {
+        updateAIRole(editingId, roleData);
+        roleId = editingId;
+        toast.success('角色更新成功');
+      } else {
+        const newRole = addAIRole(roleData as Omit<AIRole, 'id' | 'createdAt' | 'updatedAt'>);
+        roleId = newRole.id;
+        toast.success('角色创建成功');
+      }
 
-    modalRef.current?.close();
-    setIsEditing(false);
-    setEditingId(null);
+      // 保存知识库关联
+      if (formData.knowledgeBaseId) {
+        await KnowledgeService.setRoleKnowledgeBase(roleId, formData.knowledgeBaseId);
+      } else {
+        // 如果没有选择知识库，清除关联
+        await KnowledgeService.setRoleKnowledgeBase(roleId, null);
+      }
+
+      modalRef.current?.close();
+      setIsEditing(false);
+      setEditingId(null);
+    } catch (error) {
+      console.error('保存角色知识库关联失败:', error);
+      toast.error('保存知识库关联失败，但角色信息已保存');
+      modalRef.current?.close();
+      setIsEditing(false);
+      setEditingId(null);
+    }
   };
 
   const handleCancel = () => {
@@ -143,7 +204,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
           currentOpeningIndex: 0,
           avatar: '',
           globalPromptId: '',
-          voiceModelId: ''
+          voiceModelId: '',
+          knowledgeBaseId: ''
         });
       };
       
@@ -445,6 +507,33 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                   </button>
                 </div>
               </fieldset>
+
+              {/* 知识库配置 */}
+              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                <legend className="fieldset-legend">知识库配置</legend>
+                <label className="select w-full">
+                  <select
+                    value={formData.knowledgeBaseId || ''}
+                    onChange={(e) => setFormData({ ...formData, knowledgeBaseId: e.target.value })}
+                  >
+                    <option value="">不使用知识库</option>
+                    {knowledgeBases.map((kb) => (
+                      <option key={kb.id} value={kb.id}>
+                        {kb.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="label">
+                  选择知识库后，AI将能够根据对话内容搜索相关知识条目。
+                </p>
+                {formData.knowledgeBaseId && (
+                  <p className="label text-info text-sm mt-1">
+                    已选择知识库，保存后将在对话时自动应用
+                  </p>
+                )}
+              </fieldset>
+
               <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
                 <legend className="fieldset-legend">语音设置</legend>
                                 

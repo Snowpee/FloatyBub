@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创建测试知识库</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .log {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .success {
+            background: #28a745;
+        }
+        .success:hover {
+            background: #1e7e34;
+        }
+    </style>
+</head>
+<body>
+    <h1>创建测试知识库</h1>
+    
+    <div class="section">
+        <h2>1. 创建测试知识条目</h2>
+        <button onclick="createTestEntries()">创建测试条目</button>
+        <div id="createResult" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>2. 验证知识库内容</h2>
+        <button onclick="verifyKnowledgeBase()">验证知识库</button>
+        <div id="verifyResult" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>3. 测试搜索功能</h2>
+        <button onclick="testSearchFunction()">测试搜索</button>
+        <div id="searchTestResult" class="log"></div>
+    </div>
+
+    <script type="module">
+        import { KnowledgeService } from './src/services/knowledgeService.js';
+        import { ChatEnhancementService } from './src/services/chatEnhancementService.js';
+        
+        // 测试知识条目数据
+        const testEntries = [
+            {
+                name: "凭荇",
+                keywords: ["凭荇", "植物", "水生植物", "荇菜"],
+                explanation: "凭荇是指荇菜，一种水生植物。荇菜（学名：Nymphoides peltata）是龙胆科荇菜属的多年生浮叶草本植物。叶片近圆形，基部心形，浮在水面上。花黄色，花期6-8月。常生长在池塘、湖泊等静水中。在古诗词中常被提及，如《诗经》中的'参差荇菜，左右流之'。"
+            },
+            {
+                name: "荇菜",
+                keywords: ["荇菜", "水生植物", "黄花", "浮叶", "诗经"],
+                explanation: "荇菜是龙胆科荇菜属多年生浮叶草本植物，学名Nymphoides peltata。叶片圆形至卵圆形，基部心形，直径3-8厘米，浮在水面。花冠黄色，直径约2厘米，花期6-8月。广泛分布于亚洲、欧洲的温带地区。在中国古典文学中经常出现，《诗经·关雎》中有'参差荇菜，左右流之'的名句。"
+            },
+            {
+                name: "水生植物",
+                keywords: ["水生植物", "水草", "湿地", "生态"],
+                explanation: "水生植物是指能够在水中正常生活的植物。根据生活方式可分为挺水植物、浮叶植物、沉水植物和漂浮植物四大类。水生植物在水生态系统中起着重要作用，能够净化水质、提供氧气、为水生动物提供栖息地。常见的水生植物有荷花、睡莲、荇菜、水葫芦等。"
+            }
+        ];
+        
+        window.createTestEntries = async function() {
+            try {
+                const logDiv = document.getElementById('createResult');
+                logDiv.textContent = '开始创建测试知识条目...\n';
+                
+                // 获取或创建知识库
+                let knowledgeBases = await KnowledgeService.getKnowledgeBases();
+                let knowledgeBase;
+                
+                if (knowledgeBases.length === 0) {
+                    // 创建新的知识库
+                    knowledgeBase = await KnowledgeService.createKnowledgeBase({
+                        name: '测试知识库',
+                        description: '用于测试搜索功能的知识库'
+                    });
+                    logDiv.textContent += `创建新知识库: ${knowledgeBase.name} (${knowledgeBase.id})\n`;
+                } else {
+                    knowledgeBase = knowledgeBases[0];
+                    logDiv.textContent += `使用现有知识库: ${knowledgeBase.name} (${knowledgeBase.id})\n`;
+                }
+                
+                // 创建知识条目
+                for (const entryData of testEntries) {
+                    try {
+                        const entry = await KnowledgeService.createKnowledgeEntry(
+                            knowledgeBase.id,
+                            entryData.name,
+                            entryData.explanation,
+                            entryData.keywords
+                        );
+                        logDiv.textContent += `✅ 创建条目: ${entryData.name}\n`;
+                    } catch (error) {
+                        logDiv.textContent += `❌ 创建条目失败 ${entryData.name}: ${error.message}\n`;
+                    }
+                }
+                
+                logDiv.textContent += '\n测试知识条目创建完成！';
+                console.log('测试知识条目创建完成');
+                
+                // 自动验证知识库内容
+                await verifyKnowledgeBase();
+                
+                // 自动测试搜索功能
+                await testSearchFunction();
+                
+            } catch (error) {
+                const errorMsg = '创建测试条目失败: ' + error.message;
+                document.getElementById('createResult').textContent = errorMsg;
+                console.error(errorMsg, error);
+            }
+        };
+        
+        window.verifyKnowledgeBase = async function() {
+            try {
+                const logDiv = document.getElementById('verifyResult');
+                logDiv.textContent = '开始验证知识库内容...\n';
+                
+                // 获取所有知识库
+                const knowledgeBases = await KnowledgeService.getKnowledgeBases();
+                logDiv.textContent += `找到 ${knowledgeBases.length} 个知识库\n`;
+                
+                for (const kb of knowledgeBases) {
+                    const entries = await KnowledgeService.getKnowledgeEntries(kb.id);
+                    logDiv.textContent += `\n知识库: ${kb.name} (${kb.id})\n`;
+                    logDiv.textContent += `条目数量: ${entries.length}\n`;
+                    
+                    entries.forEach((entry, index) => {
+                        logDiv.textContent += `  ${index + 1}. ${entry.name} - 关键词: [${entry.keywords.join(', ')}]\n`;
+                    });
+                }
+                
+                console.log('知识库验证完成', { knowledgeBases });
+                
+            } catch (error) {
+                const errorMsg = '验证知识库失败: ' + error.message;
+                document.getElementById('verifyResult').textContent = errorMsg;
+                console.error(errorMsg, error);
+            }
+        };
+        
+        window.testSearchFunction = async function() {
+            try {
+                const logDiv = document.getElementById('searchTestResult');
+                logDiv.textContent = '开始测试搜索功能...\n';
+                
+                // 获取第一个知识库
+                const knowledgeBases = await KnowledgeService.getKnowledgeBases();
+                if (knowledgeBases.length === 0) {
+                    logDiv.textContent += '❌ 没有找到知识库\n';
+                    return;
+                }
+                
+                const knowledgeBase = knowledgeBases[0];
+                logDiv.textContent += `使用知识库: ${knowledgeBase.name}\n\n`;
+                
+                // 测试不同的搜索关键词
+                const testQueries = [
+                    '凭荇 是什么',
+                    '荇菜',
+                    '水生植物',
+                    '黄花',
+                    '诗经'
+                ];
+                
+                for (const query of testQueries) {
+                    logDiv.textContent += `测试查询: "${query}"\n`;
+                    
+                    // 1. 提取关键词
+                    const keywords = ChatEnhancementService.extractKeywords(query);
+                    logDiv.textContent += `  提取关键词: [${keywords.join(', ')}]\n`;
+                    
+                    // 2. 搜索知识库
+                    const searchResults = await KnowledgeService.searchKnowledgeEntries(knowledgeBase.id, keywords);
+                    logDiv.textContent += `  搜索结果: ${searchResults.length} 个条目\n`;
+                    
+                    searchResults.forEach((entry, index) => {
+                        logDiv.textContent += `    ${index + 1}. ${entry.name}\n`;
+                    });
+                    
+                    // 3. 测试完整增强流程
+                    const enhancedContext = await ChatEnhancementService.enhanceChatContext(
+                        query,
+                        knowledgeBase.id
+                    );
+                    
+                    const totalEntries = enhancedContext.knowledgeResults.reduce((sum, result) => sum + result.entries.length, 0);
+                    logDiv.textContent += `  增强结果: ${totalEntries} 个条目\n\n`;
+                }
+                
+                logDiv.textContent += '搜索功能测试完成！';
+                console.log('搜索功能测试完成');
+                
+            } catch (error) {
+                const errorMsg = '搜索功能测试失败: ' + error.message;
+                document.getElementById('searchTestResult').textContent = errorMsg;
+                console.error(errorMsg, error);
+            }
+        };
+        
+        // 页面加载时的提示
+        window.addEventListener('load', () => {
+            console.log('测试页面已加载，自动开始测试...');
+        
+        // 自动开始测试
+        setTimeout(async () => {
+          console.log('🚀 开始自动测试流程');
+          await createTestEntries();
+        }, 1000);
+        });
+    </script>
+</body>
+</html>

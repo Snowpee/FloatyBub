@@ -35,9 +35,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     }
   }, [isOpen]);
 
-  const handleConfirm = () => {
+  const handleConfirm = (_e: React.FormEvent) => {
+    // 先关闭对话框，避免等待异步操作导致关闭延迟
+    dialogRef.current?.close();
     onConfirm();
-    onClose();
   };
 
   const handleDialogClose = () => {
@@ -109,12 +110,14 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               {cancelText}
             </button>
           </form>
-          <button
-            onClick={handleConfirm}
-            className={`btn ${variantClasses.confirmButton}`}
-          >
-            {confirmText}
-          </button>
+          <form method="dialog" onSubmit={handleConfirm}>
+            <button
+              type="submit"
+              className={`btn ${variantClasses.confirmButton}`}
+            >
+              {confirmText}
+            </button>
+          </form>
         </div>
       </div>
       <form method="dialog" className="modal-backdrop">

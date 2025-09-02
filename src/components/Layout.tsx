@@ -19,7 +19,8 @@ import {
   Save,
   X,
   Search,
-  Clock
+  Clock,
+  BookOpen
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Popconfirm from './Popconfirm';
@@ -35,7 +36,7 @@ import { useUserData } from '../hooks/useUserData';
 import { supabase } from '../lib/supabase';
 import { avatarCache } from '../utils/imageCache';
 
-type TabType = 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data';
+type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data';
 
 
 const Layout: React.FC = () => {
@@ -75,7 +76,7 @@ const Layout: React.FC = () => {
   
   // 设置弹窗状态
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsDefaultTab, setSettingsDefaultTab] = useState<TabType>('config');
+  const [settingsDefaultTab, setSettingsDefaultTab] = useState<TabType>('global');
   
   // 历史记录弹窗状态
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -236,13 +237,13 @@ const Layout: React.FC = () => {
       if (hash.startsWith('#setting')) {
         // 解析设置页面类型
         const settingPath = hash.replace('#setting', '').replace('/', '');
-        const validTabs = ['config', 'roles', 'userRoles', 'globalPrompts', 'voice', 'data'];
+        const validTabs = ['global', 'config', 'roles', 'userRoles', 'globalPrompts', 'voice', 'data'];
         
         // 设置默认页面
         if (settingPath && validTabs.includes(settingPath)) {
           setSettingsDefaultTab(settingPath as TabType);
         } else {
-          setSettingsDefaultTab('config');
+          setSettingsDefaultTab('global');
         }
         
         // 打开设置弹窗
@@ -708,6 +709,19 @@ const Layout: React.FC = () => {
                           >
                             <LogIn className="h-4 w-4" />
                             {authLoading ? '加载中...' : '登录'}
+                          </button>
+                        </li>
+                        <li>
+                          <button 
+                            onClick={() => {
+                              navigate('/settings/knowledge');
+                              (document.activeElement as HTMLElement)?.blur();
+                              closeSidebarOnNonDesktop();
+                            }}
+                            className="btn btn-md"
+                          >
+                            <BookOpen className="h-4 w-4" />
+                            知识库
                           </button>
                         </li>
                         <li>

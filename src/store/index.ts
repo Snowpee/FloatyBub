@@ -219,7 +219,7 @@ interface AppState {
   setCurrentModel: (id: string) => void;
   
   // AI角色相关
-  addAIRole: (role: Omit<AIRole, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addAIRole: (role: Omit<AIRole, 'id' | 'createdAt' | 'updatedAt'>) => AIRole;
   updateAIRole: (id: string, role: Partial<AIRole>) => void;
   deleteAIRole: (id: string) => Promise<void>;
   
@@ -532,6 +532,7 @@ export const useAppStore = create<AppState>()(
         }));
         // 自动同步到云端
         queueDataSync('ai_role', newRole);
+        return newRole;
       },
       
       updateAIRole: (id, role) => {

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识库调试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .log {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>知识库调试页面</h1>
+    
+    <div class="section">
+        <h2>1. 关键词提取测试</h2>
+        <input type="text" id="testMessage" placeholder="输入测试消息" value="凭荇 是什么">
+        <button onclick="testKeywordExtraction()">提取关键词</button>
+        <div id="keywordResult" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>2. 知识库内容检查</h2>
+        <button onclick="checkKnowledgeBase()">检查知识库内容</button>
+        <div id="knowledgeBaseResult" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>3. 搜索测试</h2>
+        <input type="text" id="searchKeywords" placeholder="输入搜索关键词" value="凭荇">
+        <button onclick="testSearch()">搜索知识库</button>
+        <div id="searchResult" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>4. 完整流程测试</h2>
+        <button onclick="testFullFlow()">测试完整流程</button>
+        <div id="fullFlowResult" class="log"></div>
+    </div>
+
+    <script type="module">
+        import { ChatEnhancementService } from './src/services/chatEnhancementService.js';
+        import { KnowledgeService } from './src/services/knowledgeService.js';
+        
+        // 全局函数
+        window.testKeywordExtraction = function() {
+            const message = document.getElementById('testMessage').value;
+            const keywords = ChatEnhancementService.extractKeywords(message);
+            
+            const result = {
+                原始消息: message,
+                提取的关键词: keywords,
+                关键词数量: keywords.length
+            };
+            
+            document.getElementById('keywordResult').textContent = JSON.stringify(result, null, 2);
+            console.log('关键词提取结果:', result);
+        };
+        
+        window.checkKnowledgeBase = async function() {
+            try {
+                // 获取所有知识库
+                const knowledgeBases = await KnowledgeService.getKnowledgeBases();
+                console.log('所有知识库:', knowledgeBases);
+                
+                if (knowledgeBases.length === 0) {
+                    document.getElementById('knowledgeBaseResult').textContent = '没有找到知识库';
+                    return;
+                }
+                
+                // 获取第一个知识库的条目
+                const firstKB = knowledgeBases[0];
+                const entries = await KnowledgeService.getKnowledgeEntries(firstKB.id);
+                
+                const result = {
+                    知识库数量: knowledgeBases.length,
+                    第一个知识库: {
+                        id: firstKB.id,
+                        name: firstKB.name,
+                        条目数量: entries.length
+                    },
+                    所有条目: entries.map(entry => ({
+                        name: entry.name,
+                        keywords: entry.keywords,
+                        explanation: entry.explanation.substring(0, 100) + '...'
+                    }))
+                };
+                
+                document.getElementById('knowledgeBaseResult').textContent = JSON.stringify(result, null, 2);
+                console.log('知识库内容:', result);
+            } catch (error) {
+                const errorMsg = '检查知识库失败: ' + error.message;
+                document.getElementById('knowledgeBaseResult').textContent = errorMsg;
+                console.error(errorMsg, error);
+            }
+        };
+        
+        window.testSearch = async function() {
+            try {
+                const searchText = document.getElementById('searchKeywords').value;
+                const keywords = [searchText];
+                
+                // 获取第一个知识库
+                const knowledgeBases = await KnowledgeService.getKnowledgeBases();
+                if (knowledgeBases.length === 0) {
+                    document.getElementById('searchResult').textContent = '没有知识库可搜索';
+                    return;
+                }
+                
+                const knowledgeBaseId = knowledgeBases[0].id;
+                console.log('搜索参数:', { knowledgeBaseId, keywords });
+                
+                // 执行搜索
+                const searchResults = await KnowledgeService.searchKnowledgeEntries(knowledgeBaseId, keywords);
+                
+                const result = {
+                    搜索关键词: keywords,
+                    知识库ID: knowledgeBaseId,
+                    搜索结果数量: searchResults.length,
+                    搜索结果: searchResults.map(entry => ({
+                        name: entry.name,
+                        keywords: entry.keywords,
+                        explanation: entry.explanation.substring(0, 100) + '...'
+                    }))
+                };
+                
+                document.getElementById('searchResult').textContent = JSON.stringify(result, null, 2);
+                console.log('搜索结果:', result);
+            } catch (error) {
+                const errorMsg = '搜索失败: ' + error.message;
+                document.getElementById('searchResult').textContent = errorMsg;
+                console.error(errorMsg, error);
+            }
+        };
+        
+        window.testFullFlow = async function() {
+            try {
+                const message = document.getElementById('testMessage').value;
+                
+                // 获取第一个知识库
+                const knowledgeBases = await KnowledgeService.getKnowledgeBases();
+                if (knowledgeBases.length === 0) {
+                    document.getElementById('fullFlowResult').textContent = '没有知识库可测试';
+                    return;
+                }
+                
+                const knowledgeBaseId = knowledgeBases[0].id;
+                
+                // 执行完整的增强流程
+                const enhancedContext = await ChatEnhancementService.enhanceChatContext(
+                    message,
+                    knowledgeBaseId,
+                    { includeDebugInfo: true }
+                );
+                
+                const result = {
+                    原始消息: message,
+                    知识库ID: knowledgeBaseId,
+                    增强结果: {
+                        提取的关键词: enhancedContext.extractedKeywords,
+                        知识库结果数量: enhancedContext.knowledgeResults.length,
+                        找到的条目总数: enhancedContext.knowledgeResults.reduce((sum, result) => sum + result.entries.length, 0)
+                    }
+                };
+                
+                document.getElementById('fullFlowResult').textContent = JSON.stringify(result, null, 2);
+                console.log('完整流程结果:', result);
+                console.log('详细增强上下文:', enhancedContext);
+            } catch (error) {
+                const errorMsg = '完整流程测试失败: ' + error.message;
+                document.getElementById('fullFlowResult').textContent = errorMsg;
+                console.error(errorMsg, error);
+            }
+        };
+        
+        // 页面加载时自动检查
+        window.addEventListener('load', () => {
+            console.log('调试页面已加载，开始自动检查...');
+            checkKnowledgeBase();
+        });
+    </script>
+</body>
+</html>

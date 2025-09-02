@@ -31,6 +31,8 @@ import { playVoice, stopCurrentVoice, addVoiceStateListener, getVoiceState } fro
 import { supabase } from '../lib/supabase';
 import { useUserData } from '../hooks/useUserData';
 import { useAuth } from '../hooks/useAuth';
+import { ChatEnhancementService } from '../services/chatEnhancementService';
+import { useKnowledgeStore } from '../stores/knowledgeStore';
 
 const ChatPage: React.FC = () => {
   const { sessionId } = useParams();
@@ -54,6 +56,9 @@ const ChatPage: React.FC = () => {
   
   // 获取用户认证信息
   const { user } = useAuth();
+  
+  // 获取知识库store
+  const { getRoleKnowledgeBase } = useKnowledgeStore();
 
   // 初始化聊天样式
   useEffect(() => {
@@ -494,11 +499,68 @@ const ChatPage: React.FC = () => {
       throw new Error('模型或角色未配置');
     }
 
-
-
     try {
-      // 构建完整的系统提示词
-      const systemPrompt = buildSystemPrompt(currentRole, globalPrompts, currentUserProfile);
+      // 🔍 [知识库增强] 检查当前角色是否配置了知识库
+      console.log('🔍 [知识库增强] 开始检查角色知识库关联:', { roleId: currentRole.id });
+      const roleKnowledgeBase = await getRoleKnowledgeBase(currentRole.id);
+      console.log('📚 [知识库增强] 角色知识库查询结果:', { 
+        roleId: currentRole.id, 
+        hasKnowledgeBase: !!roleKnowledgeBase,
+        knowledgeBaseId: roleKnowledgeBase?.id,
+        knowledgeBaseName: roleKnowledgeBase?.name
+      });
+      let enhancedSystemPrompt = '';
+      
+      if (roleKnowledgeBase) {
+        console.log('📚 [知识库增强] 当前角色配置了知识库:', {
+          roleId: currentRole.id,
+          knowledgeBaseId: roleKnowledgeBase.id,
+          knowledgeBaseName: roleKnowledgeBase.name
+        });
+        
+        try {
+          // 使用知识库增强服务处理用户消息
+          const enhancedContext = await ChatEnhancementService.enhanceChatContext(
+            userMessage,
+            roleKnowledgeBase.id,
+            {
+              maxResults: 5,
+              minRelevanceScore: 0.3,
+              includeDebugInfo: true
+            }
+          );
+          
+          // 构建基础系统提示词
+          const baseSystemPrompt = buildSystemPrompt(currentRole, globalPrompts, currentUserProfile);
+          
+          // 将知识库上下文注入到系统提示词中
+          enhancedSystemPrompt = ChatEnhancementService.injectKnowledgeContext(
+            baseSystemPrompt,
+            enhancedContext
+          );
+          
+          console.log('✨ [知识库增强] 成功增强聊天上下文:', {
+            roleId: currentRole.id,
+            originalMessageLength: userMessage.length,
+            extractedKeywords: enhancedContext.extractedKeywords,
+            knowledgeResultsCount: enhancedContext.knowledgeResults.length,
+            basePromptLength: baseSystemPrompt.length,
+            enhancedPromptLength: enhancedSystemPrompt.length,
+            hasKnowledgeContent: enhancedContext.knowledgeResults.some(r => r.entries.length > 0)
+          });
+          
+        } catch (enhancementError) {
+          console.warn('⚠️ [知识库增强] 增强处理失败，使用原始系统提示词:', enhancementError);
+          enhancedSystemPrompt = buildSystemPrompt(currentRole, globalPrompts, currentUserProfile);
+        }
+      } else {
+        console.log('ℹ️ [知识库增强] 当前角色未配置知识库，使用原始系统提示词');
+        // 没有配置知识库，使用原始系统提示词
+        enhancedSystemPrompt = buildSystemPrompt(currentRole, globalPrompts, currentUserProfile);
+      }
+      
+      // 使用增强后的系统提示词
+      const systemPrompt = enhancedSystemPrompt;
       
       // 构建消息历史
       const messages = [];
