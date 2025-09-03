@@ -2,7 +2,46 @@
 
 import { KnowledgeService } from './knowledgeService';
 import type { KnowledgeEntry, KnowledgeBase } from '../types/knowledge';
-import Segment from 'segment';
+
+// 常用中文词汇和停用词
+const COMMON_CHINESE_WORDS = new Set([
+  '我们', '你们', '他们', '这个', '那个', '什么', '怎么', '为什么', '因为', '所以',
+  '但是', '然后', '如果', '虽然', '不过', '而且', '或者', '比如', '例如', '就是',
+  '可以', '应该', '需要', '想要', '希望', '觉得', '认为', '知道', '了解', '学习',
+  '工作', '生活', '时间', '地方', '问题', '方法', '结果', '原因', '目标', '计划'
+]);
+
+const STOP_WORDS = new Set([
+  '的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个',
+  '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好',
+  '自己', '这', '那', '里', '就是', '还是', '比较', '一些', '可能', '已经'
+]);
+
+/**
+ * 改进的中文分词函数
+ */
+function improvedChineseSegment(text: string, minLength: number = 2): string[] {
+  const words: string[] = [];
+  const textLength = text.length;
+  
+  // 使用滑动窗口提取不同长度的词汇
+  for (let i = 0; i < textLength; i++) {
+    // 提取2-4字词汇
+    for (let len = minLength; len <= Math.min(4, textLength - i); len++) {
+      const word = text.substring(i, i + len);
+      
+      // 跳过停用词
+      if (STOP_WORDS.has(word)) continue;
+      
+      // 确保词汇包含中文字符
+      if (/[\u4e00-\u9fa5]/.test(word)) {
+        words.push(word);
+      }
+    }
+  }
+  
+  return words;
+}
 
 // 关键词提取配置
 interface KeywordExtractionConfig {
@@ -33,6 +72,10 @@ export interface KnowledgeEnhancementConfig {
 }
 
 export class ChatEnhancementService {
+  // 关键词缓存
+  private static keywordsCache = new Map<string, { keywords: string[], timestamp: number }>();
+  private static readonly CACHE_EXPIRY = 5 * 60 * 1000; // 5分钟缓存过期
+  
   private static readonly DEFAULT_CONFIG: KeywordExtractionConfig = {
     minLength: 2,
     maxKeywords: 10,
@@ -47,7 +90,7 @@ export class ChatEnhancementService {
   /**
    * 从用户消息中提取关键词
    */
-  static extractKeywords(message: string, config: Partial<KeywordExtractionConfig> = {}): string[] {
+  static async extractKeywords(message: string, config: Partial<KeywordExtractionConfig> = {}): Promise<string[]> {
     console.log('🔤 [ChatEnhancement] 开始提取关键词，原始消息:', message);
     
     const finalConfig = { ...this.DEFAULT_CONFIG, ...config };
@@ -72,52 +115,24 @@ export class ChatEnhancementService {
     console.log('🔤 [ChatEnhancement] 英文匹配结果:', englishWords);
     words.push(...englishWords.map(word => word.toLowerCase()));
     
-    // 处理中文（使用jieba分词）
+    // 处理中文（使用改进的滑动窗口分词）
     const chineseText = cleanMessage.replace(/[a-zA-Z0-9\s]/g, '');
     console.log('🈳 [ChatEnhancement] 中文文本:', chineseText);
     
     if (chineseText) {
-      try {
-        // 初始化segment分词器
-        const segment = new Segment();
-        segment.useDefault(); // 使用默认的识别模块和字典
-        
-        // 使用segment进行中文分词
-        const chineseWords = segment.doSegment(chineseText, {
-          simple: true // 返回简单的字符串数组
-        });
-        console.log('🔪 [ChatEnhancement] segment分词结果:', chineseWords);
-        
-        // 过滤掉单字和空字符串
-        const validChineseWords = chineseWords.filter((word: string) => 
-          word.trim().length >= finalConfig.minLength && 
-          /[\u4e00-\u9fa5]/.test(word) // 确保包含中文字符
-        );
-        
-        console.log('📝 [ChatEnhancement] 有效中文词汇:', validChineseWords);
-        words.push(...validChineseWords);
-      } catch (error) {
-        console.error('❌ [ChatEnhancement] segment分词失败，回退到滑动窗口:', error);
-        
-        // 回退到原来的滑动窗口方法
-        for (let i = 0; i < chineseText.length; i++) {
-          // 提取2字词
-          if (i + 1 < chineseText.length) {
-            const word2 = chineseText.substring(i, i + 2);
-            words.push(word2);
-          }
-          // 提取3字词
-          if (i + 2 < chineseText.length) {
-            const word3 = chineseText.substring(i, i + 3);
-            words.push(word3);
-          }
-          // 提取4字词
-          if (i + 3 < chineseText.length) {
-            const word4 = chineseText.substring(i, i + 4);
-            words.push(word4);
-          }
-        }
-      }
+      console.log('🔪 [ChatEnhancement] 使用改进的滑动窗口进行中文分词');
+      
+      // 使用改进的中文分词
+      const chineseWords = improvedChineseSegment(chineseText, finalConfig.minLength);
+      console.log('🔪 [ChatEnhancement] 中文分词结果:', chineseWords);
+      
+      // 过滤掉过短的词汇
+      const validChineseWords = chineseWords.filter(word => 
+        word.trim().length >= finalConfig.minLength
+      );
+      
+      console.log('📝 [ChatEnhancement] 有效中文词汇:', validChineseWords);
+      words.push(...validChineseWords);
     }
     
     console.log('📋 [ChatEnhancement] 分词结果:', words);
@@ -157,7 +172,233 @@ export class ChatEnhancementService {
   }
 
   /**
-   * 在知识库中搜索相关条目
+   * 获取知识库所有关键词（带缓存）
+   */
+  static async getKnowledgeBaseKeywords(knowledgeBaseId: string): Promise<string[]> {
+    console.log('🔑 [关键词缓存] 获取知识库关键词:', knowledgeBaseId);
+    
+    // 检查缓存
+    const cached = this.keywordsCache.get(knowledgeBaseId);
+    const now = Date.now();
+    
+    if (cached && (now - cached.timestamp) < this.CACHE_EXPIRY) {
+      console.log('✅ [关键词缓存] 使用缓存数据:', cached.keywords.length, '个关键词');
+      return cached.keywords;
+    }
+    
+    try {
+      // 获取知识库所有条目
+      const allEntries = await KnowledgeService.getKnowledgeEntries(knowledgeBaseId);
+      
+      // 提取所有关键词和条目名称
+      const allKeywords = new Set<string>();
+      
+      allEntries.forEach(entry => {
+        // 添加条目名称
+        if (entry.name.trim()) {
+          allKeywords.add(entry.name.trim());
+        }
+        
+        // 添加条目关键词
+        entry.keywords.forEach(keyword => {
+          if (keyword.trim()) {
+            allKeywords.add(keyword.trim());
+          }
+        });
+      });
+      
+      // 转换为数组并按长度排序（长关键词优先）
+      const keywordsArray = Array.from(allKeywords)
+        .filter(keyword => keyword.length >= 2) // 过滤过短的关键词
+        .sort((a, b) => b.length - a.length);
+      
+      // 更新缓存
+      this.keywordsCache.set(knowledgeBaseId, {
+        keywords: keywordsArray,
+        timestamp: now
+      });
+      
+      console.log('🔄 [关键词缓存] 更新缓存:', keywordsArray.length, '个关键词');
+      return keywordsArray;
+      
+    } catch (error) {
+      console.error('❌ [关键词缓存] 获取失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 反向搜索：用知识库关键词匹配用户输入
+   */
+  static async reverseSearchKnowledgeBase(
+    knowledgeBaseId: string,
+    userInput: string
+  ): Promise<KnowledgeSearchResult> {
+    console.log('🔄 [反向搜索] 开始反向搜索:', { knowledgeBaseId, userInput });
+    
+    if (!userInput.trim()) {
+      return {
+        entries: [],
+        matchedKeywords: [],
+        relevanceScore: 0
+      };
+    }
+    
+    try {
+      // 获取知识库所有关键词
+      const knowledgeKeywords = await this.getKnowledgeBaseKeywords(knowledgeBaseId);
+      
+      if (knowledgeKeywords.length === 0) {
+        console.log('⚠️ [反向搜索] 知识库无关键词');
+        return {
+          entries: [],
+          matchedKeywords: [],
+          relevanceScore: 0
+        };
+      }
+      
+      // 查找匹配的关键词
+      const matchedKeywords: string[] = [];
+      const userInputLower = userInput.toLowerCase();
+      
+      knowledgeKeywords.forEach(keyword => {
+        const keywordLower = keyword.toLowerCase();
+        
+        // 完全匹配或包含匹配
+        if (userInputLower.includes(keywordLower) || keywordLower.includes(userInputLower)) {
+          matchedKeywords.push(keyword);
+        }
+      });
+      
+      console.log('🎯 [反向搜索] 匹配的关键词:', matchedKeywords);
+      
+      if (matchedKeywords.length === 0) {
+        return {
+          entries: [],
+          matchedKeywords: [],
+          relevanceScore: 0
+        };
+      }
+      
+      // 使用匹配的关键词搜索知识条目
+      const entries = await KnowledgeService.searchKnowledgeEntries(knowledgeBaseId, matchedKeywords);
+      
+      // 计算相关性分数
+      const relevanceScore = matchedKeywords.length / Math.max(knowledgeKeywords.length * 0.1, 1);
+      
+      console.log('✅ [反向搜索] 搜索完成:', {
+        matchedKeywords: matchedKeywords.length,
+        entries: entries.length,
+        relevanceScore
+      });
+      
+      return {
+        entries,
+        matchedKeywords,
+        relevanceScore: Math.min(relevanceScore, 1)
+      };
+      
+    } catch (error) {
+      console.error('❌ [反向搜索] 搜索失败:', error);
+      return {
+        entries: [],
+        matchedKeywords: [],
+        relevanceScore: 0
+      };
+    }
+  }
+
+  /**
+   * 混合搜索策略：结合传统搜索和反向搜索
+   */
+  static async hybridSearchKnowledgeBase(
+    knowledgeBaseId: string,
+    userInput: string,
+    extractedKeywords: string[]
+  ): Promise<KnowledgeSearchResult> {
+    console.log('🔀 [混合搜索] 开始混合搜索:', {
+      knowledgeBaseId,
+      userInput: userInput.substring(0, 50) + '...',
+      extractedKeywords
+    });
+    
+    try {
+      // 并行执行传统搜索和反向搜索
+      const [traditionalResult, reverseResult] = await Promise.all([
+        this.searchKnowledgeBase(knowledgeBaseId, extractedKeywords),
+        this.reverseSearchKnowledgeBase(knowledgeBaseId, userInput)
+      ]);
+      
+      console.log('📊 [混合搜索] 搜索结果:', {
+        traditional: {
+          entries: traditionalResult.entries.length,
+          keywords: traditionalResult.matchedKeywords.length,
+          score: traditionalResult.relevanceScore
+        },
+        reverse: {
+          entries: reverseResult.entries.length,
+          keywords: reverseResult.matchedKeywords.length,
+          score: reverseResult.relevanceScore
+        }
+      });
+      
+      // 合并结果
+      const allEntries = [...traditionalResult.entries, ...reverseResult.entries];
+      const allMatchedKeywords = [...traditionalResult.matchedKeywords, ...reverseResult.matchedKeywords];
+      
+      // 去重条目（基于ID）
+      const uniqueEntries = allEntries.filter((entry, index, arr) => 
+        arr.findIndex(e => e.id === entry.id) === index
+      );
+      
+      // 去重关键词
+      const uniqueMatchedKeywords = Array.from(new Set(allMatchedKeywords));
+      
+      // 计算综合相关性分数（取两种方法的最大值）
+      const combinedRelevanceScore = Math.max(
+        traditionalResult.relevanceScore,
+        reverseResult.relevanceScore
+      );
+      
+      // 按相关性排序条目（优先显示在两种搜索中都出现的条目）
+      const sortedEntries = uniqueEntries.sort((a, b) => {
+        const aInBoth = traditionalResult.entries.some(e => e.id === a.id) && 
+                       reverseResult.entries.some(e => e.id === a.id);
+        const bInBoth = traditionalResult.entries.some(e => e.id === b.id) && 
+                       reverseResult.entries.some(e => e.id === b.id);
+        
+        if (aInBoth && !bInBoth) return -1;
+        if (!aInBoth && bInBoth) return 1;
+        
+        // 如果都在两种搜索中出现或都只在一种中出现，按名称排序
+        return a.name.localeCompare(b.name);
+      });
+      
+      const result = {
+        entries: sortedEntries,
+        matchedKeywords: uniqueMatchedKeywords,
+        relevanceScore: combinedRelevanceScore
+      };
+      
+      console.log('✅ [混合搜索] 搜索完成:', {
+        totalEntries: result.entries.length,
+        totalKeywords: result.matchedKeywords.length,
+        finalScore: result.relevanceScore
+      });
+      
+      return result;
+      
+    } catch (error) {
+      console.error('❌ [混合搜索] 搜索失败:', error);
+      
+      // 降级到传统搜索
+      console.log('🔄 [混合搜索] 降级到传统搜索');
+      return await this.searchKnowledgeBase(knowledgeBaseId, extractedKeywords);
+    }
+  }
+
+  /**
+   * 在知识库中搜索相关条目（传统方法）
    */
   static async searchKnowledgeBase(
     knowledgeBaseId: string,
@@ -226,15 +467,15 @@ export class ChatEnhancementService {
     });
     
     // 提取关键词
-    const extractedKeywords = this.extractKeywords(userMessage);
+    const extractedKeywords = await this.extractKeywords(userMessage);
     console.log('🔍 [知识库增强] 提取的关键词:', extractedKeywords);
     
     let knowledgeResults: KnowledgeSearchResult[] = [];
     
-    // 如果有知识库且提取到关键词，进行搜索
-    if (knowledgeBaseId && extractedKeywords.length > 0) {
+    // 如果有知识库，进行混合搜索（即使没有提取到关键词也尝试反向搜索）
+    if (knowledgeBaseId) {
       try {
-        const searchResult = await this.searchKnowledgeBase(knowledgeBaseId, extractedKeywords);
+        const searchResult = await this.hybridSearchKnowledgeBase(knowledgeBaseId, userMessage, extractedKeywords);
         
         // 根据配置过滤结果
         if (config.minRelevanceScore && searchResult.relevanceScore < config.minRelevanceScore) {
@@ -256,11 +497,8 @@ export class ChatEnhancementService {
         console.error('❌ [知识库增强] 搜索失败:', error);
       }
     } else {
-      console.log('ℹ️ [知识库增强] 跳过搜索:', {
-        hasKnowledgeBase: !!knowledgeBaseId,
-        hasKeywords: extractedKeywords.length > 0
-      });
-    }
+        console.log('ℹ️ [知识库增强] 跳过搜索: 没有知识库ID');
+      }
     
     const result = {
       originalMessage: userMessage,
@@ -320,6 +558,53 @@ export class ChatEnhancementService {
     });
     
     return enhancedPrompt;
+  }
+
+  /**
+   * 清理过期的关键词缓存
+   */
+  static clearExpiredCache(): void {
+    const now = Date.now();
+    const expiredKeys: string[] = [];
+    
+    this.keywordsCache.forEach((value, key) => {
+      if (now - value.timestamp >= this.CACHE_EXPIRY) {
+        expiredKeys.push(key);
+      }
+    });
+    
+    expiredKeys.forEach(key => {
+      this.keywordsCache.delete(key);
+    });
+    
+    if (expiredKeys.length > 0) {
+      console.log('🧹 [缓存清理] 清理过期缓存:', expiredKeys.length, '个条目');
+    }
+  }
+
+  /**
+   * 手动清空所有缓存
+   */
+  static clearAllCache(): void {
+    this.keywordsCache.clear();
+    console.log('🧹 [缓存清理] 清空所有缓存');
+  }
+
+  /**
+   * 获取缓存统计信息
+   */
+  static getCacheStats(): { size: number; entries: Array<{ knowledgeBaseId: string; keywordCount: number; age: number }> } {
+    const now = Date.now();
+    const entries = Array.from(this.keywordsCache.entries()).map(([knowledgeBaseId, data]) => ({
+      knowledgeBaseId,
+      keywordCount: data.keywords.length,
+      age: now - data.timestamp
+    }));
+    
+    return {
+      size: this.keywordsCache.size,
+      entries
+    };
   }
 
   /**

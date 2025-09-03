@@ -32,6 +32,8 @@ export const KnowledgeEntryForm: React.FC<KnowledgeEntryFormProps> = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isAddingKeyword, setIsAddingKeyword] = useState(false);
+  const [newKeywordValue, setNewKeywordValue] = useState('');
 
   const isEditing = !!entry;
 
@@ -67,8 +69,8 @@ export const KnowledgeEntryForm: React.FC<KnowledgeEntryFormProps> = ({
 
     if (!formData.explanation.trim()) {
       newErrors.explanation = '解释内容不能为空';
-    } else if (formData.explanation.trim().length < 10) {
-      newErrors.explanation = '解释内容至少需要10个字符';
+    } else if (formData.explanation.trim().length < 5) {
+      newErrors.explanation = '解释内容至少需要5个字符';
     } else if (formData.explanation.trim().length > 2000) {
       newErrors.explanation = '解释内容不能超过2000个字符';
     }
@@ -129,17 +131,43 @@ export const KnowledgeEntryForm: React.FC<KnowledgeEntryFormProps> = ({
     }
   };
 
-  const addKeyword = () => {
-    setFormData(prev => ({
-      ...prev,
-      keywords: [...prev.keywords, '']
-    }));
+  const startAddingKeyword = () => {
+    setIsAddingKeyword(true);
+    setNewKeywordValue('');
+  };
+
+  const confirmAddKeyword = () => {
+    if (newKeywordValue.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        keywords: [...prev.keywords.filter(k => k.trim()), newKeywordValue.trim()]
+      }));
+    }
+    setIsAddingKeyword(false);
+    setNewKeywordValue('');
+    
+    // 清除关键词错误
+    if (errors.keywords) {
+      setErrors(prev => ({ ...prev, keywords: '' }));
+    }
+  };
+
+  const cancelAddKeyword = () => {
+    setIsAddingKeyword(false);
+    setNewKeywordValue('');
   };
 
   const removeKeyword = (index: number) => {
-    if (formData.keywords.length > 1) {
-      const newKeywords = formData.keywords.filter((_, i) => i !== index);
-      setFormData(prev => ({ ...prev, keywords: newKeywords }));
+    const newKeywords = formData.keywords.filter((_, i) => i !== index);
+    setFormData(prev => ({ ...prev, keywords: newKeywords }));
+  };
+
+  const handleNewKeywordKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmAddKeyword();
+    } else if (e.key === 'Escape') {
+      cancelAddKeyword();
     }
   };
 
@@ -162,129 +190,126 @@ export const KnowledgeEntryForm: React.FC<KnowledgeEntryFormProps> = ({
     <dialog ref={modalRef} className="modal">
       <div className="modal-box w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* 表单头部 */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-base-content">
+            {isEditing ? '编辑知识条目' : '添加知识条目'}
+          </h2>
           <button
             onClick={handleClose}
-            className="btn btn-ghost btn-circle"
+            className="btn btn-sm btn-circle btn-ghost"
           >
             <X className="w-5 h-5" />
           </button>
-          <h3 className="text-xl font-semibold text-base-content">
-            {isEditing ? '编辑知识条目' : '添加知识条目'}
-          </h3>
         </div>
 
         {/* 表单内容 */}
         <form onSubmit={handleSubmit}>
-          {/* 条目名称 */}
-          <div className="form-control mb-6">
-            <label className="label">
-              <span className="label-text">
-                条目名称 <span className="text-error">*</span>
-              </span>
-            </label>
-            <input
-              type="text"
-              id="name"
-              value={formData.name}
-              onChange={(e) => handleInputChange('name', e.target.value)}
-              className={`input input-bordered w-full ${
-                errors.name ? 'input-error' : ''
-              }`}
-              placeholder="请输入条目名称"
-              maxLength={100}
-            />
-            {errors.name && (
+          <div className="space-y-4">
+            {/* 条目名称 */}
+            <fieldset className="fieldset">
+              <legend className="fieldset-legend">条目名称 *</legend>
+              <input
+                type="text"
+                id="name"
+                value={formData.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                className={`input input-bordered w-full ${
+                  errors.name ? 'input-error' : ''
+                }`}
+                placeholder="请输入条目名称"
+                maxLength={100}
+              />
+              {errors.name && (
+                <label className="label label-padding">
+                  <span className="label-text-alt text-error">{errors.name}</span>
+                </label>
+              )}
               <label className="label">
-                <span className="label-text-alt text-error">{errors.name}</span>
+                <span className="label-text-alt">
+                  {formData.name.length}/100 字符
+                </span>
               </label>
-            )}
-            <label className="label">
-              <span className="label-text-alt">
-                {formData.name.length}/100 字符
-              </span>
-            </label>
-          </div>
+            </fieldset>
 
-          {/* 关键词 */}
-          <div className="form-control mb-6">
-            <label className="label">
-              <span className="label-text">
-                关键词 <span className="text-error">*</span>
-              </span>
-            </label>
-            <div className="space-y-2">
-              {formData.keywords.map((keyword, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-base-content/60" />
-                  <input
-                    type="text"
-                    value={keyword}
-                    onChange={(e) => handleKeywordChange(index, e.target.value)}
-                    className="input input-bordered flex-1"
-                    placeholder="请输入关键词"
-                    maxLength={50}
-                  />
-                  {formData.keywords.length > 1 && (
+            {/* 关键词 */}
+            <fieldset className="fieldset">
+              <legend className="fieldset-legend">关键词 *</legend>
+              <div className="space-y-3">
+                {/* 关键词标签列表 */}
+                <div className="flex flex-wrap gap-2">
+                  {formData.keywords.filter(k => k.trim()).map((keyword, index) => (
+                    <div key={index} className="badge border-base-content/10 bg-base-200 gap-2 px-3 py-0 h-auto">
+                      <span className="text-sm">{keyword}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeKeyword(index)}
+                        className="btn btn-ghost btn-xs btn-circle text-error hover:bg-error hover:text-error-content ml-1"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* 新建关键词输入框或按钮 */}
+                  {isAddingKeyword ? (
+                    <div className="badge gap-2 px-0 py-0 h-auto border-none">
+                      <input
+                        type="text"
+                        value={newKeywordValue}
+                        onChange={(e) => setNewKeywordValue(e.target.value)}
+                        onKeyDown={handleNewKeywordKeyPress}
+                        onBlur={confirmAddKeyword}
+                        className="input bg-transparent text-sm text-content placeholder-primary-content/70 w-20 min-w-[80px]"
+                        placeholder="输入关键词"
+                        maxLength={50}
+                        autoFocus
+                      />
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => removeKeyword(index)}
-                      className="btn btn-ghost btn-sm btn-circle text-error"
+                      onClick={startAddingKeyword}
+                      className="btn btn-dash border-base-content/20 gap-1 px-3 py-2 h-auto cursor-pointer transition-colors"
                     >
-                      <Minus className="w-4 h-4" />
+                      <Plus className="w-3 h-3" />
+                      <span className="text-sm">新建</span>
                     </button>
                   )}
                 </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={addKeyword}
-              className="btn btn-ghost btn-sm gap-2 mt-2 self-start"
-            >
-              <Plus className="w-4 h-4" />
-              添加关键词
-            </button>
-            {errors.keywords && (
-              <label className="label">
-                <span className="label-text-alt text-error">{errors.keywords}</span>
-              </label>
-            )}
-            <label className="label">
-              <span className="label-text-alt">
-                关键词用于在聊天时触发知识库检索
-              </span>
-            </label>
-          </div>
+              </div>
 
-          {/* 解释内容 */}
-          <div className="form-control mb-6">
-            <label className="label">
-              <span className="label-text">
-                解释内容 <span className="text-error">*</span>
-              </span>
-            </label>
-            <textarea
-              id="explanation"
-              value={formData.explanation}
-              onChange={(e) => handleInputChange('explanation', e.target.value)}
-              rows={8}
-              className={`textarea textarea-bordered w-full resize-none ${
-                errors.explanation ? 'textarea-error' : ''
-              }`}
-              placeholder="请输入详细的解释内容，这将作为系统提示词插入到聊天中"
-              maxLength={2000}
-            />
-            {errors.explanation && (
+              {errors.keywords && (
+                <label className="label">
+                  <span className="label-text-alt text-error">{errors.keywords}</span>
+                </label>
+              )}
+            </fieldset>
+
+            {/* 解释内容 */}
+            <fieldset className="fieldset">
+              <legend className="fieldset-legend">解释内容 *</legend>
+              <textarea
+                id="explanation"
+                value={formData.explanation}
+                onChange={(e) => handleInputChange('explanation', e.target.value)}
+                rows={8}
+                className={`textarea textarea-bordered w-full resize-none ${
+                  errors.explanation ? 'textarea-error' : ''
+                }`}
+                placeholder="请输入详细的解释内容，这将作为系统提示词插入到聊天中"
+                maxLength={2000}
+              />
+              {errors.explanation && (
+                <label className="label">
+                  <span className="label-text-alt text-error">{errors.explanation}</span>
+                </label>
+              )}
               <label className="label">
-                <span className="label-text-alt text-error">{errors.explanation}</span>
+                <span className="label-text-alt">
+                  {formData.explanation.length}/2000 字符
+                </span>
               </label>
-            )}
-            <label className="label">
-              <span className="label-text-alt">
-                {formData.explanation.length}/2000 字符
-              </span>
-            </label>
+            </fieldset>
           </div>
 
           {/* 表单按钮 */}

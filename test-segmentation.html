@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分词功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-container {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .result {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>分词功能测试</h1>
+    
+    <div class="test-container">
+        <h3>测试文本：</h3>
+        <input type="text" id="testText" value="我喜欢使用人工智能技术来解决复杂的问题" style="width: 100%; padding: 8px;">
+        <br><br>
+        <button onclick="testSegmentation()">测试分词</button>
+        
+        <div class="result">
+            <h4>分词结果：</h4>
+            <div id="result">点击按钮开始测试...</div>
+        </div>
+        
+        <div class="result">
+            <h4>控制台日志：</h4>
+            <div id="logs">等待测试...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        // 模拟 ChatEnhancementService 的关键部分
+        
+        // jieba-wasm 加载状态
+        let jiebaLoaded = false;
+        let jiebaLoading = false;
+        
+        // 动态加载 jieba-wasm
+        async function loadJieba() {
+            if (jiebaLoaded && window.jieba) {
+                return true;
+            }
+            
+            if (jiebaLoading) {
+                while (jiebaLoading && !jiebaLoaded) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                return jiebaLoaded && !!window.jieba;
+            }
+            
+            jiebaLoading = true;
+            
+            try {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/jieba-wasm@0.0.2/dist/jieba.js';
+                script.async = true;
+                
+                const loadPromise = new Promise((resolve, reject) => {
+                    script.onload = () => {
+                        console.log('✅ jieba-wasm 加载成功');
+                        jiebaLoaded = true;
+                        jiebaLoading = false;
+                        resolve(true);
+                    };
+                    
+                    script.onerror = () => {
+                        console.error('❌ jieba-wasm 加载失败');
+                        jiebaLoading = false;
+                        reject(new Error('Failed to load jieba-wasm'));
+                    };
+                    
+                    setTimeout(() => {
+                        if (!jiebaLoaded) {
+                            console.error('⏰ jieba-wasm 加载超时');
+                            jiebaLoading = false;
+                            reject(new Error('jieba-wasm load timeout'));
+                        }
+                    }, 10000);
+                });
+                
+                document.head.appendChild(script);
+                return await loadPromise;
+            } catch (error) {
+                console.error('❌ jieba-wasm 加载异常:', error);
+                jiebaLoading = false;
+                return false;
+            }
+        }
+        
+        // 测试分词功能
+        async function extractKeywords(message) {
+            console.log('🔤 开始提取关键词，原始消息:', message);
+            
+            const config = {
+                minLength: 2,
+                maxKeywords: 10,
+                stopWords: ['的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '那', '里', '就是', '还是', '把', '比', '或者', '因为', '所以', '但是', '如果', '这样', '那样', '怎么', '什么', '哪里', '为什么', '怎样']
+            };
+            
+            const cleanMessage = message
+                .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            
+            console.log('🧹 清理后的文本:', cleanMessage);
+            
+            if (!cleanMessage) {
+                console.log('⚠️ 清理后文本为空');
+                return [];
+            }
+            
+            const words = [];
+            
+            // 处理英文单词
+            const englishWords = cleanMessage.match(/[a-zA-Z0-9]+/g) || [];
+            console.log('🔤 英文匹配结果:', englishWords);
+            words.push(...englishWords.map(word => word.toLowerCase()));
+            
+            // 处理中文
+            const chineseText = cleanMessage.replace(/[a-zA-Z0-9\s]/g, '');
+            console.log('🈳 中文文本:', chineseText);
+            
+            if (chineseText) {
+                try {
+                    const jiebaAvailable = await loadJieba();
+                    
+                    if (jiebaAvailable && window.jieba) {
+                        console.log('🔪 使用 jieba-wasm 进行分词');
+                        
+                        const chineseWords = window.jieba.cut(chineseText, true);
+                        console.log('🔪 jieba-wasm 分词结果:', chineseWords);
+                        
+                        const validChineseWords = chineseWords.filter(word => 
+                            word.trim().length >= config.minLength && 
+                            /[\u4e00-\u9fa5]/.test(word)
+                        );
+                        
+                        console.log('📝 有效中文词汇:', validChineseWords);
+                        words.push(...validChineseWords);
+                    } else {
+                        throw new Error('jieba-wasm 不可用');
+                    }
+                } catch (error) {
+                    console.error('❌ jieba-wasm 分词失败，回退到滑动窗口:', error);
+                    
+                    // 回退到滑动窗口方法
+                    for (let i = 0; i < chineseText.length; i++) {
+                        if (i + 1 < chineseText.length) {
+                            const word2 = chineseText.substring(i, i + 2);
+                            words.push(word2);
+                        }
+                        if (i + 2 < chineseText.length) {
+                            const word3 = chineseText.substring(i, i + 3);
+                            words.push(word3);
+                        }
+                        if (i + 3 < chineseText.length) {
+                            const word4 = chineseText.substring(i, i + 4);
+                            words.push(word4);
+                        }
+                    }
+                }
+            }
+            
+            console.log('📋 分词结果:', words);
+            
+            // 过滤和去重
+            const filteredWords = words
+                .filter(word => {
+                    const shouldKeep = word.length >= config.minLength &&
+                        !config.stopWords.includes(word.toLowerCase());
+                    if (!shouldKeep) {
+                        console.log('🚫 过滤词:', word);
+                    }
+                    return shouldKeep;
+                })
+                .filter((word, index, arr) => arr.indexOf(word) === index);
+            
+            console.log('🔍 过滤后结果:', filteredWords);
+            
+            // 按长度和出现频率排序
+            const wordFreq = new Map();
+            filteredWords.forEach(word => {
+                wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
+            });
+            
+            const finalKeywords = Array.from(wordFreq.entries())
+                .sort((a, b) => {
+                    if (a[1] !== b[1]) return b[1] - a[1];
+                    return b[0].length - a[0].length;
+                })
+                .slice(0, config.maxKeywords)
+                .map(([word]) => word);
+            
+            console.log('✅ 最终关键词:', finalKeywords);
+            
+            return finalKeywords;
+        }
+        
+        // 全局测试函数
+        window.testSegmentation = async function() {
+            const testText = document.getElementById('testText').value;
+            const resultDiv = document.getElementById('result');
+            const logsDiv = document.getElementById('logs');
+            
+            resultDiv.innerHTML = '正在测试...';
+            logsDiv.innerHTML = '正在处理...';
+            
+            // 捕获控制台日志
+            const logs = [];
+            const originalLog = console.log;
+            const originalError = console.error;
+            
+            console.log = function(...args) {
+                logs.push('[LOG] ' + args.join(' '));
+                originalLog.apply(console, args);
+            };
+            
+            console.error = function(...args) {
+                logs.push('[ERROR] ' + args.join(' '));
+                originalError.apply(console, args);
+            };
+            
+            try {
+                const keywords = await extractKeywords(testText);
+                resultDiv.innerHTML = `<strong>关键词：</strong>${keywords.join(', ')}`;
+            } catch (error) {
+                resultDiv.innerHTML = `<strong>错误：</strong>${error.message}`;
+            }
+            
+            // 恢复控制台
+            console.log = originalLog;
+            console.error = originalError;
+            
+            // 显示日志
+            logsDiv.innerHTML = logs.join('<br>');
+        };
+    </script>
+</body>
+</html>

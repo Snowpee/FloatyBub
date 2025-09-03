@@ -104,7 +104,7 @@ export const KnowledgeEntryManager: React.FC<KnowledgeEntryManagerProps> = ({
 
   return (
     <div 
-      className="min-h-screen bg-base-100 p-0 knowledge-entry-manager"
+      className="min-h-screen bg-base-100 knowledge-entry-manager"
       data-knowledge-page
       data-is-detail-view="true"
       data-detail-title={knowledgeBase.name}
@@ -127,20 +127,22 @@ export const KnowledgeEntryManager: React.FC<KnowledgeEntryManagerProps> = ({
           </p>
 
           {/* 统计信息 */}
-          <div className="card bg-base-200 p-4">
-            <div className="flex items-center gap-6 text-sm text-base-content/70">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                <span>共 {knowledgeEntries.length} 个条目</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4" />
-                <span>
-                  共 {new Set(knowledgeEntries.flatMap(entry => entry.keywords)).size} 个关键词
-                </span>
+          {knowledgeEntries.length > 0 && (
+            <div className="card bg-base-200 p-4">
+              <div className="flex items-center gap-6 text-sm text-base-content/70">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  <span>共 {knowledgeEntries.length} 个条目</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4" />
+                  <span>
+                    共 {new Set(knowledgeEntries.flatMap(entry => entry.keywords)).size} 个关键词
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* 错误提示 */}
@@ -156,38 +158,33 @@ export const KnowledgeEntryManager: React.FC<KnowledgeEntryManagerProps> = ({
           </div>
         )}
 
-        {/* 操作栏 */}
-        <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between">
-          {/* 搜索框 */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="搜索条目名称、关键词或内容..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input input-bordered w-full pl-10"
-            />
-          </div>
+        {/* 操作栏 - 仅在有条目时显示 */}
+        {knowledgeEntries.length > 0 && (
+          <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between">
+            {/* 搜索框 */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="搜索条目名称、关键词或内容..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="input input-bordered w-full pl-10"
+              />
+            </div>
 
-          {/* 操作按钮 */}
-          <div className="flex gap-2">
-            <button
-              onClick={handleImport}
-              className="btn btn-outline gap-2"
-            >
-              <FileText className="w-4 h-4" />
-              批量导入
-            </button>
-            <button
-              onClick={handleCreateEntry}
-              className="btn btn-primary gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              添加条目
-            </button>
+            {/* 操作按钮 */}
+            <div className="flex gap-2">
+              <button
+                onClick={handleCreateEntry}
+                className="btn btn-primary gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                添加条目
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 条目列表 */}
         {loading ? (

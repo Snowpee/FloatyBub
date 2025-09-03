@@ -151,7 +151,7 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
         </div>
         <button
           onClick={handleAdd}
-          className="btn btn-outline-light md:btn-neutral w-full md:w-auto"
+          className="btn btn-outline-light md:btn-primary w-full md:w-auto"
         >
           <Plus className="h-4 w-4 mr-2" />
           添加全局提示词

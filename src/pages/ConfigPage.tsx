@@ -395,7 +395,7 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
         </div>
         <button
           onClick={handleAdd}
-          className="btn btn-outline-light md:btn-neutral w-full md:w-auto"
+          className="btn btn-outline-light md:btn-primary w-full md:w-auto"
         >
           <Plus className="h-4 w-4" />
           添加模型配置

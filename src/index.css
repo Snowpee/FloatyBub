@@ -83,6 +83,14 @@ code:not(pre > code)  {
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1), 0 0 0 var(--border) color-mix(in oklab, var(--color-base-content) 5%, #0000);
   }
 }
+.fieldset {
+  .fieldset-legend.legend-padding{
+    padding-left: calc(.75rem + var(--border));
+  }
+  .label.label-padding {
+    padding-left: calc(.75rem + var(--border));
+  }
+}
 /* 文档模式下的样式 */
 .chat-box {
   column-gap: unset;

@@ -123,7 +123,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
 
   return (
     <div 
-      className="p-6" 
+      className="p-6 md:pt-0" 
       data-knowledge-page
       data-is-detail-view={showEntryManager ? 'true' : 'false'}
       data-detail-title={selectedKnowledgeBase?.name || ''}
@@ -142,12 +142,12 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h1 className="text-2xl font-bold text-base-content">知识库管理</h1>
+                {/* <h1 className="text-2xl font-bold text-base-content">知识库管理</h1> */}
                 <p className="text-base-content/70 mt-1">管理您的知识库和知识条目</p>
               </div>
               <button
                 onClick={handleCreateKnowledgeBase}
-                className="btn btn-primary btn-sm gap-2"
+                className="btn btn-primary gap-2"
               >
                 <Plus className="w-4 h-4" />
                 新建知识库
@@ -192,7 +192,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {filteredKnowledgeBases.map((knowledgeBase) => {
                 const stats = knowledgeBaseStats[knowledgeBase.id];
                 return (
@@ -217,7 +217,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
                         </div>
 
                         {/* 操作按钮 */}
-                        <div className="dropdown dropdown-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="dropdown dropdown-end transition-opacity">
                           <div tabIndex={0} role="button" className="btn btn-ghost btn-sm btn-circle">
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
@@ -280,7 +280,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
                       <div className="card-actions justify-end mt-4">
                         <button
                           onClick={() => handleViewKnowledgeBase(knowledgeBase)}
-                          className="btn btn-primary btn-sm"
+                          className="btn btn-sm"
                         >
                           查看详情
                         </button>
