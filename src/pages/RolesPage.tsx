@@ -46,7 +46,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
     openingMessages: [''],
     currentOpeningIndex: 0,
     avatar: '',
-    globalPromptId: '',
+    globalPromptId: '', // 向后兼容
+    globalPromptIds: [] as string[], // 新的多选提示词数组
     voiceModelId: '',
     knowledgeBaseId: ''
   });
@@ -78,6 +79,9 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
       // 获取角色关联的知识库ID
       const knowledgeBaseId = await KnowledgeService.getRoleKnowledgeBaseId(role.id);
       
+      // 处理向后兼容：如果有旧的globalPromptId但没有新的globalPromptIds，则迁移数据
+      const globalPromptIds = role.globalPromptIds || (role.globalPromptId ? [role.globalPromptId] : []);
+      
       setFormData({
         name: role.name,
         description: role.description,
@@ -85,7 +89,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
         openingMessages: role.openingMessages || [''],
         currentOpeningIndex: role.currentOpeningIndex || 0,
         avatar: role.avatar,
-        globalPromptId: role.globalPromptId || '',
+        globalPromptId: role.globalPromptId || '', // 向后兼容
+        globalPromptIds: globalPromptIds,
         voiceModelId: role.voiceModelId || '',
         knowledgeBaseId: knowledgeBaseId || ''
       });
@@ -95,6 +100,9 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
     } catch (error) {
       console.error('获取角色知识库关联失败:', error);
       // 即使获取失败也允许编辑，只是不显示知识库关联
+      // 处理向后兼容：如果有旧的globalPromptId但没有新的globalPromptIds，则迁移数据
+      const globalPromptIds = role.globalPromptIds || (role.globalPromptId ? [role.globalPromptId] : []);
+      
       setFormData({
         name: role.name,
         description: role.description,
@@ -102,7 +110,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
         openingMessages: role.openingMessages || [''],
         currentOpeningIndex: role.currentOpeningIndex || 0,
         avatar: role.avatar,
-        globalPromptId: role.globalPromptId || '',
+        globalPromptId: role.globalPromptId || '', // 向后兼容
+        globalPromptIds: globalPromptIds,
         voiceModelId: role.voiceModelId || '',
         knowledgeBaseId: ''
       });
@@ -125,7 +134,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
       openingMessages: [''],
       currentOpeningIndex: 0,
       avatar: generateRandomAvatar(),
-      globalPromptId: '',
+      globalPromptId: '', // 向后兼容
+      globalPromptIds: [],
       voiceModelId: '',
       knowledgeBaseId: ''
     });
@@ -149,7 +159,10 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
     const roleData = {
       ...formData,
       openingMessages: filteredOpeningMessages,
-      currentOpeningIndex: Math.min(formData.currentOpeningIndex, filteredOpeningMessages.length - 1)
+      currentOpeningIndex: Math.min(formData.currentOpeningIndex, filteredOpeningMessages.length - 1),
+      // 向后兼容：如果有globalPromptIds，设置第一个为globalPromptId
+      globalPromptId: formData.globalPromptIds.length > 0 ? formData.globalPromptIds[0] : '',
+      globalPromptIds: formData.globalPromptIds
     };
 
     try {
@@ -203,7 +216,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
           openingMessages: [''],
           currentOpeningIndex: 0,
           avatar: '',
-          globalPromptId: '',
+          globalPromptId: '', // 向后兼容
+          globalPromptIds: [],
           voiceModelId: '',
           knowledgeBaseId: ''
         });
@@ -446,29 +460,79 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
 
               {/* 提示词配置 */}
               <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4"> 
-                <legend className="fieldset-legend">附加提示词</legend>          
-                <label className="select w-full">
-                  {/* <span className="label">附加提示词（可选）</span> */}
-                  <select
-                    value={formData.globalPromptId || ''}
-                    onChange={(e) => setFormData({ ...formData, globalPromptId: e.target.value })}
-                  >
-                    <option value="">不使用</option>
-                    {globalPrompts.map((prompt) => (
-                      <option key={prompt.id} value={prompt.id}>
-                        {prompt.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <p className="label">
-                  可从全局提示词选择。
-                </p>
-                {formData.globalPromptId && (
-                  <p className="label text-info text-sm mt-1">
-                    已选择全局提示词，保存后将在对话时自动应用
-                  </p>
+                <legend className="fieldset-legend">附加提示词</legend>
+                
+                {/* 已选择的提示词列表 */}
+                {formData.globalPromptIds.length > 0 && (
+                  <div className="space-y-2 mb-1">
+                    {formData.globalPromptIds.map((promptId) => {
+                      const prompt = globalPrompts.find(p => p.id === promptId);
+                      return (
+                        <div key={promptId} className="flex items-center justify-between bg-base-100 rounded-field p-1 pl-4 border-[length:var(--border)] border-base-300">
+                          <div className="flex-1">
+                            <h4 className="text-sm text-base-content">{prompt?.title || '未知提示词'}</h4>
+                            {prompt?.description && (
+                              <p className="text-sm text-base-content/60 mt-1">{prompt.description}</p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                globalPromptIds: prev.globalPromptIds.filter(id => id !== promptId)
+                              }));
+                            }}
+                            className="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                            title="删除此提示词"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
+                
+                {/* 添加提示词按钮和下拉选择器 */}
+                <div className="space-y-3">
+                  <label className="select w-full">
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        if (selectedId && !formData.globalPromptIds.includes(selectedId)) {
+                          setFormData(prev => ({
+                            ...prev,
+                            globalPromptIds: [...prev.globalPromptIds, selectedId]
+                          }));
+                        }
+                        // 重置选择器
+                        e.target.value = '';
+                      }}
+                    >
+                      <option value="">选择要添加的提示词...</option>
+                      {globalPrompts
+                        .filter(prompt => !formData.globalPromptIds.includes(prompt.id))
+                        .map((prompt) => (
+                          <option key={prompt.id} value={prompt.id}>
+                            {prompt.title}
+                          </option>
+                        ))
+                      }
+                    </select>
+                  </label>
+                  
+                  <p className="label">
+                    可添加多个全局提示词，它们将按顺序应用到对话中。
+                  </p>
+                  
+                  {formData.globalPromptIds.length > 0 && (
+                    <p className="label text-info text-sm">
+                      已选择 {formData.globalPromptIds.length} 个提示词，保存后将在对话时自动应用
+                    </p>
+                  )}
+                </div>
 
               </fieldset>
 

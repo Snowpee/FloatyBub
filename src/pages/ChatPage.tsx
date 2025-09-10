@@ -476,12 +476,16 @@ const ChatPage: React.FC = () => {
     }
     
     // 添加全局提示词（应用模板替换）
-    if (role.globalPromptId) {
-      const globalPrompt = globalPrompts.find(p => p.id === role.globalPromptId);
-      if (globalPrompt && globalPrompt.prompt.trim()) {
-        const processedPrompt = replaceTemplateVariables(globalPrompt.prompt.trim(), userName, charName);
-        parts.push(`[全局设置：${processedPrompt}]`);
-      }
+    // 支持新的globalPromptIds数组和旧的globalPromptId字段
+    const promptIds = role.globalPromptIds || (role.globalPromptId ? [role.globalPromptId] : []);
+    if (promptIds && promptIds.length > 0) {
+      promptIds.forEach(promptId => {
+        const globalPrompt = globalPrompts.find(p => p.id === promptId);
+        if (globalPrompt && globalPrompt.prompt.trim()) {
+          const processedPrompt = replaceTemplateVariables(globalPrompt.prompt.trim(), userName, charName);
+          parts.push(`[全局设置：${processedPrompt}]`);
+        }
+      });
     }
     
     // 添加角色提示词（应用模板替换）

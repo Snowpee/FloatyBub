@@ -99,7 +99,8 @@ export interface AIRole {
   openingMessages?: string[]; // 开场白数组
   currentOpeningIndex?: number; // 当前显示的开场白索引
   avatar?: string;
-  globalPromptId?: string; // 关联的全局提示词ID
+  globalPromptId?: string; // 关联的全局提示词ID（向后兼容）
+  globalPromptIds?: string[]; // 关联的多个全局提示词ID数组
   voiceModelId?: string; // 角色专属语音模型ID
   createdAt: Date;
   updatedAt: Date;
@@ -2033,7 +2034,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'ai-chat-storage',
-      version: 2, // 增加版本号以触发迁移
+      version: 3, // 增加版本号以触发迁移
       onRehydrateStorage: () => {
         console.log('🔄 zustand 开始恢复存储数据');
         return (state, error) => {
@@ -2070,6 +2071,30 @@ export const useAppStore = create<AppState>()(
             }))
           }));
         }
+        
+        // 数据迁移：将globalPromptId迁移到globalPromptIds数组
+        if (version < 3 && persistedState?.aiRoles) {
+          persistedState.aiRoles = persistedState.aiRoles.map((role: any) => {
+            // 如果角色有globalPromptId但没有globalPromptIds，进行迁移
+            if (role.globalPromptId && !role.globalPromptIds) {
+              return {
+                ...role,
+                globalPromptIds: [role.globalPromptId], // 将单个ID转换为数组
+                // 保留原字段用于向后兼容
+                globalPromptId: role.globalPromptId
+              };
+            }
+            // 如果没有globalPromptIds字段，初始化为空数组
+            if (!role.globalPromptIds) {
+              return {
+                ...role,
+                globalPromptIds: []
+              };
+            }
+            return role;
+          });
+        }
+        
         return persistedState;
       },
       partialize: (state) => ({

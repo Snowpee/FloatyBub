@@ -3,6 +3,61 @@
 import { KnowledgeService } from './knowledgeService';
 import type { KnowledgeEntry, KnowledgeBase } from '../types/knowledge';
 
+// WASM Jieba 分词器状态管理
+interface WasmJiebaState {
+  isLoaded: boolean;
+  isLoading: boolean;
+  jieba: any;
+  error: string | null;
+}
+
+const wasmJiebaState: WasmJiebaState = {
+  isLoaded: false,
+  isLoading: false,
+  jieba: null,
+  error: null
+};
+
+// 异步加载 WASM Jieba
+async function loadWasmJieba(): Promise<void> {
+  if (wasmJiebaState.isLoaded || wasmJiebaState.isLoading) {
+    return;
+  }
+
+  wasmJiebaState.isLoading = true;
+  wasmJiebaState.error = null;
+  
+  try {
+    console.info('🔄 [WASM分词] 开始加载 browser-wasm-jieba...');
+    
+    // 动态导入本地的 jieba WASM 模块
+    const { default: init, cut } = await import('../wasm/jieba_rs_wasm.js');
+    
+    // 初始化 WASM 模块，指定 WASM 文件路径
+    await init(new URL('../wasm/jieba_rs_wasm_bg.wasm', import.meta.url));
+    
+    // 保存 cut 函数到状态中
+    wasmJiebaState.jieba = { cut };
+    wasmJiebaState.isLoaded = true;
+    
+    console.info('✅ [WASM分词] browser-wasm-jieba 加载并初始化成功');
+  } catch (error) {
+    wasmJiebaState.error = error instanceof Error ? error.message : String(error);
+    console.warn('⚠️ [WASM分词] browser-wasm-jieba 加载失败，将使用备用分词方案:', error);
+  } finally {
+    wasmJiebaState.isLoading = false;
+  }
+}
+
+// 预加载 WASM 模块（可选）
+if (typeof window !== 'undefined') {
+  // 立即预加载，用于测试
+  console.log('🚀 [WASM预加载] 开始预加载 WASM 模块...');
+  loadWasmJieba().catch(error => {
+    console.log('🔄 [WASM预加载] 预加载失败，将在需要时重新加载:', error);
+  });
+}
+
 // 常用中文词汇和停用词
 const COMMON_CHINESE_WORDS = new Set([
   '我们', '你们', '他们', '这个', '那个', '什么', '怎么', '为什么', '因为', '所以',
@@ -18,29 +73,174 @@ const STOP_WORDS = new Set([
 ]);
 
 /**
- * 改进的中文分词函数
+ * 优化的滑动窗口分词函数（浏览器环境专用）
  */
-function improvedChineseSegment(text: string, minLength: number = 2): string[] {
+function optimizedChineseSegment(text: string, minLength: number = 2): string[] {
   const words: string[] = [];
   const textLength = text.length;
+  const wordSet = new Set<string>(); // 用于去重
   
-  // 使用滑动窗口提取不同长度的词汇
-  for (let i = 0; i < textLength; i++) {
-    // 提取2-4字词汇
-    for (let len = minLength; len <= Math.min(4, textLength - i); len++) {
+  // 对于长文本，使用更智能的策略减少分词数量
+  const isLongText = textLength > 50;
+  const maxWordLength = isLongText ? 3 : 4; // 长文本限制词长
+  const step = isLongText ? 2 : 1; // 长文本使用跳跃式窗口
+  
+  // 使用优化的滑动窗口提取词汇
+  for (let i = 0; i < textLength; i += step) {
+    // 提取2-3/4字词汇
+    for (let len = minLength; len <= Math.min(maxWordLength, textLength - i); len++) {
       const word = text.substring(i, i + len);
       
-      // 跳过停用词
-      if (STOP_WORDS.has(word)) continue;
+      // 跳过停用词和重复词
+      if (STOP_WORDS.has(word) || wordSet.has(word)) continue;
       
-      // 确保词汇包含中文字符
-      if (/[\u4e00-\u9fa5]/.test(word)) {
+      // 确保词汇包含中文字符且不全是重复字符
+      if (/[\u4e00-\u9fa5]/.test(word) && !isRepeatingChars(word)) {
         words.push(word);
+        wordSet.add(word);
       }
     }
   }
   
+  // 对于长文本，进一步筛选高质量词汇
+  if (isLongText && words.length > 100) {
+    return filterHighQualityWords(words, text);
+  }
+  
   return words;
+}
+
+/**
+ * 检查是否为重复字符组成的词
+ */
+function isRepeatingChars(word: string): boolean {
+  if (word.length <= 2) return false;
+  const firstChar = word[0];
+  return word.split('').every(char => char === firstChar);
+}
+
+/**
+ * 筛选高质量词汇
+ */
+function filterHighQualityWords(words: string[], originalText: string): string[] {
+  // 计算词频
+  const wordFreq = new Map<string, number>();
+  words.forEach(word => {
+    wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
+  });
+  
+  // 优先选择：
+  // 1. 长度较长的词（3-4字）
+  // 2. 出现频率适中的词（不是太频繁也不是只出现一次）
+  // 3. 包含常用字的词
+  return Array.from(wordFreq.entries())
+    .filter(([word, freq]) => {
+      // 过滤掉过于频繁的词（可能是无意义的组合）
+      if (freq > Math.max(3, originalText.length / 20)) return false;
+      // 保留长词和适度重复的词
+      return word.length >= 3 || freq >= 2;
+    })
+    .sort((a, b) => {
+      // 按词长和频率排序
+      const [wordA, freqA] = a;
+      const [wordB, freqB] = b;
+      if (wordA.length !== wordB.length) {
+        return wordB.length - wordA.length; // 长词优先
+      }
+      return freqB - freqA; // 频率高的优先
+    })
+    .slice(0, 50) // 限制最大数量
+    .map(([word]) => word);
+}
+
+/**
+ * 使用 WASM Jieba 进行中文分词
+ */
+function wasmChineseSegment(text: string): string[] {
+  if (!wasmJiebaState.isLoaded || !wasmJiebaState.jieba) {
+    console.warn('⚠️ [WASM分词] WASM 模块未加载，回退到滑动窗口分词');
+    return optimizedChineseSegment(text);
+  }
+
+  try {
+    // 使用 WASM jieba 进行分词
+    const segments = wasmJiebaState.jieba.cut(text, true);
+    
+    // 过滤停用词和短词
+    return segments
+      .filter((word: string) => 
+        word.trim().length > 0 && 
+        !STOP_WORDS.has(word.trim())
+      )
+      .map((word: string) => word.trim());
+  } catch (error) {
+    console.warn('⚠️ [WASM分词] 分词过程出错，回退到滑动窗口分词:', error);
+    return optimizedChineseSegment(text);
+  }
+}
+
+/**
+ * 智能中文分词函数
+ * 优先使用 WASM Jieba，失败时回退到滑动窗口分词
+ */
+async function smartChineseSegment(text: string, minLength: number = 2): Promise<string[]> {
+  const startTime = performance.now();
+  
+  try {
+    // 短文本（<20字）直接使用滑动窗口，避免 WASM 加载开销
+    if (text.length < 20) {
+      console.log('🔪 [分词] 短文本使用优化滑动窗口分词');
+      const result = optimizedChineseSegment(text, minLength);
+      const endTime = performance.now();
+      console.log(`⏱️ [分词] 滑动窗口分词耗时: ${(endTime - startTime).toFixed(2)}ms, 词汇数量: ${result.length}`);
+      return result;
+    }
+    
+    // 长文本优先尝试使用 WASM Jieba
+    try {
+      // 如果 WASM 未加载，尝试加载
+      if (!wasmJiebaState.isLoaded && !wasmJiebaState.isLoading) {
+        await loadWasmJieba();
+      }
+      
+      // 等待加载完成
+      while (wasmJiebaState.isLoading) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      
+      console.log('🔪 [分词] 长文本尝试使用 WASM Jieba 分词');
+      console.log('📝 [分词] 输入文本长度:', text.length, '字符');
+      console.log('📝 [分词] 输入文本末尾:', text.slice(-50));
+      
+      const segments = wasmChineseSegment(text);
+      console.log('📝 [分词] WASM 原始分词结果数量:', segments.length);
+      console.log('📝 [分词] WASM 原始分词结果末尾:', segments.slice(-10));
+      
+      // 过滤结果
+      const result = segments
+        .filter(word => word.length >= minLength)
+        .filter(word => !/^[\s\d]+$/.test(word)) // 过滤纯数字和空白
+        .slice(0, 100); // 增加限制数量到100个词汇
+      
+      const endTime = performance.now();
+      console.log(`⏱️ [分词] WASM Jieba 分词耗时: ${(endTime - startTime).toFixed(2)}ms, 词汇数量: ${result.length}`);
+      return result;
+    } catch (wasmError) {
+      // WASM Jieba 失败，回退到滑动窗口
+      console.log('🔪 [分词] WASM Jieba 不可用，回退到优化滑动窗口分词');
+      const result = optimizedChineseSegment(text, minLength);
+      const endTime = performance.now();
+      console.log(`⏱️ [分词] 回退分词耗时: ${(endTime - startTime).toFixed(2)}ms, 词汇数量: ${result.length}`);
+      return result;
+    }
+    
+  } catch (error) {
+    console.error('❌ [分词] 分词过程出错，使用备用方案:', error);
+    const result = optimizedChineseSegment(text, minLength);
+    const endTime = performance.now();
+    console.log(`⏱️ [分词] 错误恢复分词耗时: ${(endTime - startTime).toFixed(2)}ms, 词汇数量: ${result.length}`);
+    return result;
+  }
 }
 
 // 关键词提取配置
@@ -115,24 +315,29 @@ export class ChatEnhancementService {
     console.log('🔤 [ChatEnhancement] 英文匹配结果:', englishWords);
     words.push(...englishWords.map(word => word.toLowerCase()));
     
-    // 处理中文（使用改进的滑动窗口分词）
+    // 处理中文（使用智能分词）
     const chineseText = cleanMessage.replace(/[a-zA-Z0-9\s]/g, '');
     console.log('🈳 [ChatEnhancement] 中文文本:', chineseText);
     
     if (chineseText) {
-      console.log('🔪 [ChatEnhancement] 使用改进的滑动窗口进行中文分词');
+      console.log('🔪 [ChatEnhancement] 使用智能中文分词');
       
-      // 使用改进的中文分词
-      const chineseWords = improvedChineseSegment(chineseText, finalConfig.minLength);
-      console.log('🔪 [ChatEnhancement] 中文分词结果:', chineseWords);
-      
-      // 过滤掉过短的词汇
-      const validChineseWords = chineseWords.filter(word => 
-        word.trim().length >= finalConfig.minLength
-      );
-      
-      console.log('📝 [ChatEnhancement] 有效中文词汇:', validChineseWords);
-      words.push(...validChineseWords);
+      try {
+        // 使用异步智能中文分词
+        const chineseWords = await smartChineseSegment(chineseText, finalConfig.minLength);
+        console.log('🔪 [ChatEnhancement] 中文分词结果:', chineseWords);
+        
+        // 过滤掉过短的词汇
+        const validChineseWords = chineseWords.filter(word => 
+          word.trim().length >= finalConfig.minLength
+        );
+        
+        console.log('📝 [ChatEnhancement] 有效中文词汇:', validChineseWords);
+        words.push(...validChineseWords);
+      } catch (error) {
+        console.error('❌ [ChatEnhancement] 中文分词失败:', error);
+        // 分词失败时，至少保留英文词汇
+      }
     }
     
     console.log('📋 [ChatEnhancement] 分词结果:', words);
@@ -622,4 +827,73 @@ export class ChatEnhancementService {
     
     return JSON.stringify(debugInfo, null, 2);
   }
+
+  /**
+   * 获取 WASM Jieba 状态信息
+   */
+  static getWasmJiebaStatus(): {
+    isLoaded: boolean;
+    isLoading: boolean;
+    error: string | null;
+    hasJieba: boolean;
+  } {
+    return {
+      isLoaded: wasmJiebaState.isLoaded,
+      isLoading: wasmJiebaState.isLoading,
+      error: wasmJiebaState.error,
+      hasJieba: wasmJiebaState.jieba !== null
+    };
+  }
+
+  /**
+   * 手动重新加载 WASM Jieba
+   */
+  static async reloadWasmJieba(): Promise<boolean> {
+    // 重置状态
+    wasmJiebaState.isLoaded = false;
+    wasmJiebaState.isLoading = false;
+    wasmJiebaState.jieba = null;
+    wasmJiebaState.error = null;
+    
+    console.log('🔄 [WASM分词] 手动重新加载 WASM Jieba');
+    await loadWasmJieba();
+    return wasmJiebaState.isLoaded;
+  }
+}
+
+// 导出测试函数到全局作用域（仅在开发环境）
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
+  // @ts-ignore
+  window.testWasmSegment = async (text: string) => {
+    console.log('🧪 [测试] 开始测试 WASM 分词:', text);
+    const result = await wasmChineseSegment(text);
+    console.log('🧪 [测试] 分词结果:', result);
+    return result;
+  };
+  
+  // @ts-ignore
+  window.testOptimizedSegment = (text: string) => {
+    console.log('🧪 [测试] 开始测试优化分词:', text);
+    const result = optimizedChineseSegment(text);
+    console.log('🧪 [测试] 分词结果:', result);
+    return result;
+  };
+  
+  // @ts-ignore
+  window.getWasmStatus = () => {
+    const status = ChatEnhancementService.getWasmJiebaStatus();
+    console.log('🧪 [测试] WASM 状态:', status);
+    return status;
+  };
+  
+  // @ts-ignore
+  window.reloadWasm = () => {
+    return ChatEnhancementService.reloadWasmJieba();
+  };
+  
+  console.log('🧪 [测试] 分词测试函数已导出到全局作用域:');
+  console.log('  - window.testWasmSegment(text) - 测试 WASM 分词');
+  console.log('  - window.testOptimizedSegment(text) - 测试优化分词');
+  console.log('  - window.getWasmStatus() - 获取 WASM 状态');
+  console.log('  - window.reloadWasm() - 重新加载 WASM');
 }

@@ -711,7 +711,7 @@ const Layout: React.FC = () => {
                             {authLoading ? '加载中...' : '登录'}
                           </button>
                         </li>
-                        <li>
+                        {/* <li>
                           <button 
                             onClick={() => {
                               navigate('/settings/knowledge');
@@ -723,7 +723,7 @@ const Layout: React.FC = () => {
                             <BookOpen className="h-4 w-4" />
                             知识库
                           </button>
-                        </li>
+                        </li> */}
                         <li>
                           <button 
                             onClick={() => {

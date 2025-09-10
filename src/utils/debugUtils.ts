@@ -384,14 +384,150 @@ export const checkSyncStatus = async () => {
   }
 };
 
+/**
+ * 测试 WASM 分词功能
+ */
+export const testWasmSegment = async (text: string) => {
+  console.log('🧪 [测试] 开始 WASM 分词测试');
+  console.log('📝 [测试] 输入文本长度:', text.length);
+  console.log('📝 [测试] 输入文本末尾:', text.slice(-50));
+  
+  try {
+    // 直接调用全局测试函数
+    if (typeof (window as any).testWasmSegment === 'function') {
+      const startTime = performance.now();
+      const result = await (window as any).testWasmSegment(text);
+      const endTime = performance.now();
+      
+      console.log('⏱️ [测试] 分词耗时:', (endTime - startTime).toFixed(2) + 'ms');
+      console.log('🔢 [测试] 分词结果数量:', result.length);
+      console.log('📋 [测试] 分词结果:', result);
+      console.log('🔍 [测试] 最后10个词:', result.slice(-10));
+      
+      // 检查关键词
+      const hasOldHome = result.some(word => word.includes('老家'));
+      const hasWhere = result.some(word => word.includes('哪里'));
+      const hasIgnore = result.some(word => word.includes('忽略'));
+      
+      console.log('🔍 [测试] 关键词检查:');
+      console.log('  - 包含"老家":', hasOldHome ? '✅' : '❌');
+      console.log('  - 包含"哪里":', hasWhere ? '✅' : '❌');
+      console.log('  - 包含"忽略":', hasIgnore ? '✅' : '❌');
+      
+      return result;
+    } else {
+      console.warn('⚠️ [测试] 全局 testWasmSegment 函数不可用');
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ [测试] WASM 分词测试失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 测试优化分词功能（滑动窗口）
+ */
+export const testOptimizedSegment = async (text: string) => {
+  console.log('🧪 [测试] 开始优化分词测试');
+  
+  try {
+    // 直接调用全局测试函数
+    if (typeof (window as any).testOptimizedSegment === 'function') {
+      const startTime = performance.now();
+      const result = await (window as any).testOptimizedSegment(text);
+      const endTime = performance.now();
+      
+      console.log('⏱️ [测试] 优化分词耗时:', (endTime - startTime).toFixed(2) + 'ms');
+      console.log('🔢 [测试] 分词结果数量:', result.length);
+      console.log('📋 [测试] 分词结果:', result);
+      
+      return result;
+    } else {
+      console.warn('⚠️ [测试] 全局 testOptimizedSegment 函数不可用');
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ [测试] 优化分词测试失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 获取 WASM 状态
+ */
+export const getWasmStatus = async () => {
+  try {
+    // 直接调用全局状态函数
+    if (typeof (window as any).getWasmStatus === 'function') {
+      return await (window as any).getWasmStatus();
+    } else {
+      // 备用状态检查
+      const status = {
+        wasmLoaded: (window as any).wasmJieba ? true : false,
+        wasmJiebaAvailable: typeof (window as any).wasmJieba?.cut === 'function',
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('📊 [状态] WASM 状态:', status);
+      return status;
+    }
+  } catch (error) {
+    console.error('❌ [状态] 获取 WASM 状态失败:', error);
+    return { error: error.message };
+  }
+};
+
+/**
+ * 重新加载 WASM 模块
+ */
+export const reloadWasm = async () => {
+  console.log('🔄 [重载] 开始重新加载 WASM 模块');
+  
+  try {
+    // 直接调用全局重载函数
+    if (typeof (window as any).reloadWasm === 'function') {
+      return await (window as any).reloadWasm();
+    } else {
+      console.warn('⚠️ [重载] 全局重载函数不可用，尝试手动重载');
+      
+      // 清除现有的 WASM 模块
+      delete (window as any).wasmJieba;
+      
+      const { ChatEnhancementService } = await import('../services/chatEnhancementService');
+      
+      // 重新初始化（如果方法存在）
+      if (typeof ChatEnhancementService.reloadWasmJieba === 'function') {
+        await ChatEnhancementService.reloadWasmJieba();
+      } else {
+        console.warn('⚠️ [重载] ChatEnhancementService.reloadWasmJieba 方法不存在');
+      }
+      
+      console.log('✅ [重载] WASM 模块重新加载完成');
+      return await getWasmStatus();
+    }
+  } catch (error) {
+    console.error('❌ [重载] WASM 模块重新加载失败:', error);
+    throw error;
+  }
+};
+
 // 将函数挂载到 window 对象（在 main.tsx 中调用）
 export const attachDebugFunctions = () => {
   if (typeof window !== 'undefined') {
     (window as any).manualSync = manualSync;
     (window as any).checkSyncStatus = checkSyncStatus;
+    (window as any).testWasmSegment = testWasmSegment;
+    (window as any).testOptimizedSegment = testOptimizedSegment;
+    (window as any).getWasmStatus = getWasmStatus;
+    (window as any).reloadWasm = reloadWasm;
     
     console.log('🛠️  调试函数已挂载到 window 对象:');
     console.log('  - window.manualSync() - 手动触发同步');
     console.log('  - window.checkSyncStatus() - 检查同步状态');
+    console.log('  - window.testWasmSegment(text) - 测试 WASM 分词');
+    console.log('  - window.testOptimizedSegment(text) - 测试优化分词');
+    console.log('  - window.getWasmStatus() - 获取 WASM 状态');
+    console.log('  - window.reloadWasm() - 重新加载 WASM 模块');
   }
 };
