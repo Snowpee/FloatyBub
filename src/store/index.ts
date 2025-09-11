@@ -1450,19 +1450,6 @@ export const useAppStore = create<AppState>()(
 
       updateMessageWithReasoning: (sessionId, messageId, content, reasoningContent, isStreaming, isReasoningComplete, images) => {
         
-        // 添加调试日志记录images参数
-        console.log('🔧 [updateMessageWithReasoning] 函数调用:', {
-          sessionId: sessionId?.substring(0, 8) + '...',
-          messageId: messageId?.substring(0, 8) + '...',
-          hasContent: content !== undefined,
-          hasReasoningContent: reasoningContent !== undefined,
-          isStreaming,
-          isReasoningComplete,
-          hasImages: images !== undefined,
-          imagesLength: images ? images.length : 0,
-          imagesPreview: images ? images.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`) : 'undefined'
-        });
-        
         set((state) => {
           if (state.tempSession?.id === sessionId) {
             // 如果是临时会话，更新tempSession
@@ -1476,14 +1463,7 @@ export const useAppStore = create<AppState>()(
                     ...(reasoningContent !== undefined && { reasoningContent }),
                     ...(isStreaming !== undefined && { isStreaming }),
                     ...(isReasoningComplete !== undefined && { isReasoningComplete }),
-                    ...(images !== undefined && (() => {
-                      console.log('🔧 [updateMessageWithReasoning] 临时会话 - 设置images:', {
-                        messageId: messageId?.substring(0, 8) + '...',
-                        imagesLength: images.length,
-                        imagesContent: images.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`)
-                      });
-                      return { images };
-                    })()),
+                    ...(images !== undefined && { images }),
                     // 当流式输出完成时，更新versions数组
                     ...(isStreaming === false && content !== undefined && (() => {
                       const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
@@ -1515,14 +1495,7 @@ export const useAppStore = create<AppState>()(
                           ...(reasoningContent !== undefined && { reasoningContent }),
                           ...(isStreaming !== undefined && { isStreaming }),
                           ...(isReasoningComplete !== undefined && { isReasoningComplete }),
-                          ...(images !== undefined && (() => {
-                            console.log('🔧 [updateMessageWithReasoning] 正式会话 - 设置images:', {
-                              messageId: messageId?.substring(0, 8) + '...',
-                              imagesLength: images.length,
-                              imagesContent: images.map((img, i) => `${i + 1}: ${img.substring(0, 50)}...`)
-                            });
-                            return { images };
-                          })()),
+                          ...(images !== undefined && { images }),
                           // 当流式输出完成时，更新versions数组
                           ...(isStreaming === false && content !== undefined && (() => {
                             const newVersions = m.versions && m.versions.length > 0 && m.versions[0] !== '' ? 
@@ -1591,11 +1564,7 @@ export const useAppStore = create<AppState>()(
           newImagesCount: newImages ? newImages.length : 0
         });
         
-        console.log('【流式图片问题调试】🔄 [版本添加] addMessageVersionWithOriginal接收到的图片数据:', {
-          newImages: newImages,
-          newImagesType: typeof newImages,
-          newImagesLength: newImages ? newImages.length : 0
-        });
+
         
         set((state) => {
           const targetSession = state.chatSessions.find(s => s.id === sessionId);
@@ -1721,13 +1690,7 @@ export const useAppStore = create<AppState>()(
             .find(s => s.id === sessionId)?.messages
             .find(m => m.id === messageId);
           
-          console.log('【流式图片问题调试】✅ [状态更新] 消息状态已更新:', {
-            messageId: messageId.substring(0, 8) + '...',
-            hasImages: updatedMessage?.images && updatedMessage.images.length > 0,
-            imagesCount: updatedMessage?.images ? updatedMessage.images.length : 0,
-            images: updatedMessage?.images,
-            contentLength: updatedMessage?.content ? updatedMessage.content.length : 0
-          });
+
           
           return updatedState;
         });

@@ -5,7 +5,8 @@ import {
   Edit,
   Trash2,
   Save,
-  X
+  X,
+  GripVertical
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
@@ -465,10 +466,40 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                 {/* 已选择的提示词列表 */}
                 {formData.globalPromptIds.length > 0 && (
                   <div className="space-y-2 mb-1">
-                    {formData.globalPromptIds.map((promptId) => {
+                    {formData.globalPromptIds.map((promptId, index) => {
                       const prompt = globalPrompts.find(p => p.id === promptId);
                       return (
-                        <div key={promptId} className="flex items-center justify-between bg-base-100 rounded-field p-1 pl-4 border-[length:var(--border)] border-base-300">
+                        <div 
+                          key={promptId} 
+                          className="flex items-center justify-between bg-base-100 rounded-field p-1 pl-2 border-[length:var(--border-width)] border-base-300 cursor-move hover:bg-base-200 transition-colors"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', index.toString());
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                            const hoverIndex = index;      
+                            if (dragIndex !== hoverIndex) {
+                              setFormData(prev => {
+                                const newPromptIds = [...prev.globalPromptIds];
+                                const draggedItem = newPromptIds[dragIndex];
+                                newPromptIds.splice(dragIndex, 1);
+                                newPromptIds.splice(hoverIndex, 0, draggedItem);
+                                return {
+                                  ...prev,
+                                  globalPromptIds: newPromptIds
+                                };
+                              });
+                            }
+                          }}
+                        >
+                          <div className="flex items-center text-base-content/40 mr-2">
+                            <GripVertical className="h-4 w-4" />
+                          </div>
                           <div className="flex-1">
                             <h4 className="text-sm text-base-content">{prompt?.title || '未知提示词'}</h4>
                             {prompt?.description && (
@@ -483,7 +514,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
                                 globalPromptIds: prev.globalPromptIds.filter(id => id !== promptId)
                               }));
                             }}
-                            className="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                            className="btn btn-ghost btn-circle btn-sm text-error hover:bg-error/10"
                             title="删除此提示词"
                           >
                             <X className="h-4 w-4" />
