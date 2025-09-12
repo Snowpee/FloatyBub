@@ -1,6 +1,6 @@
-# AI聊天工具 🤖
+# Floaty Bub 🫧
 
-一个现代化的AI聊天工具，支持多种大语言模型，提供流畅的对话体验和丰富的自定义功能。
+一个基于 React + TypeScript 的现代化智能对话助手应用，集成了多角色对话、知识库管理、语音交互、数据同步等丰富功能。
 
 > 使用 [TRAE SOLO](https://trae.ai) 开发
 
@@ -9,49 +9,60 @@
 ## ✨ 功能特性
 
 ### 🎯 核心功能
-- **多模型支持**: 支持 ChatGPT、Claude、DeepSeek…等主流大语言模型
-- **流式输出**: 实时显示AI回复，提供流畅的对话体验
+- **多模型支持**: 支持 Kimi、Moonshot、OpenAI、Claude、Gemini 等主流大语言模型
+- **流式响应**: 实时显示AI回复，支持流式文本和图片生成
 - **智能角色系统**: 支持自定义AI角色、系统提示词和个性化开场白
-- **用户资料管理**: 支持多用户资料切换，个性化对话体验
-- **全局提示词**: 可复用的提示词模板，提升对话质量
-- **语音功能**: 集成 Fish Audio TTS，支持文本转语音
+- **知识库管理**: 完整的知识库CRUD、条目管理、批量导入、智能搜索
+- **用户认证系统**: 基于Supabase的完整用户管理和数据隔离
+- **数据同步**: 云端实时同步、离线支持、多设备无缝切换
+- **全局提示词**: 可复用的提示词模板，支持拖拽排序
+- **语音功能**: 集成 Fish Audio TTS，支持文本转语音和音频可视化
 - **会话管理**: 完整的聊天历史记录、会话搜索和分类管理
 - **配置管理**: 灵活的模型配置和API密钥管理
 - **数据导入导出**: 支持完整的数据备份和迁移
 
 ### 🎨 用户体验
-- **现代化界面**: 基于 DaisyUI 的精美设计系统
+- **现代化界面**: 基于 DaisyUI 5.0 的精美设计系统
 - **多主题支持**: 支持亮色、深色、纸杯蛋糕、浮光等多种主题
 - **响应式设计**: 完美适配桌面端和移动端，优化移动端交互
+- **拖拽交互**: 支持提示词列表拖拽排序，直观的用户操作
 - **智能通知**: 优雅通知系统，支持 DaisyUI 样式
-- **本地存储**: 安全的本地数据存储，保护隐私
+- **数据持久化**: 本地存储 + 云端同步，数据安全可靠
 
 ### 🔧 技术特色
 - **TypeScript**: 完整的类型安全保障
 - **组件化架构**: 高度模块化和可维护的代码结构
-- **状态管理**: 基于 Zustand 的轻量级状态管理
+- **状态管理**: 基于 Zustand 5.0 的轻量级状态管理
 - **实时通信**: Server-Sent Events 实现流式数据传输
+- **数据库集成**: Supabase 实时数据库，支持 RLS 权限控制
+- **智能搜索**: 基于 jieba-wasm 的中文分词和关键词匹配
 - **Markdown 渲染**: 支持代码高亮和 GitHub 风格的 Markdown
+- **性能优化**: 虚拟滚动、图片缓存、懒加载等优化策略
 - **移动端优化**: 针对移动设备的交互优化和适配
 
 ## 🛠️ 技术栈
 
-- **前端框架**: React 18 + TypeScript
-- **构建工具**: Vite 6
-- **样式方案**: Tailwind CSS 4 + DaisyUI 5
-- **状态管理**: Zustand 5
-- **路由管理**: React Router DOM 7
-- **图标库**: Lucide React
-- **Markdown**: React Markdown + Rehype Highlight
-- **代码高亮**: Highlight.js
+- **前端框架**: React 18.3.1 + TypeScript 5.8.3
+- **构建工具**: Vite 6.3.5
+- **样式方案**: Tailwind CSS 4.1.11 + DaisyUI 5.0.47
+- **状态管理**: Zustand 5.0.6
+- **路由管理**: React Router DOM 7.3.0
+- **数据库**: Supabase 2.53.0 (PostgreSQL + 实时订阅)
+- **图标库**: Lucide React 0.511.0
+- **Markdown**: React Markdown 10.1.0 + Rehype Highlight 7.0.2
+- **代码高亮**: Highlight.js 11.11.1
+- **中文分词**: jieba-wasm 2.2.0
 - **语音服务**: Fish Audio TTS API
+- **云存储**: AWS S3 (头像和文件存储)
 - **部署平台**: Vercel
 
 ## 🚀 快速开始
 
 ### 环境要求
-- Node.js 22.x (推荐) 或 18.0+
+- Node.js 22.x (推荐)
 - pnpm 或 npm
+- Supabase 项目 (用于数据同步)
+- Fish Audio API 密钥 (用于语音功能)
 
 ### 安装依赖
 ```bash
@@ -94,30 +105,40 @@ npm run build
 1. 在设置中进入"角色卡"页面
 2. 点击"添加角色"按钮
 3. 设置角色名称、描述、系统提示词和开场白
-4. 可选择关联全局提示词模板
-5. 上传自定义头像（可选）
-6. 保存角色设置
+4. 可选择关联全局提示词模板（支持拖拽排序）
+5. 可关联知识库，提供智能上下文增强
+6. 上传自定义头像（可选）
+7. 保存角色设置
 
-### 3. 配置用户资料
-1. 在设置中进入"用户角色"页面
-2. 创建或编辑用户资料
-3. 设置用户名、描述、个人信息等
-4. 可上传个人头像
-5. 切换不同用户资料以获得个性化体验
+### 3. 配置用户系统
+1. 注册或登录 Supabase 账户
+2. 在设置中进入"用户角色"页面
+3. 创建或编辑用户资料
+4. 设置用户名、描述、个人信息等
+5. 可上传个人头像
+6. 数据将自动同步到云端
 
-### 4. 语音功能设置
+### 4. 知识库管理
+1. 在设置中进入"知识库"页面
+2. 创建新的知识库
+3. 添加知识条目，设置关键词和解释
+4. 支持批量导入 JSON 格式的知识条目
+5. 在角色设置中关联知识库
+6. 对话时系统会自动检索相关知识
+
+### 5. 语音功能设置
 1. 在设置中进入"语音"页面
 2. 配置 Fish Audio API 密钥
 3. 选择语音模型和参数
 4. 测试语音合成功能
 
-### 5. 开始聊天
+### 6. 开始聊天
 1. 在首页选择AI角色
 2. 系统会自动显示角色的开场白
 3. 开始与AI对话
 4. 支持实时流式回复和 Markdown 渲染
 
-### 6. 管理会话
+### 7. 管理会话
 - 在"历史"页面查看所有会话
 - 支持按角色、模型、时间筛选会话
 - 支持会话搜索和导出
@@ -332,11 +353,7 @@ API_SECRET = your_secret_api_key_here // 后端 API 密钥
 - **错误率**：及时发现问题
 - **带宽使用**：控制成本
 
-### 💰 成本估算
-Vercel 免费计划包括：
-- **函数调用**：每月 100GB-小时
-- **带宽**：每月 100GB
-- **构建时间**：每月 6000 分钟
+
 
 对于中等使用量的 TTS 应用，免费计划通常足够使用。
 
@@ -581,54 +598,47 @@ alias qc='./quick-commit.sh'
 ## 📁 项目结构
 
 ```
-src/
-├── components/          # 可复用组件
-│   ├── Layout.tsx      # 应用布局组件
-│   ├── Avatar.tsx      # 头像组件
-│   ├── AvatarUpload.tsx # 头像上传组件
-│   ├── RoleAvatarUpload.tsx # 角色头像上传组件
-│   ├── ChatSessionList.tsx # 聊天会话列表
-│   ├── ConfirmDialog.tsx # 确认对话框组件
-│   ├── Empty.tsx       # 空状态组件
-│   ├── EmptyState.tsx  # 空状态组件
-│   ├── MarkdownRenderer.tsx # Markdown渲染器
-│   ├── Popconfirm.tsx  # 弹出确认组件
-│   ├── RoleSelector.tsx # 角色选择器
-│   ├── ToastContainer.tsx # 通知容器组件
-│   └── SettingsModal.tsx # 设置弹窗组件
-├── pages/              # 页面组件
-│   ├── Home.tsx        # 首页
-│   ├── ChatPage.tsx    # 聊天页面
-│   ├── ConfigPage.tsx  # 模型配置页面
-│   ├── RolesPage.tsx   # AI角色管理页面
-│   ├── userRolesPage.tsx # 用户资料管理页面
-│   ├── GlobalPromptsPage.tsx # 全局提示词页面
-│   ├── VoiceSettingsPage.tsx # 语音设置页面
-│   ├── HistoryPage.tsx # 聊天历史页面
-│   ├── DataPage.tsx    # 数据管理页面
-│   ├── SettingsPage.tsx # 设置页面
-│   ├── NotFound.tsx    # 404页面
-│   └── tests/          # 测试页面
-│       ├── VoiceTest.tsx # 语音测试页面
-│       └── ToastTestPage.tsx # 通知测试页面
-├── store/              # 状态管理
-│   └── index.ts        # Zustand store
-├── hooks/              # 自定义Hooks
-│   └── useToast.ts     # 通知Hook
-├── utils/              # 工具函数
-│   ├── avatarUtils.ts  # 头像工具函数
-│   └── templateUtils.ts # 模板工具函数
-├── router/             # 路由配置
-│   └── index.tsx       # 路由定义
-├── lib/                # 工具函数
-│   └── utils.ts        # 通用工具函数
-├── assets/             # 静态资源
-│   ├── avatar/         # 默认头像资源
-│   └── react.svg       # React图标
-├── App.tsx             # 应用主组件
-├── main.tsx            # 应用入口
-├── index.css           # 全局样式
-└── vite-env.d.ts       # Vite类型定义
+floaty-bub/
+├── src/
+│   ├── components/          # 组件目录
+│   │   ├── auth/           # 用户认证组件
+│   │   ├── chat/           # 聊天相关组件
+│   │   ├── knowledge/      # 知识库管理组件
+│   │   ├── settings/       # 设置页面组件
+│   │   ├── ui/             # 通用UI组件
+│   │   └── layout/         # 布局组件
+│   ├── pages/              # 页面组件
+│   │   ├── ChatPage.tsx    # 聊天页面
+│   │   ├── HistoryPage.tsx # 历史记录页面
+│   │   ├── RolesPage.tsx   # 角色管理页面
+│   │   ├── KnowledgePage.tsx # 知识库页面
+│   │   ├── KnowledgeManagement.tsx # 知识库管理
+│   │   ├── DataPage.tsx    # 数据管理页面
+│   │   ├── SettingsPage.tsx# 设置页面
+│   │   └── ConfigPage.tsx  # 配置页面
+│   ├── hooks/              # 自定义Hook
+│   │   ├── useDataSync.ts  # 数据同步Hook
+│   │   ├── useUserData.ts  # 用户数据Hook
+│   │   └── useKnowledge.ts # 知识库Hook
+│   ├── services/           # 服务层
+│   │   ├── DataSyncService.ts # 数据同步服务
+│   │   ├── supabase.ts     # Supabase客户端
+│   │   └── knowledge.ts    # 知识库服务
+│   ├── store/              # Zustand状态管理
+│   │   └── index.ts        # 全局状态
+│   ├── types/              # TypeScript类型定义
+│   │   ├── knowledge.ts    # 知识库类型
+│   │   ├── auth.ts         # 认证类型
+│   │   └── index.ts        # 通用类型
+│   └── utils/              # 工具函数
+├── api/                    # Vercel API路由
+│   ├── models.js          # 模型信息API
+│   ├── tts.js             # 语音合成API
+│   ├── model-info.js      # 模型详情API
+│   ├── health.js          # 健康检查API
+│   └── validate-key.js    # API密钥验证
+├── public/                # 静态资源
+└── package.json          # 项目配置
 ```
 
 ### 语音功能相关文件
@@ -652,10 +662,6 @@ tts-server/             # 本地TTS服务器
 ### 配置和工具文件
 ```
 ├── .env.example        # 环境变量模板
-├── .vercelignore       # Vercel忽略文件
-├── .vscode/            # VS Code配置
-├── .trae/              # TRAE AI配置
-│   └── documents/      # 项目文档
 ├── start-tts-server.sh # TTS服务器启动脚本
 ├── vercel.json         # Vercel 配置文件
 ├── tailwind.config.js  # Tailwind CSS 配置
