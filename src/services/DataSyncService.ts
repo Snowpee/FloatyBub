@@ -203,11 +203,13 @@ export class DataSyncService {
       name: data.name,
       prompt: data.systemPrompt,
       avatar: data.avatar,
+      global_prompt_ids: data.globalPromptIds || [], // 新的多个提示词ID数组
       settings: {
         description: data.description,
         openingMessages: data.openingMessages,
         currentOpeningIndex: data.currentOpeningIndex,
-        globalPromptId: data.globalPromptId,
+        globalPromptId: data.globalPromptId, // 保持向后兼容
+        globalPromptIds: data.globalPromptIds, // 新的多个提示词ID数组
         voiceModelId: data.voiceModelId
       },
       created_at: data.createdAt ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
@@ -400,7 +402,8 @@ export class DataSyncService {
       description: item.settings?.description || '',
       openingMessages: item.settings?.openingMessages || [],
       currentOpeningIndex: item.settings?.currentOpeningIndex || 0,
-      globalPromptId: item.settings?.globalPromptId || '',
+      globalPromptId: item.settings?.globalPromptId || '', // 保持向后兼容
+      globalPromptIds: item.global_prompt_ids || item.settings?.globalPromptIds || [], // 新的多个提示词ID数组
       voiceModelId: item.settings?.voiceModelId || '',
       createdAt: item.created_at,
       updatedAt: item.updated_at

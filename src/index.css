@@ -212,6 +212,9 @@ dialog .modal-box {
 .gradient-mask-b {
   mask: linear-gradient(0deg, transparent 0%, #000 var(--gradient-mask-padding, 1rem), #000  100%);
 }
+.gradient-mask-t {
+  mask: linear-gradient(180deg, transparent 0%, #000 var(--gradient-mask-padding, 1rem), #000  100%);
+}
 /* 设置特殊弹窗 */
 
 .hero-modal {

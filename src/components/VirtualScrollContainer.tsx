@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, RefObject } from 'react';
 import { useResizeObserver } from '../hooks/useResizeObserver';
 
 interface VirtualScrollItem {
@@ -13,6 +13,7 @@ interface VirtualScrollContainerProps<T extends VirtualScrollItem> {
   overscan?: number; // 预渲染的额外项目数量
   className?: string;
   onScroll?: (scrollTop: number) => void;
+  scrollMaskRef?: RefObject<HTMLDivElement>; // 用于滚动遮罩的 ref
 }
 
 interface VirtualScrollHandle {
@@ -28,7 +29,8 @@ const VirtualScrollContainer = React.forwardRef<VirtualScrollHandle, VirtualScro
   renderItem,
   overscan = 5,
   className = '',
-  onScroll
+  onScroll,
+  scrollMaskRef
 }: VirtualScrollContainerProps<T>, ref) {
   const [scrollTop, setScrollTop] = useState(0);
   const scrollElementRef = useRef<HTMLDivElement>(null);
@@ -135,7 +137,11 @@ const VirtualScrollContainer = React.forwardRef<VirtualScrollHandle, VirtualScro
   const setRefs = useCallback((node: HTMLDivElement | null) => {
     scrollElementRef.current = node;
     containerRef.current = node;
-  }, [containerRef]);
+    // 如果传入了 scrollMaskRef，也将其指向滚动容器
+    if (scrollMaskRef) {
+      (scrollMaskRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+    }
+  }, [containerRef, scrollMaskRef]);
   
   return (
     <div

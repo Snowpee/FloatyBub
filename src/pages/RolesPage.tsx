@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
+import { useScrollMask } from '../hooks/useScrollMask';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Avatar from '../components/Avatar';
 import RoleAvatarUpload from '../components/RoleAvatarUpload';
@@ -34,6 +35,11 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
   const [isEditing, setIsEditing] = useState(false);
   const modalRef = useRef<HTMLDialogElement>(null);
   const confirmDialogRef = useRef<HTMLDialogElement>(null);
+  
+  // 使用智能滚动遮罩 Hook
+  const { scrollContainerRef, scrollMaskClasses } = useScrollMask({
+    gradientPadding: '1rem'
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -74,6 +80,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
     };
     loadKnowledgeBases();
   }, []);
+
+
 
   const handleEdit = async (role: AIRole) => {
     try {
@@ -401,7 +409,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
 
       {/* 编辑/添加模态框 */}
       <dialog ref={modalRef} className="modal">
-        <div className="modal-box max-w-2xl w-full">
+        <div className="modal-box max-w-2xl w-full flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-base-content">
                 {editingId ? '编辑角色' : '创建新角色'}
@@ -414,241 +422,246 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
               </button>
             </div>
 
-            <div className="space-y-2">
-              {/* 基本信息 */}
-              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
-                <legend className="fieldset-legend">基本信息</legend>
-                
-                <RoleAvatarUpload
-                  name={formData.name || '新角色'}
-                  currentAvatar={formData.avatar}
-                  onAvatarChange={(avatar) => setFormData({ ...formData, avatar })}
-                  className="self-center"
-                />
-
-                <label className="input w-full mb-1 mt-2">
-                  <span className="label">角色名称 *</span>
-                  <input
-                    type="text"
-                    value={formData.name || ''}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className=""
-                    placeholder="例如: 编程助手"
+            <div 
+              ref={scrollContainerRef}
+              className={cn('overflow-y-auto', scrollMaskClasses)}
+            >
+              <div className="space-y-2">
+                {/* 基本信息 */}
+                <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                  <legend className="fieldset-legend">基本信息</legend>
+                  
+                  <RoleAvatarUpload
+                    name={formData.name || '新角色'}
+                    currentAvatar={formData.avatar}
+                    onAvatarChange={(avatar) => setFormData({ ...formData, avatar })}
+                    className="self-center"
                   />
-                </label>
 
-                <fieldset className="fieldset floating-label mt-2">
-                  <span className="label">角色提示词 *</span>
-                  <textarea
-                    value={formData.systemPrompt || ''}
-                    onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
-                    rows={4}
-                    className="textarea textarea-bordered w-full"
-                    placeholder="定义AI的角色、行为方式和回答风格。例如：你是一个专业的编程助手，擅长多种编程语言..."
+                  <label className="input w-full mb-1 mt-2">
+                    <span className="label">角色名称 *</span>
+                    <input
+                      type="text"
+                      value={formData.name || ''}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className=""
+                      placeholder="例如: 编程助手"
+                    />
+                  </label>
+
+                  <fieldset className="fieldset floating-label mt-2">
+                    <span className="label">角色提示词 *</span>
+                    <textarea
+                      value={formData.systemPrompt || ''}
+                      onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
+                      rows={4}
+                      className="textarea textarea-bordered w-full"
+                      placeholder="定义AI的角色、行为方式和回答风格。例如：你是一个专业的编程助手，擅长多种编程语言..."
+                    />
+                  </fieldset>
+                  <fieldset className="fieldset floating-label mt-2">
+                    <span className="label">角色描述</span>
+                    <textarea
+                    value={formData.description || ''}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={2}
+                    className="textarea textarea-bordered w-full mb-1"
+                    placeholder="角色描述，简要描述这个角色的特点和用途"
                   />
+                  </fieldset>
                 </fieldset>
-                <fieldset className="fieldset floating-label mt-2">
-                  <span className="label">角色描述</span>
-                  <textarea
-                  value={formData.description || ''}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={2}
-                  className="textarea textarea-bordered w-full mb-1"
-                  placeholder="角色描述，简要描述这个角色的特点和用途"
-                />
-                </fieldset>
-              </fieldset>
 
-              {/* 提示词配置 */}
-              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4"> 
-                <legend className="fieldset-legend">附加提示词</legend>
-                
-                {/* 已选择的提示词列表 */}
-                {formData.globalPromptIds.length > 0 && (
-                  <div className="space-y-2 mb-1">
-                    {formData.globalPromptIds.map((promptId, index) => {
-                      const prompt = globalPrompts.find(p => p.id === promptId);
-                      return (
-                        <div 
-                          key={promptId} 
-                          className="flex items-center justify-between bg-base-100 rounded-field p-1 pl-2 border-[length:var(--border-width)] border-base-300 cursor-move hover:bg-base-200 transition-colors"
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', index.toString());
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
-                            const hoverIndex = index;      
-                            if (dragIndex !== hoverIndex) {
-                              setFormData(prev => {
-                                const newPromptIds = [...prev.globalPromptIds];
-                                const draggedItem = newPromptIds[dragIndex];
-                                newPromptIds.splice(dragIndex, 1);
-                                newPromptIds.splice(hoverIndex, 0, draggedItem);
-                                return {
+                {/* 提示词配置 */}
+                <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4"> 
+                  <legend className="fieldset-legend">附加提示词</legend>
+                  
+                  {/* 已选择的提示词列表 */}
+                  {formData.globalPromptIds.length > 0 && (
+                    <div className="space-y-2 mb-1">
+                      {formData.globalPromptIds.map((promptId, index) => {
+                        const prompt = globalPrompts.find(p => p.id === promptId);
+                        return (
+                          <div 
+                            key={promptId} 
+                            className="flex items-center justify-between bg-base-100 rounded-field p-1 pl-2 border-[length:var(--border-width)] border-base-300 cursor-move hover:bg-base-200 transition-colors"
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', index.toString());
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                              const hoverIndex = index;      
+                              if (dragIndex !== hoverIndex) {
+                                setFormData(prev => {
+                                  const newPromptIds = [...prev.globalPromptIds];
+                                  const draggedItem = newPromptIds[dragIndex];
+                                  newPromptIds.splice(dragIndex, 1);
+                                  newPromptIds.splice(hoverIndex, 0, draggedItem);
+                                  return {
+                                    ...prev,
+                                    globalPromptIds: newPromptIds
+                                  };
+                                });
+                              }
+                            }}
+                          >
+                            <div className="flex items-center text-base-content/40 mr-2">
+                              <GripVertical className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-sm text-base-content">{prompt?.title || '未知提示词'}</h4>
+                              {prompt?.description && (
+                                <p className="text-sm text-base-content/60 mt-1">{prompt.description}</p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({
                                   ...prev,
-                                  globalPromptIds: newPromptIds
-                                };
-                              });
-                            }
-                          }}
-                        >
-                          <div className="flex items-center text-base-content/40 mr-2">
-                            <GripVertical className="h-4 w-4" />
+                                  globalPromptIds: prev.globalPromptIds.filter(id => id !== promptId)
+                                }));
+                              }}
+                              className="btn btn-ghost btn-circle btn-sm text-error hover:bg-error/10"
+                              title="删除此提示词"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
                           </div>
-                          <div className="flex-1">
-                            <h4 className="text-sm text-base-content">{prompt?.title || '未知提示词'}</h4>
-                            {prompt?.description && (
-                              <p className="text-sm text-base-content/60 mt-1">{prompt.description}</p>
-                            )}
-                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {/* 添加提示词按钮和下拉选择器 */}
+                  <div className="space-y-3">
+                    <label className="select w-full">
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          if (selectedId && !formData.globalPromptIds.includes(selectedId)) {
+                            setFormData(prev => ({
+                              ...prev,
+                              globalPromptIds: [...prev.globalPromptIds, selectedId]
+                            }));
+                          }
+                          // 重置选择器
+                          e.target.value = '';
+                        }}
+                      >
+                        <option value="">选择要添加的提示词...</option>
+                        {globalPrompts
+                          .filter(prompt => !formData.globalPromptIds.includes(prompt.id))
+                          .map((prompt) => (
+                            <option key={prompt.id} value={prompt.id}>
+                              {prompt.title}
+                            </option>
+                          ))
+                        }
+                      </select>
+                    </label>
+                    
+                    <p className="label">
+                      可添加多个全局提示词，它们将按顺序应用到对话中。
+                    </p>
+                    
+                    {formData.globalPromptIds.length > 0 && (
+                      <p className="label text-info text-sm">
+                        已选择 {formData.globalPromptIds.length} 个提示词，保存后将在对话时自动应用
+                      </p>
+                    )}
+                  </div>
+
+                </fieldset>
+
+                {/* 开场白设置 */}
+                <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                  <legend className="fieldset-legend">开场白设置</legend>
+                  <div className="space-y-3">
+                    {formData.openingMessages.map((message, index) => (
+                      <div key={index} className="flex gap-2">
+                        <textarea
+                          value={message}
+                          onChange={(e) => updateOpeningMessage(index, e.target.value)}
+                          rows={3}
+                          className="textarea textarea-bordered flex-1"
+                          placeholder={`开场白 ${index + 1}：设置角色的开场白，将作为对话的第一句话显示`}
+                        />
+                        {formData.openingMessages.length > 1 && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setFormData(prev => ({
-                                ...prev,
-                                globalPromptIds: prev.globalPromptIds.filter(id => id !== promptId)
-                              }));
-                            }}
-                            className="btn btn-ghost btn-circle btn-sm text-error hover:bg-error/10"
-                            title="删除此提示词"
+                            onClick={() => removeOpeningMessage(index)}
+                            className="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                            title="删除此开场白"
                           >
                             <X className="h-4 w-4" />
                           </button>
-                        </div>
-                      );
-                    })}
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={addOpeningMessage}
+                      className="btn btn-outline w-full border-base-300 bg-base-100 hover:bg-base-200"
+                    >
+                      <Plus className="h-4 w-4 mr-2 " />
+                      新增更多开场白
+                    </button>
                   </div>
-                )}
-                
-                {/* 添加提示词按钮和下拉选择器 */}
-                <div className="space-y-3">
+                </fieldset>
+
+                {/* 知识库配置 */}
+                <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                  <legend className="fieldset-legend">知识库配置</legend>
                   <label className="select w-full">
                     <select
-                      value=""
-                      onChange={(e) => {
-                        const selectedId = e.target.value;
-                        if (selectedId && !formData.globalPromptIds.includes(selectedId)) {
-                          setFormData(prev => ({
-                            ...prev,
-                            globalPromptIds: [...prev.globalPromptIds, selectedId]
-                          }));
-                        }
-                        // 重置选择器
-                        e.target.value = '';
-                      }}
+                      value={formData.knowledgeBaseId || ''}
+                      onChange={(e) => setFormData({ ...formData, knowledgeBaseId: e.target.value })}
                     >
-                      <option value="">选择要添加的提示词...</option>
-                      {globalPrompts
-                        .filter(prompt => !formData.globalPromptIds.includes(prompt.id))
-                        .map((prompt) => (
-                          <option key={prompt.id} value={prompt.id}>
-                            {prompt.title}
-                          </option>
-                        ))
-                      }
+                      <option value="">不使用知识库</option>
+                      {knowledgeBases.map((kb) => (
+                        <option key={kb.id} value={kb.id}>
+                          {kb.name}
+                        </option>
+                      ))}
                     </select>
                   </label>
-                  
                   <p className="label">
-                    可添加多个全局提示词，它们将按顺序应用到对话中。
+                    选择知识库后，AI将能够根据对话内容搜索相关知识条目。
                   </p>
-                  
-                  {formData.globalPromptIds.length > 0 && (
-                    <p className="label text-info text-sm">
-                      已选择 {formData.globalPromptIds.length} 个提示词，保存后将在对话时自动应用
+                  {formData.knowledgeBaseId && (
+                    <p className="label text-info text-sm mt-1">
+                      已选择知识库，保存后将在对话时自动应用
                     </p>
                   )}
-                </div>
+                </fieldset>
 
-              </fieldset>
+                <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
+                  <legend className="fieldset-legend">语音设置</legend>
+                                  
+                  <label className="select w-full mb-1">
+                    {/* <span className="label">语音模型</span> */}
+                    <select
+                      value={formData.voiceModelId || ''}
+                      onChange={(e) => setFormData({ ...formData, voiceModelId: e.target.value || undefined })}
+                    >
+                      <option value="">默认</option>
+                      {voiceSettings?.customModels?.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name} {model.isPreset ? '(预设)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <span className="label">未设置时将使用默认语音模型</span>
 
-              {/* 开场白设置 */}
-              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
-                <legend className="fieldset-legend">开场白设置</legend>
-                <div className="space-y-3">
-                  {formData.openingMessages.map((message, index) => (
-                    <div key={index} className="flex gap-2">
-                      <textarea
-                        value={message}
-                        onChange={(e) => updateOpeningMessage(index, e.target.value)}
-                        rows={3}
-                        className="textarea textarea-bordered flex-1"
-                        placeholder={`开场白 ${index + 1}：设置角色的开场白，将作为对话的第一句话显示`}
-                      />
-                      {formData.openingMessages.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeOpeningMessage(index)}
-                          className="btn btn-ghost btn-sm text-error hover:bg-error/10"
-                          title="删除此开场白"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addOpeningMessage}
-                    className="btn btn-outline w-full border-base-300 bg-base-100 hover:bg-base-200"
-                  >
-                    <Plus className="h-4 w-4 mr-2 " />
-                    新增更多开场白
-                  </button>
-                </div>
-              </fieldset>
-
-              {/* 知识库配置 */}
-              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
-                <legend className="fieldset-legend">知识库配置</legend>
-                <label className="select w-full">
-                  <select
-                    value={formData.knowledgeBaseId || ''}
-                    onChange={(e) => setFormData({ ...formData, knowledgeBaseId: e.target.value })}
-                  >
-                    <option value="">不使用知识库</option>
-                    {knowledgeBases.map((kb) => (
-                      <option key={kb.id} value={kb.id}>
-                        {kb.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <p className="label">
-                  选择知识库后，AI将能够根据对话内容搜索相关知识条目。
-                </p>
-                {formData.knowledgeBaseId && (
-                  <p className="label text-info text-sm mt-1">
-                    已选择知识库，保存后将在对话时自动应用
-                  </p>
-                )}
-              </fieldset>
-
-              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
-                <legend className="fieldset-legend">语音设置</legend>
-                                
-                <label className="select w-full mb-1">
-                  {/* <span className="label">语音模型</span> */}
-                  <select
-                    value={formData.voiceModelId || ''}
-                    onChange={(e) => setFormData({ ...formData, voiceModelId: e.target.value || undefined })}
-                  >
-                    <option value="">默认</option>
-                    {voiceSettings?.customModels?.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.name} {model.isPreset ? '(预设)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <span className="label">未设置时将使用默认语音模型</span>
-
-              </fieldset>
+                </fieldset>
+              </div>
             </div>
 
             <div className="modal-action">

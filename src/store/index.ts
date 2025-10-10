@@ -510,13 +510,21 @@ export const useAppStore = create<AppState>()(
         
         // 如果有当前会话，同时更新会话的模型ID
         if (state.currentSessionId) {
-          set((state) => ({
-            chatSessions: state.chatSessions.map(s => 
-              s.id === state.currentSessionId 
-                ? { ...s, modelId: id }
-                : s
-            )
-          }));
+          // 如果当前会话是临时会话，更新tempSession
+          if (state.tempSessionId === state.currentSessionId && state.tempSession) {
+            set((state) => ({
+              tempSession: { ...state.tempSession!, modelId: id }
+            }));
+          } else {
+            // 否则更新chatSessions中的会话
+            set((state) => ({
+              chatSessions: state.chatSessions.map(s => 
+                s.id === state.currentSessionId 
+                  ? { ...s, modelId: id }
+                  : s
+              )
+            }));
+          }
         }
       },
       

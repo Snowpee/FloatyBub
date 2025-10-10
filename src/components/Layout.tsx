@@ -35,6 +35,9 @@ import AvatarUpload from './AvatarUpload';
 import { useUserData } from '../hooks/useUserData';
 import { supabase } from '../lib/supabase';
 import { avatarCache } from '../utils/imageCache';
+import { useScrollMask } from '../hooks/useScrollMask';
+
+
 
 type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data';
 
@@ -65,6 +68,11 @@ const Layout: React.FC = () => {
     tempSession,
     deleteTempSession
   } = useAppStore();
+  
+  // 使用智能滚动遮罩 Hook
+  const { scrollContainerRef: scrollMaskRef, scrollMaskClasses } = useScrollMask({
+    gradientPadding: '1rem'
+  });
   
   // 功能开关
   const isUserSystemEnabled = import.meta.env.VITE_ENABLE_USER_SYSTEM === 'true';
@@ -651,7 +659,7 @@ const Layout: React.FC = () => {
 
 
           {/* 历史对话列表 - 虚拟滚动 */}
-          <div className="chat-lists flex-1 overflow-y-auto gradient-mask-y [--gradient-mask-padding:1rem]">
+          <div className="chat-lists flex-1 overflow-y-auto">
             {allSessions.length === 0 ? (
               <div className="text-center py-8">
                 <MessageCircle className="h-8 w-8 text-base-content/40 mx-auto mb-2" />
@@ -665,7 +673,11 @@ const Layout: React.FC = () => {
                 itemHeight={ITEM_HEIGHT}
                 renderItem={renderChatItem}
                 overscan={5}
-                className="rounded-lg h-full"
+                scrollMaskRef={scrollMaskRef}
+                className={cn(
+                  'rounded-lg h-full',
+                  scrollMaskClasses
+                )}
               />
             )}
             

@@ -588,11 +588,23 @@ export class KnowledgeService {
     }
   }
 
+  // UUID格式验证函数
+  private static isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+
   // 获取角色卡的知识库ID
   static async getRoleKnowledgeBaseId(roleId: string): Promise<string | null> {
     const { isLoggedIn } = await isUserLoggedIn();
     
     if (isLoggedIn) {
+      // 检查roleId是否为有效UUID格式
+      if (!this.isValidUUID(roleId)) {
+        console.log('ℹ️ [KnowledgeService] 角色ID不是UUID格式，跳过数据库查询:', { roleId });
+        return null;
+      }
+      
       // 用户已登录，从Supabase获取
       const { data, error } = await supabase
         .from('ai_roles')
