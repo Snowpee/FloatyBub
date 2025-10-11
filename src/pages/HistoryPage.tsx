@@ -47,6 +47,20 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
 
+  // 获取会话的最后活跃时间（最后消息时间或更新时间）
+  const getLastActiveTime = (session: any) => {
+    if (session.messages && session.messages.length > 0) {
+      const lastMessage = session.messages[session.messages.length - 1];
+      // 优先使用 message_timestamp，其次是 timestamp，最后是 updatedAt
+      const messageTime = lastMessage.message_timestamp || lastMessage.timestamp;
+      if (messageTime) {
+        return new Date(messageTime).getTime();
+      }
+    }
+    // 如果没有消息或消息没有时间戳，使用会话的更新时间
+    return new Date(session.updatedAt).getTime();
+  };
+
   // 过滤和排序会话
   const filteredAndSortedSessions = useMemo(() => {
     let filtered = chatSessions.filter(session => {
@@ -64,7 +78,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
       let comparison = 0;
       
       if (sortBy === 'date') {
-        comparison = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(); // 按创建时间降序
+        // 使用最后活跃时间进行排序，与侧边栏保持一致
+        const aTime = getLastActiveTime(a);
+        const bTime = getLastActiveTime(b);
+        comparison = bTime - aTime; // 按最后活跃时间降序
       } else if (sortBy === 'title') {
         comparison = a.title.localeCompare(b.title);
         return sortOrder === 'asc' ? comparison : -comparison;
