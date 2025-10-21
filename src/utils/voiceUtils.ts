@@ -420,10 +420,13 @@ export const generateStreamingVoiceUrl = (
     x_api_key: import.meta.env.VITE_API_SECRET || '',
     normalize: 'true',
     latency: 'normal',
-    chunk_length: '100' // 降低chunk_length提升首响应速度
+    chunk_length: '100', // 降低chunk_length提升首响应速度
+    stream: 'true' // 添加流式播放标识
   });
   
-  return `${apiBaseUrl}/api/tts/stream?${params.toString()}`;
+  // 在生产环境中使用 /api/tts，在开发环境中使用 /api/tts/stream
+  const endpoint = import.meta.env.PROD ? '/api/tts' : '/api/tts/stream';
+  return `${apiBaseUrl}${endpoint}?${params.toString()}`;
 };
 
 export const generateVoiceAudio = async (
