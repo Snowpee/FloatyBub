@@ -305,13 +305,15 @@ interface VoicePlaybackState {
   currentAudio: HTMLAudioElement | null;
   currentMessageId: string | null;
   isGenerating: boolean;
+  isFallingBack: boolean; // 是否正在降级播放
 }
 
 let voiceState: VoicePlaybackState = {
   isPlaying: false,
   currentAudio: null,
   currentMessageId: null,
-  isGenerating: false
+  isGenerating: false,
+  isFallingBack: false
 };
 
 // 语音播放状态监听器
@@ -341,6 +343,7 @@ export const stopCurrentVoice = () => {
   }
   voiceState.isPlaying = false;
   voiceState.currentMessageId = null;
+  voiceState.isFallingBack = false;
   notifyListeners();
 };
 
@@ -398,6 +401,31 @@ export const processTextForReading = (
 };
 
 // 调用语音API生成音频（带缓存）
+// 生成流式播放的音频URL（边下边播）
+export const generateStreamingVoiceUrl = (
+  text: string,
+  voiceModel: VoiceModel,
+  voiceSettings: VoiceSettings
+): string => {
+  const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+  
+  // 构建查询参数
+  const params = new URLSearchParams({
+    text,
+    reference_id: voiceModel.id,
+    format: 'mp3',
+    mp3_bitrate: '128',
+    model: voiceSettings.modelVersion || 'speech-1.6',
+    fish_audio_key: voiceSettings.apiKey,
+    x_api_key: import.meta.env.VITE_API_SECRET || '',
+    normalize: 'true',
+    latency: 'normal',
+    chunk_length: '100' // 降低chunk_length提升首响应速度
+  });
+  
+  return `${apiBaseUrl}/api/tts/stream?${params.toString()}`;
+};
+
 export const generateVoiceAudio = async (
   text: string,
   voiceModel: VoiceModel,
@@ -542,6 +570,127 @@ export const playVoice = async (
           stopCurrentVoice();
           reject(error);
         });
+
+    } catch (error) {
+      stopCurrentVoice();
+      reject(error);
+    }
+  });
+};
+
+// 流式播放语音（边下边播）
+export const playVoiceStreaming = async (
+  messageId: string,
+  text: string,
+  role: AIRole | null,
+  voiceSettings: VoiceSettings | null
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    try {
+      // 如果正在播放同一条消息，则停止播放
+      if (voiceState.isPlaying && voiceState.currentMessageId === messageId) {
+        stopCurrentVoice();
+        resolve();
+        return;
+      }
+
+      // 停止当前播放
+      stopCurrentVoice();
+
+      if (!voiceSettings) {
+        reject(new Error('语音设置未配置'));
+        return;
+      }
+
+      // 获取语音模型
+      const voiceModel = getVoiceModelForMessage(role, voiceSettings);
+      if (!voiceModel) {
+        reject(new Error('未找到可用的语音模型'));
+        return;
+      }
+
+      // 处理朗读内容
+      const processedText = processTextForReading(text, voiceSettings.readingMode);
+      if (!processedText.trim()) {
+        reject(new Error('没有可朗读的内容'));
+        return;
+      }
+
+      // 更新状态
+      voiceState.isPlaying = true;
+      voiceState.currentMessageId = messageId;
+      notifyListeners();
+
+      // 生成流式音频URL
+      const streamingUrl = generateStreamingVoiceUrl(processedText, voiceModel, voiceSettings);
+      
+      // 创建音频对象并直接使用流式URL
+      const audio = new Audio(streamingUrl);
+      voiceState.currentAudio = audio;
+
+      // 设置音频事件监听器
+      audio.onended = () => {
+        stopCurrentVoice();
+        resolve();
+      };
+
+      audio.onerror = async (event) => {
+        console.error('流式音频播放错误:', event);
+        
+        // 防止重复降级
+        if (voiceState.isFallingBack) {
+          console.log('已在降级播放中，跳过重复降级');
+          return;
+        }
+        
+        console.log('尝试降级到传统播放方式...');
+        voiceState.isFallingBack = true;
+        
+        try {
+          // 降级到传统的 fetch+blob 方式
+          stopCurrentVoice();
+          await playVoice(messageId, text, role, voiceSettings);
+          resolve();
+        } catch (fallbackError) {
+          console.error('降级播放也失败:', fallbackError);
+          stopCurrentVoice();
+          reject(new Error(`流式音频播放失败: ${event}, 降级播放也失败: ${fallbackError}`));
+        }
+      };
+
+      // 音频开始播放时的回调
+      audio.onloadstart = () => {
+        console.log('开始加载流式音频');
+      };
+
+      audio.oncanplay = () => {
+        console.log('流式音频可以开始播放');
+      };
+
+      // 播放音频
+      audio.play().catch(async (error) => {
+        console.error('流式音频播放启动失败:', error);
+        
+        // 防止重复降级
+        if (voiceState.isFallingBack) {
+          console.log('已在降级播放中，跳过重复降级');
+          return;
+        }
+        
+        console.log('尝试降级到传统播放方式...');
+        voiceState.isFallingBack = true;
+        
+        try {
+          // 降级到传统的 fetch+blob 方式
+          stopCurrentVoice();
+          await playVoice(messageId, text, role, voiceSettings);
+          resolve();
+        } catch (fallbackError) {
+          console.error('降级播放也失败:', fallbackError);
+          stopCurrentVoice();
+          reject(new Error(`流式音频播放启动失败: ${error}, 降级播放也失败: ${fallbackError}`));
+        }
+      });
 
     } catch (error) {
       stopCurrentVoice();

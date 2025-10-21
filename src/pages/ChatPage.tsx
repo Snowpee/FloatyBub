@@ -27,7 +27,7 @@ import AudioWaveform from '../components/AudioWaveform';
 import { replaceTemplateVariables } from '../utils/templateUtils';
 import { useAnimatedText } from '../components/AnimatedText';
 import { getDefaultBaseUrl } from '../utils/providerUtils';
-import { playVoice, stopCurrentVoice, addVoiceStateListener, getVoiceState } from '../utils/voiceUtils';
+import { playVoice, playVoiceStreaming, stopCurrentVoice, addVoiceStateListener, getVoiceState } from '../utils/voiceUtils';
 import { supabase } from '../lib/supabase';
 import { useUserData } from '../hooks/useUserData';
 import { useAuth } from '../hooks/useAuth';
@@ -344,12 +344,12 @@ const ChatPage: React.FC = () => {
     staticText: '输入消息...' 
   });
 
-  // 处理朗读消息
+  // 处理朗读消息（使用流式播放）
   const handleReadMessage = async (messageId: string, content: string, messageRole?: any | null) => {
     try {
       // 确定使用的角色（优先使用消息的角色，然后是当前角色）
       const roleToUse = messageRole || currentRole;
-      await playVoice(messageId, content, roleToUse, voiceSettings);
+      await playVoiceStreaming(messageId, content, roleToUse, voiceSettings);
     } catch (error) {
       toast.error(`朗读失败: ${error instanceof Error ? error.message : '未知错误'}`);
     }

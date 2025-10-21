@@ -409,8 +409,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
 
       {/* 编辑/添加模态框 */}
       <dialog ref={modalRef} className="modal">
-        <div className="modal-box max-w-2xl w-full flex flex-col">
-            <div className="flex items-center justify-between mb-4">
+        <div className="modal-box max-w-2xl w-full flex flex-col p-0">
+            <div className="flex items-center justify-between p-6">
               <h2 className="text-xl font-bold text-base-content">
                 {editingId ? '编辑角色' : '创建新角色'}
               </h2>
@@ -424,7 +424,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
 
             <div 
               ref={scrollContainerRef}
-              className={cn('overflow-y-auto', scrollMaskClasses)}
+              className={cn('overflow-y-auto overflow-x-hidden px-6', scrollMaskClasses)}
             >
               <div className="space-y-2">
                 {/* 基本信息 */}
@@ -664,7 +664,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
               </div>
             </div>
 
-            <div className="modal-action">
+            <div className="modal-action p-6">
               <button
                 onClick={handleCancel}
                 className="btn btn-ghost"

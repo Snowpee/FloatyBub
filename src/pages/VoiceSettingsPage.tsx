@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, Play, Square, RefreshCw, Settings, Plus, Trash2, Activity, X, Database } from 'lucide-react';
 import { toast } from '../hooks/useToast';
 import { useAppStore } from '../store';
-import { getCacheStats, clearAllCache } from '../utils/voiceUtils';
+import { getCacheStats, clearAllCache, generateStreamingVoiceUrl } from '../utils/voiceUtils';
 
 interface VoiceModel {
   id: string;
@@ -243,7 +243,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
     return null;
   };
 
-  // 测试语音
+  // 测试语音（流式播放）
   const testVoice = async (modelId: string) => {
     if (playingVoiceId) {
       stopVoice();
@@ -252,42 +252,46 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
 
     try {
       setPlayingVoiceId(modelId);
-      const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
-      const response = await fetch(`${apiBaseUrl}/api/tts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_API_SECRET || ''
-        },
-        body: JSON.stringify({
-          text: '这是一个语音测试，用来试听当前语音模型的效果。',
-          fish_audio_key: settings.apiKey,
-          reference_id: modelId,
-          model: settings.modelVersion || 'speech-1.6'
-        })
-      });
+      
+      // 构建语音模型和设置对象
+      const voiceModel = { id: modelId, name: '', description: '' };
+      const voiceSettings = {
+        ...settings,
+        apiKey: settings.apiKey,
+        modelVersion: settings.modelVersion || 'speech-1.6'
+      };
+      
+      // 生成流式音频URL
+      const streamingUrl = generateStreamingVoiceUrl(
+        '这是一个语音测试，用来试听当前语音模型的效果。',
+        voiceModel,
+        voiceSettings
+      );
+      
+      // 创建音频对象并直接使用流式URL
+      const audio = new Audio(streamingUrl);
+      
+      audio.onended = () => {
+        setPlayingVoiceId(null);
+      };
+      
+      audio.onerror = (event) => {
+        console.error('流式语音播放失败:', event);
+        setPlayingVoiceId(null);
+        toast.error('语音播放失败');
+      };
 
-      if (response.ok) {
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        
-        audio.onended = () => {
-          setPlayingVoiceId(null);
-          URL.revokeObjectURL(audioUrl);
-        };
-        
-        audio.onerror = () => {
-          setPlayingVoiceId(null);
-          URL.revokeObjectURL(audioUrl);
-          toast.error('语音播放失败');
-        };
-        
-        setAudioRef(audio);
-        await audio.play();
-      } else {
-        throw new Error('TTS请求失败');
-      }
+      audio.onloadstart = () => {
+        console.log('开始加载流式测试音频');
+      };
+
+      audio.oncanplay = () => {
+        console.log('流式测试音频可以开始播放');
+      };
+      
+      setAudioRef(audio);
+      await audio.play();
+      
     } catch (error) {
       console.error('语音测试失败:', error);
       toast.error('语音测试失败');

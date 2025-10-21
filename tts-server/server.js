@@ -26,7 +26,8 @@ console.log('TTS 服务启动，Fish Audio API Key 将由前端提供');
 const apiKeyAuth = (req, res, next) => {
   const timestamp = new Date().toISOString();
   const clientIP = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
-  const apiKey = req.headers['x-api-key'];
+  // 支持从 header 或 query 参数读取 API 密钥
+  const apiKey = req.headers['x-api-key'] || req.query['x_api_key'];
   const expectedApiKey = process.env.API_SECRET;
   
   console.log(`[${timestamp}] API 密钥验证 - IP: ${clientIP}, 路径: ${req.path}, 方法: ${req.method}`);
@@ -133,9 +134,13 @@ app.post('/api/tts', apiKeyAuth, async (req, res) => {
     console.log(`[${timestamp}] Fish Audio API 响应成功 - 状态码: ${response.status}`);
     console.log(`[${timestamp}] 响应头 - Content-Type: ${response.headers['content-type']}, Content-Length: ${response.headers['content-length'] || '未知'}`);
 
-    // 设置响应头
+    // 设置响应头 - 去掉 Content-Disposition attachment 以支持边下边播
     res.setHeader('Content-Type', `audio/${format}`);
-    res.setHeader('Content-Disposition', `attachment; filename="tts.${format}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, fish-audio-key');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
     console.log(`[${timestamp}] 开始流式传输音频数据`);
     // 流式传输音频数据
@@ -151,6 +156,135 @@ app.post('/api/tts', apiKeyAuth, async (req, res) => {
 
   } catch (error) {
     console.error(`[${timestamp}] TTS 请求失败 - IP: ${clientIP}`);
+    console.error(`[${timestamp}] 错误详情:`, error.message);
+    
+    if (error.response) {
+      console.error(`[${timestamp}] Fish Audio API 错误 - 状态码: ${error.response.status}, 状态文本: ${error.response.statusText}`);
+      if (error.response.data) {
+        console.error(`[${timestamp}] API 错误响应:`, error.response.data);
+      }
+      return res.status(error.response.status).json({
+        error: 'Fish Audio API 错误',
+        details: error.response.statusText
+      });
+    }
+    
+    if (error.code === 'ECONNABORTED') {
+      console.error(`[${timestamp}] 请求超时错误`);
+      return res.status(408).json({
+        error: '请求超时',
+        details: 'Fish Audio API 响应超时'
+      });
+    }
+    
+    console.error(`[${timestamp}] 服务器内部错误:`, error.stack || error.message);
+    res.status(500).json({
+      error: '服务器内部错误',
+      details: error.message
+    });
+  }
+});
+
+// 新增 GET /api/tts/stream 接口支持边下边播
+app.get('/api/tts/stream', apiKeyAuth, async (req, res) => {
+  const timestamp = new Date().toISOString();
+  const clientIP = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+  
+  try {
+    const {
+      text,
+      format = 'mp3',
+      mp3_bitrate = 128,
+      reference_id = null,
+      normalize = 'true',
+      latency = 'normal',
+      chunk_length = 100, // 降低到 100 提升首响应速度
+      model = 'speech-1.6',
+      fish_audio_key,
+      x_api_key
+    } = req.query;
+
+    console.log(`[${timestamp}] TTS Stream 请求开始 - IP: ${clientIP}`);
+    console.log(`[${timestamp}] 请求参数 - 文本长度: ${text ? text.length : 0}, 格式: ${format}, 模型: ${model}, 参考ID: ${reference_id || '无'}`);
+
+    if (!text) {
+      console.warn(`[${timestamp}] TTS Stream 请求失败 - 缺少文本参数`);
+      return res.status(400).json({ error: '缺少必需的 text 参数' });
+    }
+
+    const apiKey = fish_audio_key || req.headers['fish-audio-key'];
+    if (!apiKey) {
+      console.warn(`[${timestamp}] TTS Stream 请求失败 - 缺少 Fish Audio API Key`);
+      return res.status(400).json({ error: '缺少必需的 fish_audio_key 参数' });
+    }
+
+    // 验证模型参数
+    const selectedModel = SUPPORTED_MODELS.includes(model) ? model : DEFAULT_MODEL;
+    if (model !== selectedModel) {
+      console.log(`[${timestamp}] 模型参数修正 - 原始: ${model}, 修正为: ${selectedModel}`);
+    }
+
+    // 严格解析 normalize 参数
+    const normalizeValue = normalize === 'true' || normalize === true;
+
+    // 构建请求数据
+    const requestData = {
+      text,
+      chunk_length: parseInt(chunk_length),
+      format,
+      mp3_bitrate: parseInt(mp3_bitrate),
+      references: [],
+      reference_id,
+      normalize: normalizeValue,
+      latency
+    };
+
+    console.log(`[${timestamp}] 发送到 Fish Audio API - 文本预览: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}", 模型: ${selectedModel}`);
+
+    // 使用 msgpack 编码请求数据
+    const encodedData = msgpack.encode(requestData);
+    console.log(`[${timestamp}] 请求数据已编码，大小: ${encodedData.length} 字节`);
+
+    // 调用 Fish Audio API
+    console.log(`[${timestamp}] 调用 Fish Audio API - URL: ${FISH_AUDIO_BASE_URL}/tts`);
+    const response = await axios({
+      method: 'POST',
+      url: `${FISH_AUDIO_BASE_URL}/tts`,
+      data: encodedData,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/msgpack',
+        'Model': selectedModel
+      },
+      responseType: 'stream',
+      timeout: 60000 // 60秒超时
+    });
+
+    console.log(`[${timestamp}] Fish Audio API 响应成功 - 状态码: ${response.status}`);
+    console.log(`[${timestamp}] 响应头 - Content-Type: ${response.headers['content-type']}, Content-Length: ${response.headers['content-length'] || '未知'}`);
+
+    // 设置响应头 - 优化为流式播放
+    res.setHeader('Content-Type', `audio/${format}`);
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, fish-audio-key');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    console.log(`[${timestamp}] 开始流式传输音频数据`);
+    // 流式传输音频数据
+    response.data.on('end', () => {
+      console.log(`[${timestamp}] 音频数据传输完成`);
+    });
+    
+    response.data.on('error', (streamError) => {
+      console.error(`[${timestamp}] 音频流传输错误:`, streamError.message);
+    });
+    
+    response.data.pipe(res);
+
+  } catch (error) {
+    console.error(`[${timestamp}] TTS Stream 请求失败 - IP: ${clientIP}`);
     console.error(`[${timestamp}] 错误详情:`, error.message);
     
     if (error.response) {
