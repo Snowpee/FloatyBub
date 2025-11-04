@@ -102,6 +102,7 @@ export interface AIRole {
   globalPromptId?: string; // 关联的全局提示词ID（向后兼容）
   globalPromptIds?: string[]; // 关联的多个全局提示词ID数组
   voiceModelId?: string; // 角色专属语音模型ID
+  isFavorite?: boolean; // 收藏状态
   createdAt: Date;
   updatedAt: Date;
 }
@@ -223,6 +224,8 @@ interface AppState {
   addAIRole: (role: Omit<AIRole, 'id' | 'createdAt' | 'updatedAt'>) => AIRole;
   updateAIRole: (id: string, role: Partial<AIRole>) => void;
   deleteAIRole: (id: string) => Promise<void>;
+  toggleRoleFavorite: (id: string) => void;
+  getFavoriteRoles: () => AIRole[];
   
   // 全局提示词相关
   addGlobalPrompt: (prompt: Omit<GlobalPrompt, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -368,40 +371,47 @@ const loadVoiceSettingsFromStorage = (): VoiceSettings => {
   return defaultSettings;
 };
 
-// 默认AI角色
+// 默认AI角色 - 使用固定的UUID以确保跨用户一致性
+// 使用固定的日期以避免序列化问题
+const defaultRoleCreatedAt = new Date('2024-01-01T00:00:00.000Z');
+const defaultRoleUpdatedAt = new Date('2024-01-01T00:00:00.000Z');
+
 const defaultRoles: AIRole[] = [
   {
-    id: 'default-assistant',
+    id: '00000000-0000-4000-8000-000000000001', // 固定UUID for AI助手
     name: 'AI助手',
     description: '通用AI助手，可以帮助您解答问题和完成各种任务',
     systemPrompt: '你是一个有用的AI助手，请用友好、专业的语气回答用户的问题。',
     openingMessages: ['你好！我是你的AI助手，很高兴为你服务。有什么我可以帮助你的吗？'],
     currentOpeningIndex: 0,
     avatar: avatar01,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    isFavorite: false,
+    createdAt: defaultRoleCreatedAt,
+    updatedAt: defaultRoleUpdatedAt
   },
   {
-    id: 'code-expert',
+    id: '00000000-0000-4000-8000-000000000002', // 固定UUID for 编程专家
     name: '编程专家',
     description: '专业的编程助手，擅长代码编写、调试和技术问题解答',
     systemPrompt: '你是一个专业的编程专家，擅长多种编程语言和技术栈。请提供准确、实用的编程建议和代码示例。',
     openingMessages: ['你好！我是编程专家，专注于帮助你解决各种编程问题。无论是代码调试、架构设计还是技术选型，我都很乐意为你提供专业建议。'],
     currentOpeningIndex: 0,
     avatar: avatar02,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    isFavorite: false,
+    createdAt: defaultRoleCreatedAt,
+    updatedAt: defaultRoleUpdatedAt
   },
   {
-    id: 'creative-writer',
+    id: '00000000-0000-4000-8000-000000000003', // 固定UUID for 创意写手
     name: '创意写手',
     description: '富有创意的写作助手，擅长文案创作和内容策划',
     systemPrompt: '你是一个富有创意的写作专家，擅长各种文体的创作。请用生动、有趣的语言帮助用户完成写作任务。',
     openingMessages: ['嗨！我是你的创意写手伙伴，擅长各种文体创作。无论你需要写文案、故事、诗歌还是其他创意内容，我都能为你提供灵感和帮助！'],
     currentOpeningIndex: 0,
     avatar: avatar03,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    isFavorite: false,
+    createdAt: defaultRoleCreatedAt,
+    updatedAt: defaultRoleUpdatedAt
   }
 ];
 
@@ -604,6 +614,66 @@ export const useAppStore = create<AppState>()(
           console.error('删除AI角色时发生错误:', error);
           throw new Error(`删除AI角色时发生错误: ${error instanceof Error ? error.message : '未知错误'}`);
         }
+      },
+
+      // 角色收藏相关
+      toggleRoleFavorite: (id) => {
+        // 旧ID到新UUID的映射
+        const roleIdMapping: { [key: string]: string } = {
+          'default-assistant': '00000000-0000-4000-8000-000000000001',
+          'code-expert': '00000000-0000-4000-8000-000000000002',
+          'creative-writer': '00000000-0000-4000-8000-000000000003'
+        };
+        
+        // 如果传入的是旧ID，转换为新UUID
+        const actualId = roleIdMapping[id] || id;
+        
+        let updatedRole: AIRole | null = null;
+        set((state) => {
+          const newRoles = state.aiRoles.map(role => {
+            if (role.id === actualId) {
+              updatedRole = { ...role, isFavorite: !role.isFavorite, updatedAt: new Date() };
+              console.log('⭐ toggleRoleFavorite: 角色收藏状态已更新', {
+                originalId: id,
+                actualId: actualId,
+                roleName: updatedRole.name,
+                newFavoriteStatus: updatedRole.isFavorite
+              });
+              return updatedRole;
+            }
+            return role;
+          });
+          return { aiRoles: newRoles };
+        });
+        // 自动同步到云端
+        if (updatedRole) {
+          // 获取当前用户ID并添加到同步数据中
+          supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) {
+              console.log('🔄 toggleRoleFavorite: 准备同步角色收藏状态到云端', {
+                roleId: updatedRole!.id,
+                roleName: updatedRole!.name,
+                isFavorite: updatedRole!.isFavorite,
+                userId: user.id
+              });
+              queueDataSync('ai_role', { ...updatedRole, user_id: user.id });
+            } else {
+              console.warn('⚠️ toggleRoleFavorite: 用户未登录，无法同步收藏状态');
+            }
+          });
+        }
+      },
+
+      getFavoriteRoles: () => {
+        const state = get();
+        return state.aiRoles
+          .filter(role => role.isFavorite === true)
+          .sort((a, b) => {
+            // 按 updatedAt 降序排序，最新收藏的在前
+            const dateA = new Date(a.updatedAt).getTime();
+            const dateB = new Date(b.updatedAt).getTime();
+            return dateB - dateA;
+          });
       },
       
       // 用户资料相关actions
@@ -2005,7 +2075,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'ai-chat-storage',
-      version: 3, // 增加版本号以触发迁移
+      version: 5, // 增加版本号以触发迁移 - 修复默认角色UUID
       onRehydrateStorage: () => {
         console.log('🔄 zustand 开始恢复存储数据');
         return (state, error) => {
@@ -2064,6 +2134,114 @@ export const useAppStore = create<AppState>()(
             }
             return role;
           });
+        }
+        
+        // 数据迁移：更新默认角色ID为固定UUID
+        if (version < 4 && persistedState?.aiRoles) {
+          const defaultRoleIdMap: { [key: string]: string } = {
+            'default-assistant': '00000000-0000-4000-8000-000000000001',
+            'code-expert': '00000000-0000-4000-8000-000000000002',
+            'creative-writer': '00000000-0000-4000-8000-000000000003'
+          };
+          
+          persistedState.aiRoles = persistedState.aiRoles.map((role: any) => {
+            // 如果是旧的默认角色ID，更新为新的UUID
+            if (defaultRoleIdMap[role.id]) {
+              return {
+                ...role,
+                id: defaultRoleIdMap[role.id]
+              };
+            }
+            return role;
+          });
+          
+          // 同时更新聊天会话中的角色ID引用
+          if (persistedState?.chatSessions) {
+            persistedState.chatSessions = persistedState.chatSessions.map((session: any) => {
+              let updatedSession = { ...session };
+              
+              // 更新会话的roleId
+              if (defaultRoleIdMap[session.roleId]) {
+                updatedSession.roleId = defaultRoleIdMap[session.roleId];
+              }
+              
+              // 更新消息中的roleId
+              if (session.messages) {
+                updatedSession.messages = session.messages.map((message: any) => {
+                  if (message.roleId && defaultRoleIdMap[message.roleId]) {
+                    return {
+                      ...message,
+                      roleId: defaultRoleIdMap[message.roleId]
+                    };
+                  }
+                  return message;
+                });
+              }
+              
+              return updatedSession;
+            });
+          }
+        }
+        
+        // 强制迁移：再次检查并更新默认角色ID（版本5）
+        if (version < 5 && persistedState?.aiRoles) {
+          console.log('🔄 [迁移] 执行版本5迁移：强制更新默认角色ID');
+          const defaultRoleIdMap: { [key: string]: string } = {
+            'default-assistant': '00000000-0000-4000-8000-000000000001',
+            'code-expert': '00000000-0000-4000-8000-000000000002',
+            'creative-writer': '00000000-0000-4000-8000-000000000003'
+          };
+          
+          let hasChanges = false;
+          persistedState.aiRoles = persistedState.aiRoles.map((role: any) => {
+            // 如果是旧的默认角色ID，更新为新的UUID
+            if (defaultRoleIdMap[role.id]) {
+              console.log(`🔄 [迁移] 更新角色ID: ${role.id} -> ${defaultRoleIdMap[role.id]}`);
+              hasChanges = true;
+              return {
+                ...role,
+                id: defaultRoleIdMap[role.id]
+              };
+            }
+            return role;
+          });
+          
+          // 同时更新聊天会话中的角色ID引用
+          if (persistedState?.chatSessions) {
+            persistedState.chatSessions = persistedState.chatSessions.map((session: any) => {
+              let updatedSession = { ...session };
+              
+              // 更新会话的roleId
+              if (defaultRoleIdMap[session.roleId]) {
+                console.log(`🔄 [迁移] 更新会话角色ID: ${session.roleId} -> ${defaultRoleIdMap[session.roleId]}`);
+                updatedSession.roleId = defaultRoleIdMap[session.roleId];
+                hasChanges = true;
+              }
+              
+              // 更新消息中的roleId
+              if (session.messages) {
+                updatedSession.messages = session.messages.map((message: any) => {
+                  if (message.roleId && defaultRoleIdMap[message.roleId]) {
+                    console.log(`🔄 [迁移] 更新消息角色ID: ${message.roleId} -> ${defaultRoleIdMap[message.roleId]}`);
+                    hasChanges = true;
+                    return {
+                      ...message,
+                      roleId: defaultRoleIdMap[message.roleId]
+                    };
+                  }
+                  return message;
+                });
+              }
+              
+              return updatedSession;
+            });
+          }
+          
+          if (hasChanges) {
+            console.log('✅ [迁移] 版本5迁移完成，已更新默认角色ID');
+          } else {
+            console.log('ℹ️ [迁移] 版本5迁移：未发现需要更新的默认角色ID');
+          }
         }
         
         return persistedState;

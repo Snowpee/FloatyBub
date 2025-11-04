@@ -3,6 +3,7 @@ import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { useAppStore } from '../store'
 import { useDataSync } from './useDataSync'
+import { dataSyncService } from '../services/DataSyncService'
 
 export interface AuthState {
   user: User | null
@@ -145,6 +146,18 @@ export function useAuth(): AuthState & AuthActions {
         })
         
         console.log('✅ [useAuth] 云端数据同步成功')
+        
+        // 确保默认角色存在于数据库中
+        try {
+          const defaultRoleIds = ['default-assistant', 'code-expert', 'creative-writer']
+          const defaultRoles = currentState.aiRoles.filter(role => defaultRoleIds.includes(role.id))
+          await dataSyncService.ensureDefaultRolesExist(user, defaultRoles)
+          console.log('✅ [useAuth] 默认角色同步检查完成')
+        } catch (error: any) {
+          console.warn('⚠️ [useAuth] 默认角色同步检查失败，但不影响主流程:', error.message)
+          // 不抛出错误，避免影响主要的数据同步流程
+        }
+        
         return // 成功后退出重试循环
         
       } catch (error: any) {

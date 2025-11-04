@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Bot, Users, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bot, Users, Sparkles, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
 import Avatar from './Avatar';
+import FavoriteButton from './FavoriteButton';
 
 const RoleSelector: React.FC = () => {
   const navigate = useNavigate();
@@ -14,13 +15,17 @@ const RoleSelector: React.FC = () => {
     currentModelId,
     setCurrentModel,
     createTempSession,
-    addMessage
+    addMessage,
+    toggleRoleFavorite,
+    getFavoriteRoles
   } = useAppStore();
 
   // 管理每个角色的开场白选择索引
   const [roleOpeningIndexes, setRoleOpeningIndexes] = useState<Record<string, number>>({});
 
   const enabledModels = llmConfigs.filter(config => config.enabled);
+  const favoriteRoles = getFavoriteRoles();
+  const regularRoles = aiRoles.filter(role => !role.isFavorite);
 
   const handleRoleSelect = (roleId: string) => {
     if (enabledModels.length === 0) {
@@ -91,6 +96,59 @@ const RoleSelector: React.FC = () => {
     }));
   };
 
+  // 渲染角色卡片
+  const renderRoleCard = (role: any) => (
+    <div
+      key={role.id}
+      className={cn(
+        "card bg-base-100 border border-base-300 cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/50 relative group",
+        enabledModels.length === 0 && "opacity-50 cursor-not-allowed"
+      )}
+    >
+      {/* 收藏按钮 */}
+      <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
+        <FavoriteButton
+          isFavorite={role.isFavorite}
+          onClick={() => toggleRoleFavorite(role.id)}
+          size="sm"
+        />
+      </div>
+      
+      {/* 移动端始终显示收藏按钮 */}
+      <div className="absolute top-3 right-3 z-10 md:hidden">
+        <FavoriteButton
+          isFavorite={role.isFavorite}
+          onClick={() => toggleRoleFavorite(role.id)}
+          size="sm"
+        />
+      </div>
+
+      <div 
+        className="card-body"
+        onClick={() => handleRoleSelect(role.id)}
+      >
+        <div className="flex items-start space-x-4">
+          <div className="flex-shrink-0">
+            <Avatar
+              name={role.name}
+              avatar={role.avatar}
+              size="lg"
+              className="flex-shrink-0"
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-semibold text-base-content mb-2">
+              {role.name}
+            </h3>
+            <p className="text-base-content/60 text-sm line-clamp-3">
+              {role.description || '这个角色还没有描述'}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   if (aiRoles.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-8">
@@ -143,38 +201,38 @@ const RoleSelector: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {aiRoles.map((role) => (
-          <div
-            key={role.id}
-            onClick={() => handleRoleSelect(role.id)}
-            className={cn(
-              "card bg-base-100 border border-base-300 cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/50",
-              enabledModels.length === 0 && "opacity-50 cursor-not-allowed"
-            )}
-          >
-            <div className="card-body">
-              <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0">
-                  <Avatar
-                    name={role.name}
-                    avatar={role.avatar}
-                    size="lg"
-                    className="flex-shrink-0"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-semibold text-base-content mb-2">
-                    {role.name}
-                  </h3>
-                  <p className="text-base-content/60 text-sm line-clamp-3">
-                    {role.description || '这个角色还没有描述'}
-                  </p>
-                </div>
-              </div>
-            </div>
+      {/* 收藏角色区域 */}
+      {favoriteRoles.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center mb-4">
+            <Star className="h-5 w-5 text-yellow-500 mr-2 fill-current" />
+            <h2 className="text-xl font-semibold text-base-content">
+              收藏角色
+            </h2>
+            <span className="ml-2 text-sm text-base-content/60">
+              ({favoriteRoles.length})
+            </span>
           </div>
-        ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {favoriteRoles.map(renderRoleCard)}
+          </div>
+        </div>
+      )}
+
+      {/* 所有角色区域 */}
+      <div className="mb-8">
+        <div className="flex items-center mb-4">
+          <Users className="h-5 w-5 text-base-content/70 mr-2" />
+          <h2 className="text-xl font-semibold text-base-content">
+            {favoriteRoles.length > 0 ? '其他角色' : '所有角色'}
+          </h2>
+          <span className="ml-2 text-sm text-base-content/60">
+            ({regularRoles.length})
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {regularRoles.map(renderRoleCard)}
+        </div>
       </div>
 
       <div className="mt-8 text-center">

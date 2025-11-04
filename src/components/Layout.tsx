@@ -317,14 +317,11 @@ const Layout: React.FC = () => {
       const messageTime = lastMessage.message_timestamp || lastMessage.timestamp;
       if (messageTime) {
         const time = new Date(messageTime).getTime();
-        // 调试日志：记录会话的最后消息时间
-        console.log(`📅 会话 ${session.title} 最后消息时间:`, new Date(messageTime).toLocaleString(), `(${time})`);
         return time;
       }
     }
     // 如果没有消息或消息没有时间戳，使用会话的更新时间
     const time = new Date(session.updatedAt).getTime();
-    console.log(`📅 会话 ${session.title} 使用更新时间:`, new Date(session.updatedAt).toLocaleString(), `(${time})`);
     return time;
   };
 
@@ -349,26 +346,10 @@ const Layout: React.FC = () => {
       const aTime = getLastActiveTime(a);
       const bTime = getLastActiveTime(b);
       
-      // 调试日志：记录排序比较
-      const result = bTime - aTime;
-      if (result !== 0) {
-        console.log(`🔄 排序比较: "${a.title}" (${new Date(aTime).toLocaleString()}) vs "${b.title}" (${new Date(bTime).toLocaleString()}) = ${result > 0 ? 'b在前' : 'a在前'}`);
-      }
-      
       // 按最后活跃时间降序排序（最近活跃的在前）
-      return result;
+      return bTime - aTime;
     });
 
-  // 调试日志：输出最终排序结果
-  console.log('📋 会话排序结果:', filteredSessions.map((session, index) => ({
-    index: index + 1,
-    title: session.title,
-    isPinned: session.isPinned,
-    lastActiveTime: new Date(getLastActiveTime(session)).toLocaleString(),
-    createdAt: new Date(session.createdAt).toLocaleString(),
-    updatedAt: new Date(session.updatedAt).toLocaleString()
-  })));
-  
   // 所有会话数据，用于虚拟滚动
   const allSessions = filteredSessions;
   const totalSessions = filteredSessions.length;

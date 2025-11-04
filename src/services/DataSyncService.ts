@@ -196,6 +196,52 @@ export class DataSyncService {
 
   // 同步AI角色
   private async syncAIRole(data: any): Promise<void> {
+    console.log('🔄 syncAIRole: 开始同步AI角色到数据库', {
+      roleId: data.id,
+      roleName: data.name,
+      isFavorite: data.isFavorite,
+      userId: data.user_id
+    });
+
+    // 安全的日期转换函数
+    const safeToISOString = (dateValue: any): string => {
+      if (!dateValue) {
+        return new Date().toISOString();
+      }
+      
+      // 如果已经是字符串，尝试解析
+      if (typeof dateValue === 'string') {
+        const parsed = new Date(dateValue);
+        if (isNaN(parsed.getTime())) {
+          console.warn('⚠️ syncAIRole: 无效的日期字符串，使用当前时间', dateValue);
+          return new Date().toISOString();
+        }
+        return parsed.toISOString();
+      }
+      
+      // 如果是Date对象
+      if (dateValue instanceof Date) {
+        if (isNaN(dateValue.getTime())) {
+          console.warn('⚠️ syncAIRole: 无效的Date对象，使用当前时间', dateValue);
+          return new Date().toISOString();
+        }
+        return dateValue.toISOString();
+      }
+      
+      // 其他情况，尝试转换
+      try {
+        const date = new Date(dateValue);
+        if (isNaN(date.getTime())) {
+          console.warn('⚠️ syncAIRole: 无法转换的日期值，使用当前时间', dateValue);
+          return new Date().toISOString();
+        }
+        return date.toISOString();
+      } catch (error) {
+        console.warn('⚠️ syncAIRole: 日期转换异常，使用当前时间', dateValue, error);
+        return new Date().toISOString();
+      }
+    };
+
     // 将前端字段映射到数据库结构
     const dbData = {
       id: data.id,
@@ -203,6 +249,7 @@ export class DataSyncService {
       name: data.name,
       prompt: data.systemPrompt,
       avatar: data.avatar,
+      is_favorite: data.isFavorite || false, // 添加收藏字段
       global_prompt_ids: data.globalPromptIds || [], // 新的多个提示词ID数组
       settings: {
         description: data.description,
@@ -212,16 +259,30 @@ export class DataSyncService {
         globalPromptIds: data.globalPromptIds, // 新的多个提示词ID数组
         voiceModelId: data.voiceModelId
       },
-      created_at: data.createdAt ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
-      updated_at: data.updatedAt ? new Date(data.updatedAt).toISOString() : new Date().toISOString()
+      created_at: safeToISOString(data.createdAt),
+      updated_at: safeToISOString(data.updatedAt)
     }
+
+    console.log('📝 syncAIRole: 数据库数据结构', {
+      id: dbData.id,
+      user_id: dbData.user_id,
+      name: dbData.name,
+      is_favorite: dbData.is_favorite
+    });
 
     const { error } = await supabase
       .from('ai_roles')
       .upsert(dbData, { onConflict: 'id' })
     
     if (error) {
+      console.error('❌ syncAIRole: 同步失败', error);
       throw new Error(`AI角色同步失败: ${error.message}`)
+    } else {
+      console.log('✅ syncAIRole: 角色同步成功', {
+        roleId: data.id,
+        roleName: data.name,
+        is_favorite: dbData.is_favorite
+      });
     }
   }
 
@@ -399,6 +460,7 @@ export class DataSyncService {
       name: item.name,
       systemPrompt: item.prompt,
       avatar: item.avatar,
+      isFavorite: item.is_favorite || false, // 添加收藏字段映射
       description: item.settings?.description || '',
       openingMessages: item.settings?.openingMessages || [],
       currentOpeningIndex: item.settings?.currentOpeningIndex || 0,
@@ -482,6 +544,78 @@ export class DataSyncService {
 
     this.isOnline = false
     this.updateStatus('offline')
+  }
+
+  // 确保默认角色存在于数据库中
+  async ensureDefaultRolesExist(user: any, defaultRoles: any[]): Promise<void> {
+    if (!user || !user.id) {
+      console.warn('⚠️ [DataSyncService] 用户未登录，跳过默认角色同步')
+      return
+    }
+
+    console.log('🔄 [DataSyncService] 开始检查默认角色是否存在于数据库中...')
+    
+    try {
+      // 确保使用正确的UUID格式的默认角色ID
+      const defaultRoleIdMap: { [key: string]: string } = {
+        'default-assistant': '00000000-0000-4000-8000-000000000001',
+        'code-expert': '00000000-0000-4000-8000-000000000002',
+        'creative-writer': '00000000-0000-4000-8000-000000000003'
+      }
+      
+      // 转换角色ID为正确的UUID格式
+      const normalizedRoles = defaultRoles.map(role => {
+        const normalizedId = defaultRoleIdMap[role.id] || role.id
+        return {
+          ...role,
+          id: normalizedId
+        }
+      })
+      
+      const defaultRoleIds = normalizedRoles.map(role => role.id)
+      console.log('🔍 [DataSyncService] 检查的默认角色ID:', defaultRoleIds)
+      
+      // 检查哪些默认角色在数据库中不存在
+      const { data: existingRoles, error: checkError } = await supabase
+        .from('ai_roles')
+        .select('id')
+        .eq('user_id', user.id)
+        .in('id', defaultRoleIds)
+      
+      if (checkError) {
+        console.error('❌ [DataSyncService] 检查默认角色失败:', checkError)
+        throw new Error(`检查默认角色失败: ${checkError.message}`)
+      }
+      
+      const existingRoleIds = (existingRoles || []).map(role => role.id)
+      const missingRoles = normalizedRoles.filter(role => !existingRoleIds.includes(role.id))
+      
+      if (missingRoles.length === 0) {
+        console.log('✅ [DataSyncService] 所有默认角色已存在于数据库中')
+        return
+      }
+      
+      console.log(`🔄 [DataSyncService] 发现 ${missingRoles.length} 个缺失的默认角色，开始同步...`, 
+        missingRoles.map(role => `${role.name} (${role.id})`))
+      
+      // 同步缺失的默认角色到数据库
+      for (const role of missingRoles) {
+        try {
+          const roleWithUserId = { ...role, user_id: user.id }
+          await this.syncAIRole(roleWithUserId)
+          console.log(`✅ [DataSyncService] 默认角色 "${role.name}" (${role.id}) 同步成功`)
+        } catch (error: any) {
+          console.error(`❌ [DataSyncService] 默认角色 "${role.name}" (${role.id}) 同步失败:`, error)
+          // 继续同步其他角色，不中断整个过程
+        }
+      }
+      
+      console.log('✅ [DataSyncService] 默认角色同步检查完成')
+      
+    } catch (error: any) {
+      console.error('❌ [DataSyncService] 默认角色同步检查失败:', error)
+      throw new Error(`默认角色同步检查失败: ${error.message}`)
+    }
   }
 
   // 销毁服务

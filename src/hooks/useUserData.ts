@@ -71,6 +71,100 @@ export const useUserData = () => {
   const [dataSyncLastTime, setDataSyncLastTime] = useState<number | null>(null)// 同步队列状态
   const [syncQueue, setSyncQueue] = useState<Set<string>>(new Set())
   
+  // 离线数据同步队列
+  const [offlineSyncQueue, setOfflineSyncQueue] = useState<Array<{
+    id: string
+    type: 'session' | 'message' | 'delete'
+    data: any
+    timestamp: number
+    retryCount: number
+  }>>([])
+  
+  // 离线同步状态
+  const [isOfflineMode, setIsOfflineMode] = useState(!navigator.onLine)
+  
+  // 会话锁定机制：跟踪正在进行流式输出的会话
+  const [lockedSessions, setLockedSessions] = useState<Set<string>>(new Set())
+  const sessionLockTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  
+  // 锁定会话（防止同步覆盖）
+  const lockSession = useCallback((sessionId: string, reason: string = '流式输出') => {
+    console.log(`🔒 锁定会话: ${sessionId} (原因: ${reason})`)
+    setLockedSessions(prev => new Set([...prev, sessionId]))
+    
+    // 清除之前的超时器
+    const existingTimeout = sessionLockTimeouts.current.get(sessionId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+    }
+    
+    // 设置自动解锁超时器（5分钟后自动解锁，防止死锁）
+    const timeout = setTimeout(() => {
+      console.log(`⏰ 会话 ${sessionId} 锁定超时，自动解锁`)
+      unlockSession(sessionId, '超时自动解锁')
+    }, 5 * 60 * 1000) // 5分钟
+    
+    sessionLockTimeouts.current.set(sessionId, timeout)
+  }, [])
+  
+  // 解锁会话
+  const unlockSession = useCallback((sessionId: string, reason: string = '流式完成') => {
+    console.log(`🔓 解锁会话: ${sessionId} (原因: ${reason})`)
+    setLockedSessions(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(sessionId)
+      return newSet
+    })
+    
+    // 清除超时器
+    const timeout = sessionLockTimeouts.current.get(sessionId)
+    if (timeout) {
+      clearTimeout(timeout)
+      sessionLockTimeouts.current.delete(sessionId)
+    }
+  }, [])
+  
+  // 检查会话是否被锁定
+  const isSessionLocked = useCallback((sessionId: string) => {
+    return lockedSessions.has(sessionId)
+  }, [lockedSessions])
+  
+  // 获取所有锁定的会话
+  const getLockedSessions = useCallback(() => {
+    return Array.from(lockedSessions)
+  }, [lockedSessions])
+  
+  // 自动会话锁定管理：监听流式状态变化
+  useEffect(() => {
+    const currentStreamingSessions = new Set<string>()
+    
+    // 找出所有有流式消息的会话
+    chatSessions.forEach(session => {
+      const hasStreamingMessage = session.messages?.some(msg => msg.isStreaming)
+      if (hasStreamingMessage) {
+        currentStreamingSessions.add(session.id)
+        
+        // 如果会话还没有被锁定，则锁定它
+        if (!lockedSessions.has(session.id)) {
+          lockSession(session.id, '检测到流式消息')
+        }
+      }
+    })
+    
+    // 解锁不再有流式消息的会话
+    lockedSessions.forEach(sessionId => {
+      if (!currentStreamingSessions.has(sessionId)) {
+        // 检查会话是否仍然存在
+        const sessionExists = chatSessions.some(s => s.id === sessionId)
+        if (sessionExists) {
+          unlockSession(sessionId, '流式消息已完成')
+        } else {
+          unlockSession(sessionId, '会话已删除')
+        }
+      }
+    })
+  }, [chatSessions, lockedSessions, lockSession, unlockSession])
+  
   // 队列清理机制：定期清理可能残留的队列项
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
@@ -122,6 +216,15 @@ export const useUserData = () => {
     messages: 'DISCONNECTED'
   })
   
+  // 网络状态监控
+  const [networkStatus, setNetworkStatus] = useState({
+    isOnline: navigator.onLine,
+    connectionType: 'unknown',
+    effectiveType: 'unknown',
+    downlink: 0,
+    rtt: 0
+  })
+  
   // 监控订阅状态变化
   useEffect(() => {
     console.log('📊 实时订阅状态更新:', subscriptionStatus)
@@ -131,6 +234,94 @@ export const useUserData = () => {
       allConnected: subscriptionStatus.chatSessions === 'SUBSCRIBED' && subscriptionStatus.messages === 'SUBSCRIBED'
     })
   }, [subscriptionStatus])
+
+  // 网络状态监控
+  useEffect(() => {
+    const updateNetworkStatus = () => {
+      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection
+      
+      setNetworkStatus({
+        isOnline: navigator.onLine,
+        connectionType: connection?.type || 'unknown',
+        effectiveType: connection?.effectiveType || 'unknown',
+        downlink: connection?.downlink || 0,
+        rtt: connection?.rtt || 0
+      })
+      
+      console.log('🌐 网络状态更新:', {
+        isOnline: navigator.onLine,
+        connectionType: connection?.type || 'unknown',
+        effectiveType: connection?.effectiveType || 'unknown',
+        downlink: connection?.downlink || 0,
+        rtt: connection?.rtt || 0
+      })
+    }
+
+    // 初始化网络状态
+    updateNetworkStatus()
+
+    // 监听网络状态变化
+    const handleOnline = () => {
+      console.log('🟢 网络已连接')
+      updateNetworkStatus()
+      // 网络恢复时，尝试重新连接
+       if (user && ENABLE_REALTIME_SUBSCRIPTIONS) {
+         console.log('🔄 网络恢复，尝试重新建立实时订阅')
+         setTimeout(() => {
+           startRealtimeSubscriptions()
+         }, 1000)
+       }
+    }
+
+    const handleOffline = () => {
+      console.log('🔴 网络已断开')
+      updateNetworkStatus()
+      // 网络断开时，清理订阅
+       if (ENABLE_REALTIME_SUBSCRIPTIONS) {
+         console.log('🚫 网络断开，清理实时订阅')
+         cleanupAllRealtimeSubscriptions()
+       }
+    }
+
+    const handleConnectionChange = () => {
+      updateNetworkStatus()
+    }
+
+    // 添加事件监听器
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    
+    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection
+    if (connection) {
+      connection.addEventListener('change', handleConnectionChange)
+    }
+
+    return () => {
+       window.removeEventListener('online', handleOnline)
+       window.removeEventListener('offline', handleOffline)
+       if (connection) {
+         connection.removeEventListener('change', handleConnectionChange)
+       }
+     }
+   }, [user])
+
+   // 离线队列管理函数
+   const addToOfflineQueue = useCallback((type: 'session' | 'message' | 'delete', data: any) => {
+     const queueItem = {
+       id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+       type,
+       data,
+       timestamp: Date.now(),
+       retryCount: 0
+     }
+     
+     setOfflineSyncQueue(prev => [...prev, queueItem])
+     console.log('📦 添加到离线同步队列:', queueItem)
+   }, [])
+
+
+
+
 
   // 连接健康检查函数
   const performConnectionHealthCheck = useCallback(() => {
@@ -477,6 +668,33 @@ export const useUserData = () => {
   // 同步到云端
   const syncToCloud = useCallback(async (retryCount = 0) => {
     if (!user || syncing) {
+      return
+    }
+    
+    // 🔒 流式状态保护：如果有流式消息正在进行，延迟同步
+    if (hasStreamingMessages()) {
+      console.log('🚫 检测到流式消息正在进行，延迟同步到云端')
+      // 对于上传同步，我们可以稍后重试，而不是完全跳过
+      setTimeout(() => {
+        if (!hasStreamingMessages()) {
+          console.log('🔄 流式消息已完成，重试同步到云端')
+          syncToCloud(retryCount)
+        }
+      }, 2000) // 2秒后重试
+      return
+    }
+    
+    // 🔒 会话锁定保护：检查是否有锁定的会话
+    const lockedSessionsList = getLockedSessions()
+    if (lockedSessionsList.length > 0) {
+      console.log(`🚫 检测到 ${lockedSessionsList.length} 个锁定会话，延迟同步到云端:`, lockedSessionsList)
+      // 对于上传同步，我们可以稍后重试
+      setTimeout(() => {
+        if (getLockedSessions().length === 0) {
+          console.log('🔄 会话锁定已解除，重试同步到云端')
+          syncToCloud(retryCount)
+        }
+      }, 2000) // 2秒后重试
       return
     }
 
@@ -1046,12 +1264,111 @@ export const useUserData = () => {
     };
   }, [user])
 
-  // 从云端同步（带重试机制）
+  // 网络请求重试工具函数
+  const retryWithExponentialBackoff = useCallback(async <T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000,
+    maxDelay: number = 10000,
+    operationName: string = 'operation'
+  ): Promise<T> => {
+    let lastError: Error | null = null
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation()
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        
+        // 如果是最后一次尝试，直接抛出错误
+        if (attempt === maxRetries) {
+          throw lastError
+        }
+        
+        // 检查是否是可重试的错误
+        const isRetryableError = (
+          lastError.message.includes('Failed to fetch') ||
+          lastError.message.includes('network') ||
+          lastError.message.includes('fetch') ||
+          lastError.message.includes('ERR_ABORTED') ||
+          lastError.message.includes('timeout')
+        )
+        
+        if (!isRetryableError) {
+          throw lastError
+        }
+        
+        // 计算指数退避延迟
+        const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay)
+        
+        console.warn(`🔄 ${operationName} 失败，${delay}ms后重试 (${attempt}/${maxRetries}):`, lastError.message)
+        
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+    
+    throw lastError || new Error(`${operationName} failed after ${maxRetries} attempts`)
+  }, [])
+
+  // 带超时的网络请求包装器（增强版）
+  const withTimeout = useCallback(<T>(
+    promise: Promise<T>,
+    timeoutMs: number = 15000,
+    operationName: string = 'operation'
+  ): Promise<T> => {
+    let timeoutId: NodeJS.Timeout
+    
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`网络请求超时: ${operationName} (${timeoutMs}ms)`))
+      }, timeoutMs)
+    })
+    
+    return Promise.race([
+      promise.finally(() => {
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+        }
+      }),
+      timeoutPromise
+    ])
+  }, [])
+
+  // 从云端同步（带增强重试机制）
   const syncFromCloud = useCallback(async (attempt = 1) => {
     const maxRetries = 3
     const retryDelay = 2000 // 2秒
     
     if (!user || syncing) return
+    
+    // 🔒 流式状态保护：如果有流式消息正在进行，禁用从云端同步
+    if (hasStreamingMessages()) {
+      console.log('🚫 检测到流式消息正在进行，跳过从云端同步以保护数据')
+      return
+    }
+    
+    // 🔒 会话锁定保护：如果有锁定的会话，也禁用同步
+    const lockedSessionsList = getLockedSessions()
+    if (lockedSessionsList.length > 0) {
+      console.log(`🚫 检测到 ${lockedSessionsList.length} 个锁定会话，跳过从云端同步:`, lockedSessionsList)
+      return
+    }
+
+    // 检查网络状态
+    if (!networkStatus.isOnline) {
+      console.log('🚫 网络离线，跳过云端同步')
+      setSyncError('网络连接不可用，请检查网络连接后重试')
+      return
+    }
+
+    // 检查网络质量
+    if (networkStatus.effectiveType === 'slow-2g' || networkStatus.rtt > 2000) {
+      console.warn('⚠️ 网络质量较差，可能影响同步性能', {
+        effectiveType: networkStatus.effectiveType,
+        rtt: networkStatus.rtt,
+        downlink: networkStatus.downlink
+      })
+    }
 
     // 生成同步标识符和记录开始时间
     const syncId = `${user.id}-${Date.now()}`
@@ -1061,6 +1378,7 @@ export const useUserData = () => {
     console.log(`⬇️ ===== 开始从云端同步 =====`);
     console.log(`🔄 [同步开始] ID: ${syncId}`);
     console.log(`📊 [同步状态] 用户: ${user.id}, 尝试次数: ${attempt}/${maxRetries}, 在线状态: ${navigator.onLine}`);
+    console.log(`🌐 [网络状态] 类型: ${networkStatus.connectionType}, 有效类型: ${networkStatus.effectiveType}, RTT: ${networkStatus.rtt}ms, 下行: ${networkStatus.downlink}Mbps`);
     console.log(`⏰ [同步时间] 开始时间: ${new Date(syncStartTime).toLocaleString()}`);
 
     setSyncing(true)
@@ -1099,31 +1417,32 @@ export const useUserData = () => {
       console.log(`✅ [同步步骤] 用户认证验证通过`);
       console.log(`📝 [同步步骤] 开始获取云端会话数据...`);
 
-      // 获取用户的聊天会话（添加超时机制）
-      const sessionsPromise = supabase
-        .from('chat_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-      
-      const sessionsTimeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('获取会话数据超时')), 25000) // 25秒超时
-      })
-      
-      const { data: sessions, error: sessionsError } = await Promise.race([
-        sessionsPromise,
-        sessionsTimeoutPromise
-      ]) as any
+      // 获取用户的聊天会话 - 使用增强的重试机制
+      const sessions = await retryWithExponentialBackoff(
+        async () => {
+          const { data, error } = await supabase
+            .from('chat_sessions')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('updated_at', { ascending: false })
 
-      if (sessionsError) {
-        // 运行诊断
-        const debugResult = await SupabaseDebugger.testConnection()
-        
-        // 测试具体查询
-        const queryResult = await SupabaseDebugger.testSpecificQuery(user.id)
-        
-        throw new Error(`Failed to fetch sessions: ${sessionsError.message} (Code: ${sessionsError.code})`)
-      }
+          if (error) {
+            // 运行诊断
+            const debugResult = await SupabaseDebugger.testConnection()
+            
+            // 测试具体查询
+            const queryResult = await SupabaseDebugger.testSpecificQuery(user.id)
+            
+            throw new Error(`Failed to fetch sessions: ${error.message} (Code: ${error.code})`)
+          }
+          
+          return data
+        },
+        3, // 最多重试3次
+        1000, // 基础延迟1秒
+        8000, // 最大延迟8秒
+        '获取用户聊天会话'
+      )
       
       console.log(`📝 [同步步骤] 会话数据获取完成，共${sessions?.length || 0}个会话`);
       console.log(`💬 [同步步骤] 开始获取云端消息数据...`);
@@ -1132,16 +1451,26 @@ export const useUserData = () => {
       let totalMessages = 0
 
       for (const session of sessions || []) {
-        // 获取会话的消息
-        const { data: messages, error: messagesError } = await supabase
-          .from('messages')
-          .select('*, snowflake_id::text')
-          .eq('session_id', session.id)
-          .order('message_timestamp', { ascending: true })
-
-        if (messagesError) {
-          throw new Error(`Failed to fetch messages for session ${session.id}: ${messagesError.message}`)
-        }
+        // 获取会话的消息 - 使用增强的重试机制
+        const messages = await retryWithExponentialBackoff(
+          async () => {
+            const { data, error } = await supabase
+              .from('messages')
+              .select('*, snowflake_id::text')
+              .eq('session_id', session.id)
+              .order('message_timestamp', { ascending: true })
+            
+            if (error) {
+              throw new Error(`Failed to fetch messages for session ${session.id}: ${error.message}`)
+            }
+            
+            return data
+          },
+          3, // 最多重试3次
+          1000, // 基础延迟1秒
+          8000, // 最大延迟8秒
+          `获取会话 ${session.id.substring(0, 8)}... 的消息`
+        )
 
         const sessionMessages: ChatMessage[] = (messages || []).map(msg => {
           const mappedMessage = {
@@ -1206,6 +1535,12 @@ export const useUserData = () => {
       // 智能合并云端会话
       cloudSessions.forEach(cloudSession => {
         const localSession = mergedSessions.get(cloudSession.id)
+        
+        // 🔒 会话锁定保护：如果会话被锁定，跳过合并，保留本地数据
+        if (isSessionLocked(cloudSession.id)) {
+          console.log(`🔒 会话 ${cloudSession.id} 被锁定，跳过云端合并，保留本地数据`)
+          return
+        }
         
         if (!localSession) {
           // 如果本地没有这个会话，直接使用云端数据
@@ -1274,33 +1609,185 @@ export const useUserData = () => {
       
       console.log('✅ 从云端同步全部完成！')
     } catch (error) {
+      const syncEndTime = Date.now()
+      const syncDuration = syncEndTime - syncStartTime
       const errorMessage = error instanceof Error ? error.message : 'Failed to sync from cloud'
-      console.error('❌ 从云端同步失败:', errorMessage)
-      console.error('🔍 错误详情:', error)
+      
+      console.error(`❌ ===== 从云端同步失败 =====`);
+      console.error(`❌ [同步失败] ID: ${syncId}`);
+      console.error(`⏱️ [失败耗时] ${syncDuration}ms (${(syncDuration/1000).toFixed(2)}秒)`);
+      console.error(`💥 [失败原因] ${errorMessage}`);
+      console.error(`🔄 [重试信息] 当前尝试次数: ${attempt}/${maxRetries}`);
+      console.error('🚨 [错误详情]:', {
+        error: errorMessage,
+        attempt,
+        maxRetries,
+        userId: user.id,
+        timestamp: new Date(syncEndTime).toISOString(),
+        onlineStatus: navigator.onLine,
+        syncId,
+        stackTrace: error instanceof Error ? error.stack : undefined
+      })
+      
+      // 增强的错误分类
+      const isAuthError = errorMessage.includes('not authenticated') || 
+                         errorMessage.includes('JWT') || 
+                         errorMessage.includes('unauthorized')
+      
+      const isNetworkError = errorMessage.includes('Failed to fetch') || 
+                            errorMessage.includes('network') || 
+                            errorMessage.includes('fetch') ||
+                            errorMessage.includes('ERR_ABORTED') ||
+                            errorMessage.includes('timeout') ||
+                            errorMessage.includes('NETWORK_ERROR')
+      
+      const isRateLimitError = errorMessage.includes('rate limit') || 
+                              errorMessage.includes('too many requests')
+      
+      const isServerError = errorMessage.includes('500') || 
+                           errorMessage.includes('502') || 
+                           errorMessage.includes('503') || 
+                           errorMessage.includes('504')
       
       // 如果是认证错误，不要继续重试
-      if (errorMessage.includes('not authenticated') || errorMessage.includes('JWT')) {
+      if (isAuthError) {
         console.error('🔐 认证错误: 用户认证已过期')
         setSyncError('认证已过期，请重新登录')
         setSyncing(false)
         return
       }
       
-      // 如果是网络错误且还有重试次数，则重试
-      if (attempt < maxRetries && (errorMessage.includes('Failed to fetch') || errorMessage.includes('network') || errorMessage.includes('fetch'))) {
-        console.warn(`🔄 网络错误，正在重试 (${attempt}/${maxRetries})...`)
-        setTimeout(() => {
-          syncFromCloud(attempt + 1)
-        }, retryDelay)
-        return
+      // 如果还有重试次数，根据错误类型决定是否重试
+      if (attempt < maxRetries) {
+        const shouldRetry = isNetworkError || isRateLimitError || isServerError || !navigator.onLine
+        
+        if (shouldRetry) {
+          // 计算智能重试延迟
+          let delay = retryDelay
+          if (isRateLimitError) {
+            delay = Math.min(5000 * Math.pow(2, attempt - 1), 30000) // 5秒起步，最大30秒
+          } else if (isNetworkError || !navigator.onLine) {
+            delay = Math.min(3000 * Math.pow(2, attempt - 1), 20000) // 3秒起步，最大20秒
+          } else if (isServerError) {
+            delay = Math.min(2000 * Math.pow(2, attempt - 1), 15000) // 2秒起步，最大15秒
+          }
+          
+          console.log(`🔄 将在 ${delay}ms 后重试从云端同步 (${attempt + 1}/${maxRetries})`, {
+            errorType: isRateLimitError ? 'rate_limit' : 
+                      isNetworkError ? 'network' : 
+                      isServerError ? 'server' : 'unknown',
+            delay,
+            onlineStatus: navigator.onLine
+          })
+          
+          setTimeout(() => {
+            syncFromCloud(attempt + 1)
+          }, delay)
+          return
+        }
       }
       
-      // 设置错误信息并停止同步
-      console.error('💥 从云端同步最终失败，已停止重试')
-      setSyncError(errorMessage)
+      // 不重试的情况，提供更详细的用户友好错误信息
+      let userFriendlyMessage = '从云端同步失败'
+      
+      if (isAuthError) {
+        userFriendlyMessage = '认证失败，请重新登录'
+      } else if (!navigator.onLine) {
+        userFriendlyMessage = '网络连接不可用，请检查网络设置'
+      } else if (isNetworkError) {
+        userFriendlyMessage = '网络连接不稳定，请稍后重试'
+      } else if (isRateLimitError) {
+        userFriendlyMessage = '请求过于频繁，请稍后重试'
+      } else if (isServerError) {
+        userFriendlyMessage = '服务器暂时不可用，请稍后重试'
+      } else if (attempt >= maxRetries) {
+        userFriendlyMessage = '同步重试次数已达上限，请稍后手动重试'
+      }
+      
+      console.error('🚨 从云端同步最终失败:', {
+        reason: isAuthError ? 'auth_error' : 
+               !navigator.onLine ? 'offline' : 
+               isNetworkError ? 'network_error' :
+               isRateLimitError ? 'rate_limit' :
+               isServerError ? 'server_error' : 'max_retries',
+        finalError: errorMessage,
+        attempt,
+        userFriendlyMessage
+      })
+      
+      setSyncError(userFriendlyMessage)
       setSyncing(false)
     }
   }, [user, syncing])
+
+  // 离线队列处理函数
+  const processOfflineQueue = useCallback(async () => {
+    if (offlineSyncQueue.length === 0 || !networkStatus.isOnline) {
+      return
+    }
+
+    console.log(`🔄 开始处理离线同步队列，共 ${offlineSyncQueue.length} 项`)
+    
+    const processedItems: string[] = []
+    const failedItems: string[] = []
+
+    for (const item of offlineSyncQueue) {
+      try {
+        console.log(`📤 处理离线队列项:`, item)
+        
+        // 根据类型处理不同的同步操作
+        switch (item.type) {
+          case 'session':
+          case 'message':
+            // 触发完整同步
+            await syncToCloud()
+            break
+          case 'delete':
+            // 处理删除操作
+            await syncToCloud()
+            break
+        }
+        
+        processedItems.push(item.id)
+        console.log(`✅ 离线队列项处理成功:`, item.id)
+        
+      } catch (error) {
+        console.error(`❌ 离线队列项处理失败:`, item.id, error)
+        failedItems.push(item.id)
+        
+        // 增加重试次数
+        setOfflineSyncQueue(prev => prev.map(queueItem => 
+          queueItem.id === item.id 
+            ? { ...queueItem, retryCount: queueItem.retryCount + 1 }
+            : queueItem
+        ))
+      }
+    }
+
+    // 移除成功处理的项目
+    if (processedItems.length > 0) {
+      setOfflineSyncQueue(prev => prev.filter(item => !processedItems.includes(item.id)))
+      console.log(`🧹 已从离线队列移除 ${processedItems.length} 个成功处理的项目`)
+    }
+
+    // 移除重试次数过多的项目
+    setOfflineSyncQueue(prev => prev.filter(item => item.retryCount < 3))
+    
+  }, [offlineSyncQueue, networkStatus.isOnline, syncToCloud])
+
+   // 网络恢复时处理离线队列
+   useEffect(() => {
+     if (networkStatus.isOnline && !isOfflineMode && offlineSyncQueue.length > 0) {
+       console.log('🌐 网络恢复，开始处理离线同步队列')
+       setIsOfflineMode(false)
+       // 延迟处理，确保网络连接稳定
+       setTimeout(() => {
+         processOfflineQueue()
+       }, 2000)
+     } else if (!networkStatus.isOnline) {
+       setIsOfflineMode(true)
+     }
+   }, [networkStatus.isOnline, isOfflineMode, offlineSyncQueue.length, processOfflineQueue])
 
   // 启用自动同步
   const enableAutoSync = useCallback(() => {
@@ -2290,12 +2777,45 @@ export const useUserData = () => {
   const lastSyncFromCloudTime = useRef<number>(0)
   const lastSyncToCloudTime = useRef<number>(0)
 
-  // 检查是否有消息正在流式输出
+  // 检查是否有消息正在流式输出 - 增强版本
   const hasStreamingMessages = useCallback(() => {
+    const now = Date.now()
+    const streamingTimeout = 60000 // 60秒超时，超过这个时间认为流式已结束
+    
     const streamingMessages = chatSessions.flatMap(session => 
-      session.messages?.filter(message => message.isStreaming) || []
+      session.messages?.filter(message => {
+        // 基础检查：isStreaming 状态
+        if (!message.isStreaming) return false
+        
+        // 时间检查：如果消息创建时间超过60秒且仍然是streaming状态，可能是异常状态
+        const messageTime = message.timestamp ? new Date(message.timestamp).getTime() : now
+        const timeSinceCreation = now - messageTime
+        
+        if (timeSinceCreation > streamingTimeout) {
+          console.warn(`⚠️ 检测到可能的异常流式状态: 消息 ${message.id} 已流式超过 ${Math.floor(timeSinceCreation / 1000)} 秒`)
+          // 可以选择在这里自动清理异常状态，但为了安全起见，仍然认为是流式状态
+        }
+        
+        return true
+      }) || []
     )
+    
     const hasStreaming = streamingMessages.length > 0
+    
+    // 详细日志记录，便于调试
+    if (hasStreaming) {
+      console.log(`🔄 检测到 ${streamingMessages.length} 条流式消息:`, 
+        streamingMessages.map(msg => ({
+          id: msg.id,
+          sessionId: chatSessions.find(s => s.messages?.includes(msg))?.id,
+          role: msg.role,
+          contentLength: msg.content.length,
+          timestamp: msg.timestamp,
+          timeSinceCreation: now - (msg.timestamp ? new Date(msg.timestamp).getTime() : now)
+        }))
+      )
+    }
+    
     return hasStreaming
   }, [chatSessions])
 
@@ -2691,6 +3211,11 @@ export const useUserData = () => {
     dataSyncLastTime,
     syncProgress,
     
+    // 网络状态
+    networkStatus,
+    isOfflineMode,
+    offlineSyncQueue,
+    
     // 实时订阅状态
     realtimeConnected,
     
@@ -2698,6 +3223,10 @@ export const useUserData = () => {
     syncToCloud,
     syncFromCloud,
     manualDataSync: manualDataSync,
+    
+    // 离线队列管理
+    addToOfflineQueue,
+    processOfflineQueue,
     
     // 实时订阅管理
     startRealtimeSubscriptions,
@@ -2709,6 +3238,15 @@ export const useUserData = () => {
     clearSyncError,
     
     // 队列数据同步
-    queueDataSync
+    queueDataSync,
+    
+    // 🔒 会话锁定管理
+    lockSession,
+    unlockSession,
+    isSessionLocked,
+    getLockedSessions,
+    
+    // 🔄 流式状态检查
+    hasStreamingMessages
   }
 }

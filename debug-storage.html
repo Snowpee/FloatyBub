@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>强制修复默认角色ID</title>
+</head>
+<body>
+    <h1>强制修复默认角色ID</h1>
+    <button onclick="fixRoleIds()">修复角色ID</button>
+    <button onclick="clearStorage()">清除存储</button>
+    <div id="output"></div>
+
+    <script>
+        function log(message) {
+            document.getElementById('output').innerHTML += '<p>' + message + '</p>';
+            console.log(message);
+        }
+
+        function fixRoleIds() {
+            log('开始修复角色ID...');
+            
+            // 获取当前存储的数据
+            const storageKey = 'floaty-bub-storage';
+            const data = localStorage.getItem(storageKey);
+            
+            if (!data) {
+                log('未找到存储数据');
+                return;
+            }
+            
+            try {
+                const parsed = JSON.parse(data);
+                log('当前存储版本: ' + (parsed.version || '未知'));
+                
+                // 定义角色ID映射
+                const roleIdMapping = {
+                    'default-assistant': 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+                    'code-expert': 'b2c3d4e5-f6g7-8901-bcde-f23456789012',
+                    'creative-writer': 'c3d4e5f6-g7h8-9012-cdef-345678901234'
+                };
+                
+                let changed = false;
+                
+                // 修复 aiRoles 中的ID
+                if (parsed.state && parsed.state.aiRoles) {
+                    parsed.state.aiRoles.forEach(role => {
+                        if (roleIdMapping[role.id]) {
+                            log(`修复角色ID: ${role.id} -> ${roleIdMapping[role.id]}`);
+                            role.id = roleIdMapping[role.id];
+                            changed = true;
+                        }
+                    });
+                }
+                
+                // 修复 chatSessions 中的角色引用
+                if (parsed.state && parsed.state.chatSessions) {
+                    parsed.state.chatSessions.forEach(session => {
+                        if (session.aiRoleId && roleIdMapping[session.aiRoleId]) {
+                            log(`修复会话角色ID: ${session.aiRoleId} -> ${roleIdMapping[session.aiRoleId]}`);
+                            session.aiRoleId = roleIdMapping[session.aiRoleId];
+                            changed = true;
+                        }
+                    });
+                }
+                
+                // 更新版本号
+                parsed.version = 6;
+                
+                if (changed) {
+                    localStorage.setItem(storageKey, JSON.stringify(parsed));
+                    log('角色ID修复完成！');
+                    log('请刷新页面以应用更改');
+                } else {
+                    log('未发现需要修复的角色ID');
+                }
+                
+            } catch (error) {
+                log('解析存储数据失败: ' + error.message);
+            }
+        }
+        
+        function clearStorage() {
+            localStorage.clear();
+            log('本地存储已清除');
+            log('请刷新页面');
+        }
+    </script>
+</body>
+</html>
