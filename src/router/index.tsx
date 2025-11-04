@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import App from '../App';
 import ChatPage from '../pages/ChatPage';
+import RoleListPage from '../pages/RoleListPage';
 import Home from '../pages/Home';
 import NotFound from '../pages/NotFound';
 import GlobalSettingsPage from '../pages/GlobalSettingsPage';
@@ -30,6 +31,10 @@ export const router = createBrowserRouter([
       {
         path: 'chat',
         element: <ChatPage />
+      },
+      {
+        path: 'roles',
+        element: <RoleListPage />
       },
       {
         path: 'chat/:sessionId',

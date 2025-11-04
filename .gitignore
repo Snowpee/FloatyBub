@@ -34,6 +34,7 @@ tts-server/.env
 # Vercel
 .vercel
 .vercel/*
+.figma/*
 
 # 脚本、bat 文件不要提交
 commit.bat

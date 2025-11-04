@@ -1,21 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore, generateId } from '../store';
-import {
-  Send,
-  Bot,
-  User,
-  Loader2,
-  Square,
-  Cpu,
-  Plus,
-  RefreshCw,
-  Edit3,
-  Trash2,
-  Volume2,
-  ChevronLeft,
-  ChevronRight
-} from 'lucide-react';
+import { Bot, Send, Square, Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, Users, User, Cpu, Plus, Edit3 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
 import RoleSelector from '../components/RoleSelector';
@@ -50,6 +36,8 @@ const ChatPage: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingMessageRef = useRef<string | null>(null);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   
   // 获取数据同步功能
   const { syncToCloud } = useUserData();
@@ -107,11 +95,21 @@ const ChatPage: React.FC = () => {
     generateSessionTitle,
     markSessionNeedsTitle,
     checkSessionNeedsTitle,
-    removeSessionNeedsTitle
+    removeSessionNeedsTitle,
+    getFavoriteRoles
   } = useAppStore();
 
   // 获取启用的模型
   const enabledModels = llmConfigs.filter(m => m.enabled);
+
+  // 收藏助手（用于 /chat 首屏默认与选择）
+  const favoriteRoles = getFavoriteRoles();
+  useEffect(() => {
+    if (!sessionId) {
+      const defaultRoleId = favoriteRoles[0]?.id || aiRoles[0]?.id || null;
+      setSelectedRoleId(prev => prev ?? defaultRoleId);
+    }
+  }, [sessionId, favoriteRoles, aiRoles]);
 
   // 获取当前会话：优先从tempSession获取临时会话数据
   const currentSession = useMemo(() => {
@@ -138,11 +136,11 @@ const ChatPage: React.FC = () => {
     
     // 如果会话角色不存在，回退到第一个可用角色
     if (!role && aiRoles.length > 0) {
-      role = aiRoles[0];
+      role = (selectedRoleId ? aiRoles.find(r => r.id === selectedRoleId) : null) || aiRoles[0];
     }
     
     return role;
-  }, [currentSession?.id, currentSession?.roleId, aiRoles, tempSessionId]);
+  }, [currentSession?.id, currentSession?.roleId, aiRoles, tempSessionId, selectedRoleId]);
   const currentModel = currentSession ? llmConfigs.find(m => m.id === currentSession.modelId) : llmConfigs.find(m => m.id === currentModelId);
 
   // 如果有sessionId参数，设置为当前会话
@@ -151,6 +149,64 @@ const ChatPage: React.FC = () => {
       setCurrentSession(sessionId);
     }
   }, [sessionId, currentSessionId, setCurrentSession]);
+
+  // 路由到具体会话后，自动发送在 /chat 首屏记录的待发送消息
+  useEffect(() => {
+    const sendPending = async () => {
+      if (sessionId && pendingMessageRef.current && currentSession) {
+        const text = pendingMessageRef.current;
+        pendingMessageRef.current = null;
+
+        const userName = currentUserProfile?.name || '用户';
+        const charName = currentRole?.name || 'AI助手';
+        const userMessage = replaceTemplateVariables(text, userName, charName);
+
+        setIsLoading(true);
+        setIsGenerating(true);
+
+        addMessage(currentSession.id, {
+          role: 'user',
+          content: userMessage,
+          timestamp: new Date()
+        }, () => {
+          markSessionNeedsTitle(currentSession.id);
+        });
+
+        const aiMessageId = generateId();
+        const supportsReasoning = currentModel?.model?.includes('deepseek-reasoner') || 
+                                 currentModel?.model?.includes('o1') ||
+                                 currentModel?.name?.toLowerCase().includes('reasoning');
+
+        addMessage(currentSession.id, {
+          id: aiMessageId,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date(),
+          isStreaming: true,
+          ...(supportsReasoning && {
+            reasoningContent: '',
+            isReasoningComplete: false
+          })
+        } as any);
+
+        try {
+          await callAIAPI(currentSession.id, aiMessageId, userMessage);
+        } catch (error) {
+          if (error instanceof Error && error.name === 'AbortError') {
+            toast.error('请求被取消或网络连接中断');
+          } else {
+            toast.error('发送消息失败，请重试');
+          }
+          cleanupRequest();
+        } finally {
+          setIsLoading(false);
+          setIsGenerating(false);
+        }
+      }
+    };
+    sendPending();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, currentSession?.id]);
   
   // 组件卸载时清理未使用的临时会话
   useEffect(() => {
@@ -362,8 +418,38 @@ const ChatPage: React.FC = () => {
     if (!message.trim() || isLoading) return;
     
     if (!currentSession) {
-      // 如果没有当前会话，导航到聊天首页让用户选择角色
-      navigate('/chat');
+      // 无会话：创建临时会话并跳转到新会话，然后自动发送
+      const roleIdToUse = selectedRoleId || favoriteRoles[0]?.id || aiRoles[0]?.id;
+      if (!roleIdToUse) {
+        toast.error('请先创建或选择一个助手');
+        return;
+      }
+
+      const modelIdToUse = (currentModel && currentModel.enabled)
+        ? currentModel.id
+        : enabledModels[0]?.id;
+      if (!modelIdToUse) {
+        toast.error('请先配置并启用一个模型');
+        return;
+      }
+
+      setCurrentModel(modelIdToUse);
+
+      const newSessionId = createTempSession(roleIdToUse, modelIdToUse);
+
+      const selectedRole = aiRoles.find(r => r.id === roleIdToUse);
+      const openingMessage = selectedRole?.openingMessages && selectedRole.openingMessages[0];
+      if (openingMessage?.trim()) {
+        addMessage(newSessionId, {
+          role: 'assistant',
+          content: openingMessage,
+          timestamp: new Date()
+        });
+      }
+
+      pendingMessageRef.current = message.trim();
+      setMessage('');
+      navigate(`/chat/${newSessionId}`);
       return;
     }
 
@@ -1715,32 +1801,25 @@ const ChatPage: React.FC = () => {
     }
   };
 
-  // 如果没有 sessionId，显示角色选择器
-  if (!sessionId) {
-    return <RoleSelector />;
-  }
+  // 保持在 /chat 首屏，提供输入框与收藏助手选择，不再跳转角色选择器
 
   return (
-    <div className="chat-container flex flex-col h-full bg-base-100">
+    <div className={cn(
+      "chat-container flex flex-col h-full bg-base-100",
+      (!currentSession || currentSession.messages.length === 0) && "justify-center"
+    )}>
       {/* 消息列表 */}
       <div 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-4 pb-10 space-y-4 gradient-mask-y [--gradient-mask-padding:1rem] md:[--gradient-mask-padding:2rem]"
       >
-        <div className={cn('max-w-4xl mx-auto', chatStyle === 'document' && 'px-4')}>
-        {currentSession?.messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-[calc(100vh-500px)] text-base-content/60">
-            {/* 添加加载状态检查和默认值 */}
-            {aiRoles.length === 0 ? (
-              <h3 className="text-black/40 text-xl font-medium mb-2">正在加载角色信息...</h3>
-            ) : (
-              <h3 className="text-black/40 text-xl font-medium mb-2">
-                Hello，我是 {currentRole?.name || '智能助手'}
-              </h3>
-            )}
+        <div className={cn('max-w-4xl mx-auto h-full', chatStyle === 'document' && 'px-4')}>
+        {(!currentSession || !currentSession.messages || currentSession.messages.length === 0) ? (
+          <div className="flex flex-col items-center justify-center text-base-content/60 h-full">
+            <h3 className="text-black/50 text-2xl">Hi，聊点什么？</h3>
           </div>
         ) : (
-          currentSession?.messages
+          currentSession.messages
             .slice() // 创建副本避免修改原数组
             .sort((a, b) => {
               // 三级排序策略：snowflake_id -> message_timestamp -> created_at
@@ -2161,7 +2240,7 @@ const ChatPage: React.FC = () => {
       </div>
 
       {/* 输入区域 */}
-      <div className="p-4 pt-0">
+      <div className={cn('p-4 pt-0', (!currentSession || currentSession.messages.length === 0) && "flex-1")}>
         <div className="chat-input max-w-4xl mx-auto">
         {/* 输入框 - 单独一行 */}
         <div className="mb-3">
@@ -2216,6 +2295,36 @@ const ChatPage: React.FC = () => {
                 ))}
               </ul>
               </div>
+              {/* 收藏助手选择（仅在 /chat 首屏显示） */}
+              {!sessionId && favoriteRoles && favoriteRoles.length > 0 && (
+                  <div className="dropdown dropdown-top">
+                    <div tabIndex={0} role="button" className="btn btn-xs btn-ghost h-8 min-h-8" title="选择助手">
+                      <Users className="w-4 h-4 text-base-content/60" />
+                      {favoriteRoles.find(r => r.id === selectedRoleId)?.name || '选择助手'}
+                      <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
+                      {favoriteRoles.map((role) => (
+                        <li key={role.id}>
+                          <a
+                            onClick={() => {
+                              setSelectedRoleId(role.id);
+                              (document.activeElement as HTMLElement)?.blur();
+                            }}
+                            className={selectedRoleId === role.id ? 'active' : ''}
+                          >
+                            {role.name}
+                          </a>
+                        </li>
+                      ))}
+                      <li>
+                        <a onClick={() => navigate('/roles')}>更多...</a>
+                      </li>
+                    </ul>
+                  </div>
+              )}
             </div>
 
           </div>
@@ -2252,6 +2361,7 @@ const ChatPage: React.FC = () => {
             </button>
           </div>
         </div>
+
       </div>
       </div>
     </div>
