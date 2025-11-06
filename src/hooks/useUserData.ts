@@ -552,6 +552,7 @@ export const useUserData = () => {
           .from('chat_sessions')
           .select('*')
           .eq('user_id', user.id)
+          .is('deleted_at', null)
           .order('updated_at', { ascending: false })
         
         if (error) {
@@ -561,8 +562,10 @@ export const useUserData = () => {
         
         if (data) {
           console.log(`✅ 轮询获取到 ${data.length} 个会话`)
+          // 兼容旧数据：过滤掉 is_deleted 或 metadata.deletedAt 的会话
+          const activeData = (data as any[]).filter(session => !session.is_deleted && !session.metadata?.deletedAt)
           // 转换数据格式并更新状态
-          const sessions: ChatSession[] = data.map(session => ({
+          const sessions: ChatSession[] = activeData.map(session => ({
             id: session.id,
             title: session.title,
             messages: [], // 轮询时不获取消息，避免数据量过大
@@ -596,8 +599,37 @@ export const useUserData = () => {
             console.log(`📝 发现 ${newSessions.length} 个新会话`)
             updatedSessions.push(...newSessions)
           }
-          
-          useAppStore.setState({ chatSessions: updatedSessions })
+
+          // 移除云端缺失（可能已软删除或被清理）的本地会话
+          const cloudIds = new Set(sessions.map(s => s.id))
+          const now = Date.now()
+          const GRACE_PERIOD_MS = 20000 // 给予20秒的宽限，避免误删刚创建但未上传的本地会话
+
+          const filteredSessions = updatedSessions.filter(local => {
+            const existsInCloud = cloudIds.has(local.id)
+            if (existsInCloud) return true
+
+            const locked = isSessionLocked(local.id)
+            const localUpdated = local.updatedAt ? new Date(local.updatedAt as any).getTime() : 0
+            const age = now - localUpdated
+
+            const shouldKeep = locked || age < GRACE_PERIOD_MS
+            if (!shouldKeep) {
+              console.log('🗑️ 轮询检测到云端缺失，移除本地会话', {
+                sessionId: local.id,
+                locked,
+                age
+              })
+            } else if (locked) {
+              console.log('⏳ 保留云端缺失的本地会话（锁定中）', { sessionId: local.id })
+            } else {
+              // 宽限期内保留，等待后续同步
+              console.log('⏳ 保留云端缺失的本地会话（宽限期内）', { sessionId: local.id, age })
+            }
+            return shouldKeep
+          })
+
+          useAppStore.setState({ chatSessions: filteredSessions })
         }
       } catch (error) {
         console.error('❌ 轮询过程中发生错误:', error)
@@ -1199,6 +1231,7 @@ export const useUserData = () => {
         chat_sessions!inner(user_id)
       `)
       .eq('chat_sessions.user_id', user.id)
+      .is('deleted_at', null)
       .in('id', localMessages.map(msg => msg.id));
     
     if (error) {
@@ -1214,6 +1247,7 @@ export const useUserData = () => {
     // 验证每条消息的版本数据
     let inconsistentCount = 0;
     const inconsistentMessages: string[] = [];
+    const mismatchedIds: string[] = [];
     
     for (const localMsg of localMessages) {
       const dbMsg = dbMessages.find(db => db.id === localMsg.id);
@@ -1222,6 +1256,7 @@ export const useUserData = () => {
         console.warn(`⚠️ [数据库验证] 消息 ${localMsg.id} 在数据库中不存在`);
         inconsistentCount++;
         inconsistentMessages.push(`${localMsg.id}: 数据库中不存在`);
+        mismatchedIds.push(localMsg.id);
         continue;
       }
       
@@ -1238,6 +1273,7 @@ export const useUserData = () => {
       if (!versionsMatch || !indexMatch) {
         inconsistentCount++;
         inconsistentMessages.push(`${localMsg.id}: versions=${versionsMatch ? '✓' : '✗'}, index=${indexMatch ? '✓' : '✗'}`);
+        mismatchedIds.push(localMsg.id);
         
         console.warn(`⚠️ [数据库验证] 消息 ${localMsg.id} 数据不一致:`);
         console.warn(`   本地 versions: ${JSON.stringify(localVersions)}`);
@@ -1255,6 +1291,51 @@ export const useUserData = () => {
     } else {
       console.error(`❌ [数据库验证] 发现 ${inconsistentCount} 条消息数据不一致:`);
       inconsistentMessages.forEach(msg => console.error(`   ${msg}`));
+      
+      // 处理云端缺失（软删除或已移除）的本地消息：从本地移除并跳过修复
+      const dbIdSet = new Set(dbMessages.map(m => m.id))
+      const missingIds = localMessages.filter(m => !dbIdSet.has(m.id)).map(m => m.id)
+      if (missingIds.length > 0) {
+        console.warn(`🗑️ [数据库验证] 检测到 ${missingIds.length} 条消息在云端缺失，准备从本地移除`)
+        const currentSessions = useAppStore.getState().chatSessions
+        const updatedSessions = currentSessions.map(s => ({
+          ...s,
+          messages: (s.messages || []).filter(m => !missingIds.includes(m.id))
+        }))
+        useAppStore.setState({ chatSessions: updatedSessions })
+        // 从不一致集合中移除缺失项，避免尝试修复
+        for (const id of missingIds) {
+          const idx = mismatchedIds.indexOf(id)
+          if (idx >= 0) mismatchedIds.splice(idx, 1)
+        }
+      }
+
+      // 自动修复：仅修复版本相关字段（且该消息存在于数据库中）
+      try {
+        const repairBatch = localMessages
+          .filter(m => mismatchedIds.includes(m.id) && dbIdSet.has(m.id))
+          .map(m => ({
+            id: m.id,
+            versions: m.versions || (m.content ? [m.content] : []),
+            current_version_index: (m.currentVersionIndex !== undefined && m.currentVersionIndex !== null)
+              ? m.currentVersionIndex
+              : 0,
+          }))
+
+        if (repairBatch.length > 0) {
+          console.log(`🔧 [数据库修复] 开始修复 ${repairBatch.length} 条消息的版本字段`)
+          const { error: repairError } = await supabase
+            .from('messages')
+            .upsert(repairBatch, { onConflict: 'id', ignoreDuplicates: false })
+          if (repairError) {
+            console.error('❌ [数据库修复] 版本字段修复失败:', repairError)
+          } else {
+            console.log('✅ [数据库修复] 版本字段修复完成')
+          }
+        }
+      } catch (repairException) {
+        console.error('❌ [数据库修复] 修复过程出错:', repairException)
+      }
     }
     
     return {
@@ -1424,6 +1505,7 @@ export const useUserData = () => {
             .from('chat_sessions')
             .select('*')
             .eq('user_id', user.id)
+            .is('deleted_at', null)
             .order('updated_at', { ascending: false })
 
           if (error) {
@@ -1451,6 +1533,11 @@ export const useUserData = () => {
       let totalMessages = 0
 
       for (const session of sessions || []) {
+        // 兼容旧数据：如存在 is_deleted 或 metadata.deletedAt，则视为已软删除并跳过
+        if ((session as any)?.is_deleted === true || (session as any)?.metadata?.deletedAt) {
+          console.log('🚫 跳过兼容性标记为已删除的会话:', (session as any)?.id)
+          continue
+        }
         // 获取会话的消息 - 使用增强的重试机制
         const messages = await retryWithExponentialBackoff(
           async () => {
@@ -1458,6 +1545,7 @@ export const useUserData = () => {
               .from('messages')
               .select('*, snowflake_id::text')
               .eq('session_id', session.id)
+              .is('deleted_at', null)
               .order('message_timestamp', { ascending: true })
             
             if (error) {
@@ -1472,7 +1560,9 @@ export const useUserData = () => {
           `获取会话 ${session.id.substring(0, 8)}... 的消息`
         )
 
-        const sessionMessages: ChatMessage[] = (messages || []).map(msg => {
+        // 兼容旧数据：过滤掉 is_deleted 或 metadata.deletedAt 的消息
+        const activeMessages = (messages || []).filter((msg: any) => !msg.is_deleted && !msg.metadata?.deletedAt)
+        const sessionMessages: ChatMessage[] = activeMessages.map(msg => {
           const mappedMessage = {
             id: msg.id,
             role: msg.role as 'user' | 'assistant',
@@ -1554,31 +1644,93 @@ export const useUserData = () => {
           const localMessageCount = localSession.messages?.length || 0
           const cloudMessageCount = cloudSession.messages?.length || 0
           
-          // 如果本地消息更多，说明有未同步的新消息，保留本地数据
+          // 如果本地消息更多，需要更精细地合并（避免保留云端已删除的消息）
           if (localMessageCount > cloudMessageCount) {
-            // 修复：保留本地消息，但从云端获取正确的snowflake_id
-            const mergedMessages = localSession.messages?.map(localMsg => {
-              // 在云端消息中查找对应的消息
-              const cloudMsg = cloudSession.messages?.find(cm => cm.id === localMsg.id);
-              if (cloudMsg && cloudMsg.snowflake_id && !localMsg.snowflake_id) {
-                return {
-                  ...localMsg,
-                  snowflake_id: cloudMsg.snowflake_id
-                };
-              } else if (cloudMsg && cloudMsg.snowflake_id && localMsg.snowflake_id && cloudMsg.snowflake_id !== localMsg.snowflake_id) {
-                return {
-                  ...localMsg,
-                  snowflake_id: cloudMsg.snowflake_id
-                };
+            const UNSYNCED_LOCAL_THRESHOLD_MS = 30000 // 30秒窗口，视为可能未同步的本地新增
+            const nowTs = Date.now()
+            // 使用字典结构避免 Map 在某些环境下的“不可调用”误报
+            const cloudMsgById: Record<string, ChatMessage> = Object.create(null)
+            ;(cloudSession.messages || []).forEach(m => { cloudMsgById[m.id] = m })
+
+            // 1) 以本地为基础，移除云端已不存在且不属于“近期新增/仍在流式”的旧消息
+            const baseMerged = (localSession.messages || []).filter(localMsg => {
+              const existsInCloud = localMsg.id in cloudMsgById
+              if (existsInCloud) return true
+              const isStreaming = !!localMsg.isStreaming
+              // 仅保留仍在流式输出的本地消息；其他情况视为云端已删除，移除
+              if (isStreaming) {
+                return true
               }
-              return localMsg;
-            }) || [];
-            
+              // 记录调试信息，便于定位
+              console.log('🗑️ 从合并中移除本地消息（云端缺失且非流式）:', {
+                sessionId: cloudSession.id,
+                messageId: localMsg.id,
+                messageTime: localMsg.timestamp,
+                reason: 'not_in_cloud_and_not_streaming'
+              })
+              return false
+            }).map(localMsg => {
+              // 2) 对存在于云端的消息，用云端内容覆盖关键字段（含 snowflake_id / versions 等）
+              const cloudMsg = cloudMsgById[localMsg.id]
+              if (cloudMsg) {
+                return {
+                  ...localMsg,
+                  ...cloudMsg
+                }
+              }
+              return localMsg
+            })
+
+            // 3) 将云端新增但本地不存在的消息补充进来
+            const cloudOnly = (cloudSession.messages || []).filter(cm => {
+              return !(localSession.messages || []).some(lm => lm.id === cm.id)
+            })
+
+            const mergedMessages = [...baseMerged, ...cloudOnly]
+              .sort((a, b) => {
+                const ta = a.message_timestamp ? new Date(a.message_timestamp).getTime() : (a.timestamp ? new Date(a.timestamp).getTime() : 0)
+                const tb = b.message_timestamp ? new Date(b.message_timestamp).getTime() : (b.timestamp ? new Date(b.timestamp).getTime() : 0)
+                return ta - tb
+              })
+
             mergedSessions.set(cloudSession.id, {
               ...localSession,
-              // 保留本地的消息但修复snowflake_id
               messages: mergedMessages,
-              updatedAt: localSession.updatedAt
+              // 如果云端会话更新时间更新，则以云端为准；否则沿用本地
+              updatedAt: cloudTime > localTime ? cloudSession.updatedAt : localSession.updatedAt
+            })
+          } else if (cloudMessageCount > localMessageCount) {
+            // 云端有更多消息，但会话更新时间可能未更新（某些架构不联动updatedAt）
+            // 进行增量合并：保留本地消息，覆盖同ID的云端字段，追加云端新增消息
+            const cloudMsgById: Record<string, ChatMessage> = Object.create(null)
+            ;(cloudSession.messages || []).forEach(m => { cloudMsgById[m.id] = m })
+
+            const baseMerged = (localSession.messages || []).map(localMsg => {
+              const cloudMsg = cloudMsgById[localMsg.id]
+              if (cloudMsg) {
+                return {
+                  ...localMsg,
+                  ...cloudMsg
+                }
+              }
+              return localMsg
+            })
+
+            const cloudOnly = (cloudSession.messages || []).filter(cm => {
+              return !(localSession.messages || []).some(lm => lm.id === cm.id)
+            })
+
+            const mergedMessages = [...baseMerged, ...cloudOnly]
+              .sort((a, b) => {
+                const ta = a.message_timestamp ? new Date(a.message_timestamp).getTime() : (a.timestamp ? new Date(a.timestamp).getTime() : 0)
+                const tb = b.message_timestamp ? new Date(b.message_timestamp).getTime() : (b.timestamp ? new Date(b.timestamp).getTime() : 0)
+                return ta - tb
+              })
+
+            mergedSessions.set(cloudSession.id, {
+              ...localSession,
+              messages: mergedMessages,
+              updatedAt: cloudTime > localTime ? cloudSession.updatedAt : localSession.updatedAt
             })
           } else if (cloudTime > localTime) {
             // 如果云端时间更新且消息数量不少于本地，使用云端数据
@@ -1587,6 +1739,26 @@ export const useUserData = () => {
           // 否则保留本地数据（已经在map中）
         }
       })
+
+      // 移除云端已不存在（被软删除或清理）的本地会话
+      const cloudActiveIds = new Set(cloudSessions.map(s => s.id))
+      const now = Date.now()
+      const REMOVAL_GRACE_PERIOD = 20000 // 给予20秒宽限避免误删刚创建但尚未上传的本地会话
+
+      for (const [id, localSession] of Array.from(mergedSessions.entries())) {
+        if (!cloudActiveIds.has(id)) {
+          const locked = isSessionLocked(id)
+          const age = now - safeGetTime(localSession.updatedAt)
+          if (!locked && age >= REMOVAL_GRACE_PERIOD) {
+            mergedSessions.delete(id)
+            console.log('🗑️ 从云端同步时移除本地会话（云端缺失）', { id, age })
+          } else if (locked) {
+            console.log('⏳ 保留本地会话（锁定中，云端缺失）', { id })
+          } else {
+            console.log('⏳ 保留本地会话（新近更新，云端缺失）', { id, age })
+          }
+        }
+      }
 
       const finalSessions = Array.from(mergedSessions.values())
         .sort((a, b) => safeGetTime(b.updatedAt) - safeGetTime(a.updatedAt))
@@ -1864,6 +2036,11 @@ export const useUserData = () => {
               case 'INSERT':
                 if (newRecord) {
                   console.log('➕ 新增会话:', newRecord.id)
+                  // 软删除保护：如果新纪录已被软删除，则跳过（兼容旧字段）
+                  if (newRecord.deleted_at || newRecord.is_deleted === true || newRecord.metadata?.deletedAt) {
+                    console.log('🚫 新增会话已软删除，跳过添加:', newRecord.id)
+                    break
+                  }
                   // 获取完整的会话数据（包括消息）
                   const { data: messages } = await supabase
                     .from('messages')
@@ -1913,6 +2090,14 @@ export const useUserData = () => {
               case 'UPDATE':
                 if (newRecord) {
                   console.log('✏️ 更新会话:', newRecord.id)
+                  // 软删除：如果更新后标记为删除，则从本地移除（兼容旧字段）
+                  if (newRecord.deleted_at || newRecord.is_deleted === true || newRecord.metadata?.deletedAt) {
+                    const currentSessions = useAppStore.getState().chatSessions
+                    const filteredSessions = currentSessions.filter(s => s.id !== newRecord.id)
+                    useAppStore.setState({ chatSessions: filteredSessions })
+                    console.log('🗑️ 会话软删除，已从本地移除:', newRecord.id)
+                    break
+                  }
                   const currentSessions = useAppStore.getState().chatSessions
                   const updatedSessions = currentSessions.map(session => {
                     if (session.id === newRecord.id) {
@@ -2298,6 +2483,11 @@ export const useUserData = () => {
               case 'INSERT':
                 if (newRecord) {
                   console.log('➕ 新增消息:', newRecord.id, '会话:', newRecord.session_id)
+                  // 软删除保护：如果新纪录已被软删除，则跳过（兼容旧字段）
+                  if (newRecord.deleted_at || newRecord.is_deleted === true || newRecord.metadata?.deletedAt) {
+                    console.log('🚫 新增消息已软删除，跳过添加:', newRecord.id)
+                    break
+                  }
                   
                   // 详细记录版本字段的实时订阅插入情况
                   console.log('📊 实时订阅 INSERT - 版本字段详情:')
@@ -2354,6 +2544,24 @@ export const useUserData = () => {
               case 'UPDATE':
                 if (newRecord) {
                   console.log('✏️ 更新消息:', newRecord.id, '会话:', newRecord.session_id)
+                  // 软删除：如果更新后标记为删除，则从对应会话移除消息（兼容旧字段）
+                  if (newRecord.deleted_at || newRecord.is_deleted === true || newRecord.metadata?.deletedAt) {
+                    const currentSessions = useAppStore.getState().chatSessions
+                    const updatedSessions = currentSessions.map(session => {
+                      if (session.id === newRecord.session_id) {
+                        const filteredMessages = session.messages.filter(m => m.id !== newRecord.id)
+                        return {
+                          ...session,
+                          messages: filteredMessages,
+                          updatedAt: new Date()
+                        }
+                      }
+                      return session
+                    })
+                    useAppStore.setState({ chatSessions: updatedSessions })
+                    console.log('🗑️ 消息软删除，已从本地移除:', newRecord.id)
+                    break
+                  }
                   
                   // 详细记录版本字段的实时订阅更新情况
                   console.log('📊 实时订阅 - 版本字段详情:')
@@ -3046,6 +3254,7 @@ export const useUserData = () => {
         .from('messages')
         .select('id')
         .in('id', messageIds)
+        .is('deleted_at', null)
       
       if (error) {
         console.error('❌ 备用同步检查数据库失败:', error)

@@ -60,7 +60,7 @@ const ChatSessionList: React.FC = () => {
         navigate('/chat');
       }
       
-      toast.success('会话已删除');
+      toast.success('会话已移至回收站');
     } catch (error) {
       console.error('删除会话失败:', error);
       toast.error(error instanceof Error ? error.message : '删除会话失败');
@@ -96,11 +96,12 @@ const ChatSessionList: React.FC = () => {
   };
 
   const getRoleName = (roleId: string) => {
-    return aiRoles.find(r => r.id === roleId)?.name || '未知角色';
+    const role = aiRoles.find(r => r.id === roleId) || aiRoles[0];
+    return role?.name || '未知角色';
   };
 
   const getRole = (roleId: string) => {
-    return aiRoles.find(r => r.id === roleId);
+    return aiRoles.find(r => r.id === roleId) || aiRoles[0];
   };
 
   const getModelName = (modelId: string) => {
@@ -235,7 +236,7 @@ const ChatSessionList: React.FC = () => {
                        className="flex items-center space-x-2 w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                      >
                        <Trash2 className="h-3 w-3" />
-                       <span>删除</span>
+                       <span>移至回收站</span>
                      </button>
                    </div>
                  )}

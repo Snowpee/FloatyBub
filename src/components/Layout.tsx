@@ -392,7 +392,7 @@ const Layout: React.FC = () => {
 
   // 根据roleId获取AI角色信息
   const getAIRole = (roleId: string) => {
-    return aiRoles.find(role => role.id === roleId);
+    return aiRoles.find(role => role.id === roleId) || aiRoles[0];
   };
 
   const deleteSession = async (sessionId: string) => {
@@ -404,7 +404,7 @@ const Layout: React.FC = () => {
         navigate('/chat');
       }
       
-      toast.success('对话已删除');
+      toast.success('对话已移至回收站');
     } catch (error) {
       console.error('删除对话失败:', error);
       toast.error(error instanceof Error ? error.message : '删除对话失败');
@@ -474,7 +474,7 @@ const Layout: React.FC = () => {
             >
               <MoreHorizontal className="h-4 w-4" />
             </button>
-            <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-32">
+            <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-36">
               <li>
                 <button
                   onClick={() => {
@@ -574,8 +574,8 @@ const Layout: React.FC = () => {
               </li>
               <li>
                 <Popconfirm
-                  title="确认删除？"
-                  description={`删除对话后无法恢复`}
+                  title="移至回收站？"
+                  description={`对话将移至回收站，不会立即永久删除`}
                   onConfirm={() => {
                     deleteSession(session.id);
                   }}
@@ -598,13 +598,13 @@ const Layout: React.FC = () => {
                     (document.activeElement as HTMLElement)?.blur();
                   }}
                   placement="right"
-                  okText="删除"
+                  okText="移至回收站"
                   cancelText="取消"
                   getPopupContainer={() => linkRef?.current || undefined}
                 >
                   <button className="text-sm text-error w-full text-left flex items-center">
                     <Trash2 className="h-4 w-4 mr-2" />
-                    删除
+                    移至回收站
                   </button>
                 </Popconfirm>
               </li>
@@ -959,8 +959,8 @@ const Layout: React.FC = () => {
                       </li>
                       <li>
                         <Popconfirm
-                          title="确认删除？"
-                          description={`删除对话后无法恢复`}
+                          title="移至回收站？"
+                          description={`对话将移至回收站，不会立即永久删除`}
                           onConfirm={() => {
                             deleteSession(currentSession.id);
                           }}
@@ -983,12 +983,12 @@ const Layout: React.FC = () => {
                             (document.activeElement as HTMLElement)?.blur();
                           }}
                           placement="left"
-                          okText="删除"
+                          okText="移至回收站"
                           cancelText="取消"
                         >
                           <button className="text-sm text-error w-full text-left flex items-center">
                             <Trash2 className="h-4 w-4 mr-2" />
-                            删除
+                            移至回收站
                           </button>
                         </Popconfirm>
                       </li>

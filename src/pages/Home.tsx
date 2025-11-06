@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import {
@@ -24,6 +24,12 @@ const Home: React.FC = () => {
     navigate('/chat');
   };
 
+  // 如果已配置模型，自动跳转到 /chat 页面
+  useEffect(() => {
+    if (hasConfigs) {
+      navigate('/chat', { replace: true });
+    }
+  }, [hasConfigs, navigate]);
 
 
   return (
@@ -46,15 +52,7 @@ const Home: React.FC = () => {
               一个轻量的 LLM 聊天框架
             </p>
             <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
-              {hasConfigs && aiRoles.length > 0 ? (
-                <button
-                  onClick={handleQuickStart}
-                  className="btn btn-outline btn-accent btn-lg"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  开始聊天
-                </button>
-              ) : (
+              {!hasConfigs ? (
                 <button
                   onClick={() => window.location.hash = '#setting/config'}
                   className="btn btn-primary btn-lg"
@@ -62,6 +60,9 @@ const Home: React.FC = () => {
                   <Settings className="h-5 w-5" />
                   配置模型
                 </button>
+              ) : (
+                // 已配置场景：会自动跳转到 /chat，这里不再显示“开始聊天”按钮
+                null
               )}
               
 

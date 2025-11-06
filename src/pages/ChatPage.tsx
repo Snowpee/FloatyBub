@@ -78,6 +78,7 @@ const ChatPage: React.FC = () => {
     tempSessionId,
     tempSession,
     globalPrompts,
+    currentUser,
     currentUserProfile,
     voiceSettings,
     setCurrentSession,
@@ -1806,8 +1807,9 @@ const ChatPage: React.FC = () => {
   return (
     <div className={cn(
       "chat-container flex flex-col h-full bg-base-100",
-      (!currentSession || currentSession.messages.length === 0) && "justify-center"
-    )}>
+      (!currentSession || currentSession.messages.length === 0) && "justify-center hero-bg-img"
+    ) 
+    }>
       {/* 消息列表 */}
       <div 
         ref={messagesContainerRef}
@@ -1815,8 +1817,27 @@ const ChatPage: React.FC = () => {
       >
         <div className={cn('max-w-4xl mx-auto h-full', chatStyle === 'document' && 'px-4')}>
         {(!currentSession || !currentSession.messages || currentSession.messages.length === 0) ? (
-          <div className="flex flex-col items-center justify-center text-base-content/60 h-full">
-            <h3 className="text-black/50 text-2xl">Hi，聊点什么？</h3>
+          <div className={cn(
+            'flex flex-col items-center text-base-content/60 h-full',
+            (!currentSession) ? "justify-end" : "justify-center"
+            )}>
+            <h3 className={cn(
+              (!currentSession) ? "text-accent text-3xl" : "text-black/30 text-2xl"
+            )}>
+              {(currentSession)
+                ? `Hi，我是${currentRole?.name || 'AI助手'}`
+                : (user
+                  ? `Hi，${
+                      currentUser?.name ||
+                      (user as any)?.user_metadata?.display_name ||
+                      (user as any)?.user_metadata?.nickname ||
+                      (user as any)?.user_metadata?.name ||
+                      (user as any)?.user_metadata?.full_name ||
+                      '用户'
+                    }`
+                  : 'Hi，聊点什么？'
+                )}
+            </h3>
           </div>
         ) : (
           currentSession.messages
@@ -2070,11 +2091,11 @@ const ChatPage: React.FC = () => {
                   
                   {/* 删除按钮 */}
                   <Popconfirm
-                    title="确定要删除这条消息吗？"
+                    title="确定将此消息移至回收站？"
                     onConfirm={async () => {
                       try {
                         await deleteMessage(currentSession!.id, msg.id);
-                        toast.success('消息已删除');
+                        toast.success('消息已移至回收站');
                       } catch (error) {
                         console.error('删除消息失败:', error);
                         toast.error('删除消息失败，请重试');
@@ -2083,7 +2104,7 @@ const ChatPage: React.FC = () => {
                   >
                     <button
                       className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
-                      title="删除"
+                      title="移至回收站"
                     >
                       <Trash2 className="h-4 w-4 " />
                     </button>
@@ -2240,7 +2261,7 @@ const ChatPage: React.FC = () => {
       </div>
 
       {/* 输入区域 */}
-      <div className={cn('p-4 pt-0', (!currentSession || currentSession.messages.length === 0) && "flex-1")}>
+      <div className={cn('p-4 pt-0', (!currentSession) && "flex-1 pb-100")}>
         <div className="chat-input max-w-4xl mx-auto">
         {/* 输入框 - 单独一行 */}
         <div className="mb-3">

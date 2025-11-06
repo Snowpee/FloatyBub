@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { convertAvatarFromImport } from '../utils/avatarUtils'
 import type { Database } from '../lib/supabase'
 
 // 同步项目类型
@@ -459,7 +460,8 @@ export class DataSyncService {
       id: item.id,
       name: item.name,
       systemPrompt: item.prompt,
-      avatar: item.avatar,
+      // 统一规范化头像字段，兼容 local:avatar-* 与 URL/路径
+      avatar: convertAvatarFromImport(item.avatar) || item.avatar,
       isFavorite: item.is_favorite || false, // 添加收藏字段映射
       description: item.settings?.description || '',
       openingMessages: item.settings?.openingMessages || [],
@@ -500,7 +502,8 @@ export class DataSyncService {
       id: item.id,
       name: item.name,
       description: item.description || '',
-      avatar: item.avatar || '',
+      // 统一规范化头像字段，兼容 local:avatar-* 与 URL/路径
+      avatar: convertAvatarFromImport(item.avatar) || item.avatar || '',
       createdAt: item.created_at,
       updatedAt: item.updated_at
     }))

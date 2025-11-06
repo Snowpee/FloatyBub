@@ -110,7 +110,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
   const confirmDeleteSession = async () => {
     try {
       await deleteChatSession(confirmDialog.sessionId);
-      toast.success('会话已删除');
+      toast.success('会话已移至回收站');
       modalRef.current?.close();
     } catch (error) {
       console.error('删除会话失败:', error);
@@ -207,11 +207,12 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
   };
 
   const getRoleName = (roleId: string) => {
-    return aiRoles.find(r => r.id === roleId)?.name || '未知角色';
+    const role = aiRoles.find(r => r.id === roleId) || aiRoles[0];
+    return role?.name || '未知角色';
   };
 
   const getRole = (roleId: string) => {
-    return aiRoles.find(r => r.id === roleId);
+    return aiRoles.find(r => r.id === roleId) || aiRoles[0];
   };
 
   const getModelName = (modelId: string) => {
@@ -426,7 +427,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
                       <button
                         onClick={(e) => handleDeleteSession(session.id, e)}
                         className="btn btn-ghost btn-sm btn-square text-error hover:bg-error/10"
-                        title="删除会话"
+                        title="移至回收站"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -447,12 +448,12 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
         </div>
       )}
 
-      {/* 删除确认模态框 */}
+      {/* 移至回收站确认模态框 */}
       <dialog ref={modalRef} className="modal">
         <div className="modal-box">
-          <h3 className="font-bold text-lg mb-4">删除会话</h3>
+          <h3 className="font-bold text-lg mb-4">移至回收站</h3>
           <p className="py-4">
-            确定要删除会话 "{confirmDialog.sessionTitle}" 吗？此操作不可撤销，所有聊天记录将被永久删除。
+            确定要将会话 "{confirmDialog.sessionTitle}" 移至回收站吗？该操作不会立即永久删除。
           </p>
           <div className="modal-action">
             <button
@@ -465,7 +466,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
               onClick={confirmDeleteSession}
               className="btn btn-error"
             >
-              删除
+              移至回收站
             </button>
           </div>
         </div>

@@ -35,6 +35,8 @@ tts-server/.env
 .vercel
 .vercel/*
 .figma/*
+.trae/*
+supabase/*
 
 # 脚本、bat 文件不要提交
 commit.bat

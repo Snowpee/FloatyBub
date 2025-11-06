@@ -1244,30 +1244,32 @@ export const useAppStore = create<AppState>()(
             return; // 直接返回，不执行数据库操作
           }
           
-          // 用户已登录，同步删除到数据库
-          console.log('🔐 用户已登录：执行数据库同步删除');
-          
-          // 先删除会话中的所有消息
+          // 用户已登录：执行软删除到数据库
+          console.log('🔐 用户已登录：执行数据库软删除');
+
+          const now = new Date().toISOString();
+
+          // 软删除会话中的所有消息（将 deleted_at 设置为当前时间）
           const { error: messagesError } = await supabase
             .from('messages')
-            .delete()
+            .update({ deleted_at: now })
             .eq('session_id', id);
-          
+
           if (messagesError) {
-            throw new Error(`删除会话消息失败: ${messagesError.message}`);
+            throw new Error(`软删除会话消息失败: ${messagesError.message}`);
           }
-          
-          // 再删除会话本身
+
+          // 软删除会话本身
           const { error: sessionError } = await supabase
             .from('chat_sessions')
-            .delete()
+            .update({ deleted_at: now })
             .eq('id', id);
-          
+
           if (sessionError) {
-            throw new Error(`删除会话失败: ${sessionError.message}`);
+            throw new Error(`软删除会话失败: ${sessionError.message}`);
           }
-          
-          console.log('✅ 数据库同步删除成功');
+
+          console.log('✅ 数据库同步软删除成功');
           
         } catch (error) {
           // 回滚本地状态
@@ -1829,12 +1831,13 @@ export const useAppStore = create<AppState>()(
             return; // 直接返回，不执行数据库操作
           }
           
-          // 用户已登录，同步删除到数据库
-          console.log('🔐 用户已登录：执行消息数据库同步删除');
-          
+          // 用户已登录：执行软删除到数据库
+          console.log('🔐 用户已登录：执行消息数据库软删除');
+
+          const now = new Date().toISOString();
           const { error } = await supabase
             .from('messages')
-            .delete()
+            .update({ deleted_at: now })
             .eq('id', messageId);
           
           if (error) {
@@ -1846,15 +1849,15 @@ export const useAppStore = create<AppState>()(
                 )
               }));
             }
-            console.error('删除消息失败:', error);
-            throw new Error(`删除消息失败: ${error.message}`);
+            console.error('软删除消息失败:', error);
+            throw new Error(`软删除消息失败: ${error.message}`);
           }
           
-          console.log('✅ 消息数据库同步删除成功');
+          console.log('✅ 消息数据库同步软删除成功');
           
         } catch (error) {
           // 如果是我们抛出的错误，直接重新抛出
-          if (error instanceof Error && error.message.includes('删除消息失败')) {
+          if (error instanceof Error && error.message.includes('软删除消息失败')) {
             throw error;
           }
           

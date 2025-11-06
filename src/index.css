@@ -147,7 +147,9 @@ code:not(pre > code)  {
       }
     }
   }
-
+.hero-bg-img {
+  background-image: radial-gradient(circle at 30% 60%, var(--color-info) -200%, transparent 30%), radial-gradient(circle at 70% 50%, var(--color-warning) -200%, transparent 30%);
+}
 .join-vertical {
     &.hero-join-items .join-item {
         &:where(*:not(:first-child)) {
@@ -171,11 +173,12 @@ dialog .modal-box {
   max-height: calc(100vh - 2rem);
 }
 .chat-input {
-  @apply border border-base-300 p-2 transition-all;
+  @apply bg-base-100/60 border-base-300 p-2 transition-all;
   border-radius: var(--radius-box);
-  border: var(--border) solid var(--color-base-300);
+  box-shadow: 0 0 0 var(--border) color-mix(in oklab, var(--color-base-content) 10%, #0000);
   &:focus-within {
-    border-color: color-mix(in oklab, var(--color-base-content) 30%, #0000);
+    @apply bg-base-100;
+    box-shadow: 0 0 0 var(--border) color-mix(in oklab, var(--color-base-content) 20%, #0000);
   }
   .textarea {
     border: none;
