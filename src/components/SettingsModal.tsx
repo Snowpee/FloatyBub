@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Users, Database, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight, Globe, BookOpen } from 'lucide-react';
+import { X, Settings, Users, Database, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight, Globe, BookOpen, Search } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useDragToClose } from '../hooks/useDragToClose';
 import ConfigPage from '../pages/ConfigPage';
@@ -10,8 +10,9 @@ import GlobalSettingsPage from '../pages/GlobalSettingsPage';
 import GlobalPromptsPage from '../pages/GlobalPromptsPage';
 import VoiceSettingsPage from '../pages/VoiceSettingsPage';
 import KnowledgePage from '../pages/KnowledgePage';
+import SearchSettingsPage from '../pages/SearchSettingsPage';
 
-type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'knowledge';
+type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'knowledge' | 'search';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -190,6 +191,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       name: '语音',
       icon: Volume2,
       component: VoiceSettingsPage
+    },
+    {
+      id: 'search' as TabType,
+      name: '网络搜索',
+      icon: Search,
+      component: SearchSettingsPage
     },
     {
       id: 'data' as TabType,

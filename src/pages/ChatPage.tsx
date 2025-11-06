@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore, generateId } from '../store';
-import { Bot, Send, Square, Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, Users, User, Cpu, Plus, Edit3 } from 'lucide-react';
+import { Bot, Send, Square, Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, Users, User, Cpu, Plus, Edit3, Globe } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
 import RoleSelector from '../components/RoleSelector';
@@ -81,6 +81,7 @@ const ChatPage: React.FC = () => {
     currentUser,
     currentUserProfile,
     voiceSettings,
+    searchConfig,
     setCurrentSession,
     createChatSession,
     createTempSession,
@@ -93,6 +94,7 @@ const ChatPage: React.FC = () => {
     switchMessageVersion,
     deleteMessage,
     setCurrentModel,
+    updateSearchConfig,
     generateSessionTitle,
     markSessionNeedsTitle,
     checkSessionNeedsTitle,
@@ -640,6 +642,131 @@ const ChatPage: React.FC = () => {
     }
 
     try {
+      // ⚙️ [联网搜索] 通过 LLM 进行意图识别（结构化 JSON 输出）
+      const decideWebSearchWithLLM = async (text: string): Promise<{ need: boolean; queries: string[]; confidence: number }> => {
+        const classificationSystemPrompt = [
+          '你是一个“联网搜索判定助手”。你的任务是判断用户消息是否需要联网搜索才能得到准确回答。',
+          '请仅输出严格的 JSON：{"need_search": <true|false>, "confidence": <0-1>, "queries": [<string>...] }。',
+          '判定为需要搜索的典型情况：涉及最新/最近/今天/新闻/发布/价格/汇率/天气/比分/股票/币价/下载地址/官网/文档/动态数据等。',
+          '如果需要搜索，请给出最多2条简洁的搜索查询（queries），尽量贴近信息源检索习惯；否则 queries 输出空数组。',
+          '不要输出除 JSON 以外的任何文本。'
+        ].join('\n');
+
+        // 构造跨提供商的最小化请求体（不使用流式）
+        let apiUrl = '';
+        let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        let body: any = {};
+
+        switch (currentModel.provider) {
+          case 'claude': {
+            apiUrl = currentModel.baseUrl || getDefaultBaseUrl('claude');
+            if (!apiUrl.endsWith('/v1/messages')) apiUrl = apiUrl.replace(/\/$/, '') + '/v1/messages';
+            headers['x-api-key'] = currentModel.apiKey;
+            headers['anthropic-version'] = '2023-06-01';
+            body = {
+              model: currentModel.model,
+              max_tokens: 128,
+              temperature: 0,
+              stream: false,
+              messages: [{ role: 'user', content: text }]
+            };
+            // Claude 将系统提示放到 system 字段
+            body.system = classificationSystemPrompt;
+            break;
+          }
+          case 'gemini': {
+            // 如果是 OpenRouter 的 Gemini，走 OpenAI 兼容格式；否则回退启发式
+            const isOpenRouter = currentModel.baseUrl?.includes('openrouter');
+            if (isOpenRouter) {
+              apiUrl = currentModel.baseUrl || getDefaultBaseUrl(currentModel.provider);
+              if (!apiUrl.endsWith('/v1/chat/completions')) apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+              headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
+              body = {
+                model: currentModel.model,
+                temperature: 0,
+                max_tokens: 128,
+                stream: false,
+                messages: [
+                  { role: 'system', content: classificationSystemPrompt },
+                  { role: 'user', content: text }
+                ]
+              };
+            } else {
+              // 原生 Gemini 接口适配较复杂，暂时回退为启发式
+              console.log('ℹ️ [联网搜索] 原生 Gemini 暂回退为启发式判定');
+              return { need: false, queries: [], confidence: 0.0 };
+            }
+            break;
+          }
+          default: {
+            // OpenAI兼容：openai, deepseek, kimi, custom, openrouter等
+            apiUrl = currentModel.baseUrl || getDefaultBaseUrl(currentModel.provider);
+            if (!apiUrl.endsWith('/v1/chat/completions')) apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+            headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
+            body = {
+              model: currentModel.model,
+              temperature: 0,
+              max_tokens: 128,
+              stream: false,
+              messages: [
+                { role: 'system', content: classificationSystemPrompt },
+                { role: 'user', content: text }
+              ]
+            };
+          }
+        }
+
+        const resp = await fetch(apiUrl, { method: 'POST', headers, body: JSON.stringify(body) });
+        if (!resp.ok) {
+          const errText = await resp.text().catch(() => '');
+          console.warn('⚠️ [联网搜索] LLM判定接口非200，回退启发式:', resp.status, errText);
+          return { need: false, queries: [], confidence: 0.0 };
+        }
+        const json = await resp.json();
+
+        // 解析不同提供商的文本内容
+        let textOut = '';
+        if (currentModel.provider === 'claude') {
+          try {
+            const blocks = json?.content || [];
+            const firstText = blocks.find((b: any) => b?.type === 'text')?.text || '';
+            textOut = String(firstText || '');
+          } catch (_) {}
+        } else if (currentModel.provider === 'gemini' && currentModel.baseUrl?.includes('openrouter')) {
+          textOut = json?.choices?.[0]?.message?.content || '';
+        } else {
+          textOut = json?.choices?.[0]?.message?.content || '';
+        }
+
+        // 规范化提取可能的 JSON（剥离 Markdown 代码块、截取首尾花括号）
+        const tryExtractJson = (s: string) => {
+          const trimmed = (s || '').trim();
+          const fenceJson = trimmed.match(/```json\s*([\s\S]*?)\s*```/i);
+          if (fenceJson && fenceJson[1]) return fenceJson[1].trim();
+          const fenceAny = trimmed.match(/```\s*([\s\S]*?)\s*```/);
+          if (fenceAny && fenceAny[1]) return fenceAny[1].trim();
+          const start = trimmed.indexOf('{');
+          const end = trimmed.lastIndexOf('}');
+          if (start !== -1 && end !== -1 && end > start) {
+            return trimmed.slice(start, end + 1).trim();
+          }
+          return trimmed;
+        };
+
+        const candidate = tryExtractJson(String(textOut || ''));
+        try {
+          const parsed = JSON.parse(candidate);
+          const need = !!parsed?.need_search;
+          const queries = Array.isArray(parsed?.queries) ? parsed.queries.filter((s: any) => typeof s === 'string') : [];
+          const confidence = typeof parsed?.confidence === 'number' ? parsed.confidence : (need ? 0.7 : 0.5);
+          console.log('✅ [联网搜索] LLM 判定结果:', { need, confidence, queries, raw: textOut, json: candidate });
+          return { need, queries, confidence };
+        } catch (e) {
+          console.warn('⚠️ [联网搜索] LLM 输出无法解析为JSON，回退不搜索:', e, { raw: textOut, candidate });
+          return { need: false, queries: [], confidence: 0.0 };
+        }
+      };
+
       // 🔍 [知识库增强] 检查当前角色是否配置了知识库
       console.log('🔍 [知识库增强] 开始检查角色知识库关联:', { roleId: currentRole.id });
       const roleKnowledgeBase = await getRoleKnowledgeBase(currentRole.id);
@@ -697,9 +824,89 @@ const ChatPage: React.FC = () => {
       } else {
         console.log('ℹ️ [知识库增强] 当前角色未配置知识库');
       }
-      
+
+      // 🌐 [联网搜索] 根据开关 + LLM意图识别决定是否检索网络信息
+      let webSearchContext = '';
+      if (searchConfig?.enabled) {
+        // 1) 先让 LLM 判定是否需要搜索，并给出建议查询词
+        let needSearch = false;
+        let queryToUse = userMessage;
+        try {
+          const decision = await decideWebSearchWithLLM(userMessage);
+          needSearch = decision.need;
+          if (decision.queries && decision.queries.length > 0) {
+            queryToUse = decision.queries[0];
+          }
+        } catch (e) {
+          console.warn('⚠️ [联网搜索] LLM判定失败，回退不触发搜索:', e);
+          needSearch = false;
+        }
+
+        if (needSearch) {
+          console.log('🌐 [联网搜索] LLM判定需要搜索，准备执行搜索');
+        try {
+          const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+          const params = new URLSearchParams();
+          // 关键词：优先使用 LLM 给出的查询词（由后端统一处理编码）
+          params.set('q', queryToUse);
+          // 数量与安全搜索配置
+          if (searchConfig?.maxResults) params.set('num', String(searchConfig.maxResults));
+          if (searchConfig?.safeSearch) params.set('safe', searchConfig.safeSearch);
+          // 语言与国家（如果提供）
+          if (searchConfig?.language) params.set('hl', searchConfig.language);
+          if (searchConfig?.country) params.set('gl', searchConfig.country);
+          // 可选：前端透传自定义 key/cx（若用户手动配置）
+          if (searchConfig?.apiKey?.trim()) params.set('key', searchConfig.apiKey.trim());
+          if (searchConfig?.engineId?.trim()) params.set('cx', searchConfig.engineId.trim());
+
+          const searchUrl = `${apiBaseUrl}/api/search?${params.toString()}`;
+          const res = await fetch(searchUrl, {
+            headers: {
+              // 后端会校验此密钥（开发环境可为空字符串）
+              'x-api-key': import.meta.env.VITE_API_SECRET || ''
+            }
+          });
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            console.warn('⚠️ [联网搜索] 搜索接口返回非200:', res.status, errText);
+          } else {
+            const data = await res.json();
+            const items = Array.isArray(data?.items) ? data.items : [];
+            if (items.length > 0) {
+              const topItems = items.slice(0, searchConfig?.maxResults || 5);
+              const formatted = topItems.map((it: any, idx: number) => {
+                const title = (it?.title || it?.link || '').toString();
+                const link = (it?.link || '').toString();
+                const snippetRaw = (it?.snippet || it?.htmlSnippet || '') as string;
+                const snippet = snippetRaw.replace(/\s+/g, ' ').trim();
+                return `${idx + 1}. ${title}\n链接：${link}\n摘要：${snippet}`;
+              }).join('\n\n');
+              webSearchContext = `[联网搜索结果]\n${formatted}\n[/联网搜索结果]`;
+              console.log('✅ [联网搜索] 成功获取并格式化搜索结果:', {
+                count: items.length,
+                usedCount: topItems.length
+              });
+            } else {
+              console.log('ℹ️ [联网搜索] 未返回有效搜索结果');
+            }
+          }
+        } catch (searchErr) {
+          console.warn('⚠️ [联网搜索] 搜索流程出现异常，不影响对话生成:', searchErr);
+        }
+        } else {
+          console.log('ℹ️ [联网搜索] LLM 判定不需要搜索，已跳过');
+        }
+      } else {
+        console.log('ℹ️ [联网搜索] 智能联网已关闭，跳过搜索');
+      }
+
       // 构建分离的系统消息
       const systemMessages = buildSystemMessages(currentRole, globalPrompts, currentUserProfile, knowledgeContext);
+
+      // 将联网搜索上下文作为独立的system消息追加（若有）
+      if (webSearchContext && webSearchContext.trim()) {
+        systemMessages.push({ role: 'system', content: webSearchContext });
+      }
       
       // 构建消息历史
       const messages = [];
@@ -1822,7 +2029,7 @@ const ChatPage: React.FC = () => {
             (!currentSession) ? "justify-end" : "justify-center"
             )}>
             <h3 className={cn(
-              (!currentSession) ? "text-accent text-3xl" : "text-black/30 text-2xl"
+              (!currentSession) ? "text-primary text-3xl" : "text-black/30 text-2xl"
             )}>
               {(currentSession)
                 ? `Hi，我是${currentRole?.name || 'AI助手'}`
@@ -2285,73 +2492,83 @@ const ChatPage: React.FC = () => {
           )}
         </div>
         
+
+
         {/* 按钮区域 - 左右分布 */}
         <div className="flex justify-between items-center">
           {/* 左下角按钮组 */}
           <div className="flex space-x-2">
             {/* 模型选择器 */}
             <div className="flex items-center gap-1">
+
+              {/* 联网开关 */}
               <div className="dropdown dropdown-top">
-                <div tabIndex={0} role="button" className="btn btn-xs btn-ghost h-8 min-h-8" title="选择模型">
-                <Bot className="w-4 h-4 text-base-content/60" />
-                {currentModel?.name || '选择模型'}
-                <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-              <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
-                {enabledModels.map((model) => (
-                  <li key={model.id}>
-                    <a 
+                <div tabIndex={0} role="button" className="btn btn-xs btn-ghost h-8 min-h-8" title="联网选项">
+                  <Globe className="w-4 h-4 text-base-content/60" />
+                  {searchConfig?.enabled ? '智能联网' : '关闭联网'}
+                  <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-40 p-2 shadow">
+                  <li>
+                    <a
                       onClick={() => {
-                        setCurrentModel(model.id);
-                        // 点击后收起 dropdown
+                        updateSearchConfig({ enabled: false });
                         (document.activeElement as HTMLElement)?.blur();
+                        toast.success('已关闭联网');
                       }}
-                      className={currentModel?.id === model.id ? 'active' : ''}
+                      className={!searchConfig?.enabled ? 'active' : ''}
                     >
-                      {model.name}
+                      关闭联网
                     </a>
                   </li>
-                ))}
-              </ul>
+                  <li>
+                    <a
+                      onClick={() => {
+                        updateSearchConfig({ enabled: true });
+                        (document.activeElement as HTMLElement)?.blur();
+                        toast.success('已启用智能联网');
+                      }}
+                      className={searchConfig?.enabled ? 'active' : ''}
+                    >
+                      智能联网
+                    </a>
+                  </li>
+                </ul>
               </div>
-              {/* 收藏助手选择（仅在 /chat 首屏显示） */}
-              {!sessionId && favoriteRoles && favoriteRoles.length > 0 && (
-                  <div className="dropdown dropdown-top">
-                    <div tabIndex={0} role="button" className="btn btn-xs btn-ghost h-8 min-h-8" title="选择助手">
-                      <Users className="w-4 h-4 text-base-content/60" />
-                      {favoriteRoles.find(r => r.id === selectedRoleId)?.name || '选择助手'}
-                      <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                    <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
-                      {favoriteRoles.map((role) => (
-                        <li key={role.id}>
-                          <a
-                            onClick={() => {
-                              setSelectedRoleId(role.id);
-                              (document.activeElement as HTMLElement)?.blur();
-                            }}
-                            className={selectedRoleId === role.id ? 'active' : ''}
-                          >
-                            {role.name}
-                          </a>
-                        </li>
-                      ))}
-                      <li>
-                        <a onClick={() => navigate('/roles')}>更多...</a>
-                      </li>
-                    </ul>
-                  </div>
-              )}
-            </div>
+              {/* 收藏助手下拉已移除，改为输入框下方按钮组 */}
+              </div>
 
           </div>
           
           {/* 右下角按钮组 */}
           <div className="flex space-x-2">
+            {/* 模型选择器 */}
+            <div className="dropdown dropdown-top">
+              <div tabIndex={0} role="button" className="btn btn-xs btn-ghost h-8 min-h-8 font-normal" title="选择模型">
+              {currentModel?.name || '选择模型'}
+              <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
+              {enabledModels.map((model) => (
+                <li key={model.id}>
+                  <a 
+                    onClick={() => {
+                      setCurrentModel(model.id);
+                      // 点击后收起 dropdown
+                      (document.activeElement as HTMLElement)?.blur();
+                    }}
+                    className={currentModel?.id === model.id ? 'active' : ''}
+                  >
+                    {model.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            </div>
             {/* 停止按钮 - 仅在生成时显示 */}
             {isGenerating && (
               <button
@@ -2382,8 +2599,32 @@ const ChatPage: React.FC = () => {
             </button>
           </div>
         </div>
-
       </div>
+      {/* 收藏助手快捷按钮（仅在 /chat 首屏显示） */}
+      {!sessionId && favoriteRoles && favoriteRoles.length > 0 && (
+        <div className="my-4 flex flex-wrap gap-2 items-center justify-center">
+          {favoriteRoles.slice(0, 3).map((role) => (
+            <button
+              key={role.id}
+              onClick={() => {
+                setSelectedRoleId(role.id);
+                (document.activeElement as HTMLElement)?.blur();
+              }}
+              className={cn('btn btn-sm font-normal border-none', selectedRoleId === role.id ? 'bg-base-content/10' : 'bg-base-content/3')}
+              title={`选择助手：${role.name}`}
+            >
+              {role.name}
+            </button>
+          ))}
+          <button
+            onClick={() => navigate('/roles')}
+            className="btn btn-sm font-normal border-none bg-base-content/3"
+            title="更多助手"
+          >
+            更多
+          </button>
+        </div>
+      )}
       </div>
     </div>
   );

@@ -39,7 +39,7 @@ import { useScrollMask } from '../hooks/useScrollMask';
 
 
 
-type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data';
+type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'knowledge' | 'search';
 
 
 const Layout: React.FC = () => {
@@ -245,7 +245,7 @@ const Layout: React.FC = () => {
       if (hash.startsWith('#setting')) {
         // 解析设置页面类型
         const settingPath = hash.replace('#setting', '').replace('/', '');
-        const validTabs = ['global', 'config', 'roles', 'userRoles', 'globalPrompts', 'voice', 'data'];
+        const validTabs = ['global', 'config', 'roles', 'userRoles', 'globalPrompts', 'voice', 'data', 'knowledge', 'search'];
         
         // 设置默认页面
         if (settingPath && validTabs.includes(settingPath)) {

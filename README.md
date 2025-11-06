@@ -677,6 +677,45 @@ tts-server/             # 本地TTS服务器
     └── favicon.svg     # 网站图标
 ```
 
+## 🔎 联网搜索（Google CSE）
+
+### 功能概述
+- 为聊天提供实时信息来源，采用 Google Programmable Search Engine（Custom Search JSON API）。
+- 统一的服务端代理 `/api/search`，前端在设置页开启“网络搜索”并进行健康检查。
+
+### 快速配置
+1. 在 Vercel（或本地 `.env`）配置环境变量：
+   - `GOOGLE_SEARCH_API_KEY`：Google Cloud Console 中启用 Custom Search API 后创建的 API Key
+   - `GOOGLE_SEARCH_CX`：Programmable Search Engine 控制台中的 Engine ID（cx）
+   - `API_SECRET`：后端接口鉴权密钥（Serverless 校验 `x-api-key`）
+   - `VITE_API_SECRET`：前端通过 `x-api-key` 传给后端的密钥（与 `API_SECRET` 对应）
+
+2. 在应用内：设置 → “网络搜索” 页面
+   - 开启“启用联网搜索”
+   - Provider 固定为 `Google CSE`
+   - 可选填写用户自建 `API Key` 与 `Engine ID (cx)`（若留空则使用服务端环境变量）
+   - 调整语言（hl）、地域（gl）、安全搜索（safe）、返回条数等偏好
+   - 点击“健康检查”验证接口可用性
+
+### 使用说明
+- 前端调用统一接口：
+  - `GET /api/search?q=你的查询&num=5`
+  - Header：`x-api-key: <VITE_API_SECRET>`
+  - 统一响应结构：
+    ```json
+    {
+      "items": [{ "title": "...", "link": "...", "snippet": "...", "source": "google-cse" }],
+      "query": "原始查询",
+      "provider": "google-cse",
+      "searchInformation": { "totalResults": 12345, "time": 0.23 }
+    }
+    ```
+
+### 注意事项
+- 建议仅在服务端配置密钥，前端保存用户自建密钥存在泄露风险。
+- 若返回 401/403，请检查 `x-api-key` 与 Google API Key 权限；返回 429 通常为配额或速率限制。
+- `safe` 参数支持 `active/off`；返回条数上限为 10。
+
 ## 🔒 隐私与安全
 
 - **本地存储**: 所有用户数据和配置都存储在浏览器本地

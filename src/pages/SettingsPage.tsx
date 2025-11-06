@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Users, Database, History, FileText, UserCircle, Volume2 } from 'lucide-react';
+import { Settings, Users, Database, History, FileText, UserCircle, Volume2, Search as SearchIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { SyncStatusIndicator } from '../components/SyncStatusIndicator';
 import { DatabaseConnectionIndicator } from '../components/DatabaseConnectionIndicator';
@@ -10,8 +10,9 @@ import DataPage from './DataPage';
 import HistoryPage from './HistoryPage';
 import GlobalPromptsPage from './GlobalPromptsPage';
 import VoiceSettingsPage from './VoiceSettingsPage';
+import SearchSettingsPage from './SearchSettingsPage';
 
-type TabType = 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'history';
+type TabType = 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'search' | 'data' | 'history';
 
 const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('config');
@@ -46,6 +47,12 @@ const SettingsPage: React.FC = () => {
       name: '语音',
       icon: Volume2,
       component: VoiceSettingsPage
+    },
+    {
+      id: 'search' as TabType,
+      name: '网络搜索',
+      icon: SearchIcon,
+      component: SearchSettingsPage
     },
     {
       id: 'data' as TabType,

@@ -1049,6 +1049,20 @@ export const useUserData = () => {
          })
       }
 
+      // 清除成功上传消息的 pendingUpload 标记（仅针对本次批量上传的消息ID）
+      try {
+        const uploadedIds = new Set(allMessages.map(m => m.id))
+        const currentSessionsForClear = useAppStore.getState().chatSessions
+        const clearedSessions = currentSessionsForClear.map(s => ({
+          ...s,
+          messages: (s.messages || []).map(m => uploadedIds.has(m.id) ? { ...m, pendingUpload: false } : m)
+        }))
+        useAppStore.setState({ chatSessions: clearedSessions })
+        console.log('🧹 [同步步骤] 已清除成功上传消息的 pendingUpload 标记')
+      } catch (e) {
+        console.warn('⚠️ 清除 pendingUpload 标记时出现问题:', e)
+      }
+
       const syncEndTime = new Date().toISOString()
       const syncDuration = Date.now() - new Date(syncStartTime).getTime()
       
@@ -1652,31 +1666,79 @@ export const useUserData = () => {
             const cloudMsgById: Record<string, ChatMessage> = Object.create(null)
             ;(cloudSession.messages || []).forEach(m => { cloudMsgById[m.id] = m })
 
-            // 1) 以本地为基础，移除云端已不存在且不属于“近期新增/仍在流式”的旧消息
+            // 1) 以本地为基础，仅移除“明确可判定为云端删除”的旧消息
+            // 保护在本次同步期间创建/更新的本地消息（以及仍在流式的消息）
             const baseMerged = (localSession.messages || []).filter(localMsg => {
               const existsInCloud = localMsg.id in cloudMsgById
               if (existsInCloud) return true
-              const isStreaming = !!localMsg.isStreaming
-              // 仅保留仍在流式输出的本地消息；其他情况视为云端已删除，移除
-              if (isStreaming) {
+
+              // 若为待上传标记，始终保留
+              const hasPendingUpload = (localMsg as any).pendingUpload === true
+              if (hasPendingUpload) {
                 return true
               }
-              // 记录调试信息，便于定位
-              console.log('🗑️ 从合并中移除本地消息（云端缺失且非流式）:', {
+
+              const isStreaming = !!localMsg.isStreaming
+              if (isStreaming) {
+                // 仍在流式输出的本地消息，一律保留
+                return true
+              }
+
+              // 判定是否为“本次同步期间或最近新增/更新”的本地消息（可能尚未上传）
+              const localMsgTs = (() => {
+                try {
+                  return localMsg.message_timestamp
+                    ? new Date(localMsg.message_timestamp).getTime()
+                    : localMsg.timestamp
+                      ? new Date(localMsg.timestamp as any).getTime()
+                      : 0
+                } catch {
+                  return 0
+                }
+              })()
+
+              const createdDuringThisSync = localMsgTs > syncStartTime
+              const createdRecently = (nowTs - localMsgTs) <= UNSYNCED_LOCAL_THRESHOLD_MS
+
+              // 若消息在本次同步期间创建，或刚刚创建（<=30秒），则视为“待上传”，保留
+              if (createdDuringThisSync || createdRecently) {
+                console.log('⏳ 保留本地消息（云端缺失，但处于近期/本次同步创建窗口）:', {
+                  sessionId: cloudSession.id,
+                  messageId: localMsg.id,
+                  messageTs: localMsgTs,
+                  syncStartTime,
+                  createdDuringThisSync,
+                  createdRecently
+                })
+                return true
+              }
+
+              // 对于更早的且云端缺失的本地消息，才认为是云端已删除并移除
+              console.log('🗑️ 从合并中移除本地消息（云端缺失且非流式，且不在保护窗口）:', {
                 sessionId: cloudSession.id,
                 messageId: localMsg.id,
-                messageTime: localMsg.timestamp,
-                reason: 'not_in_cloud_and_not_streaming'
+                messageTs: localMsgTs,
+                nowTs,
+                reason: 'not_in_cloud_and_outside_grace_window'
               })
               return false
             }).map(localMsg => {
               // 2) 对存在于云端的消息，用云端内容覆盖关键字段（含 snowflake_id / versions 等）
               const cloudMsg = cloudMsgById[localMsg.id]
               if (cloudMsg) {
-                return {
-                  ...localMsg,
-                  ...cloudMsg
+                // 如果本地消息标记为待上传，则优先保留本地关键内容与版本字段
+                if ((localMsg as any).pendingUpload === true) {
+                  return {
+                    ...cloudMsg,
+                    ...localMsg,
+                    content: localMsg.content,
+                    versions: localMsg.versions,
+                    currentVersionIndex: localMsg.currentVersionIndex,
+                    reasoningContent: localMsg.reasoningContent,
+                    pendingUpload: true
+                  }
                 }
+                return { ...localMsg, ...cloudMsg }
               }
               return localMsg
             })
@@ -1708,10 +1770,18 @@ export const useUserData = () => {
             const baseMerged = (localSession.messages || []).map(localMsg => {
               const cloudMsg = cloudMsgById[localMsg.id]
               if (cloudMsg) {
-                return {
-                  ...localMsg,
-                  ...cloudMsg
+                if ((localMsg as any).pendingUpload === true) {
+                  return {
+                    ...cloudMsg,
+                    ...localMsg,
+                    content: localMsg.content,
+                    versions: localMsg.versions,
+                    currentVersionIndex: localMsg.currentVersionIndex,
+                    reasoningContent: localMsg.reasoningContent,
+                    pendingUpload: true
+                  }
                 }
+                return { ...localMsg, ...cloudMsg }
               }
               return localMsg
             })
@@ -1733,8 +1803,68 @@ export const useUserData = () => {
               updatedAt: cloudTime > localTime ? cloudSession.updatedAt : localSession.updatedAt
             })
           } else if (cloudTime > localTime) {
-            // 如果云端时间更新且消息数量不少于本地，使用云端数据
-            mergedSessions.set(cloudSession.id, cloudSession)
+            // 云端较新，但为避免覆盖本地待上传消息，进行合并
+            const UNSYNCED_LOCAL_THRESHOLD_MS = 30000
+            const nowTs = Date.now()
+            const cloudMsgById: Record<string, ChatMessage> = Object.create(null)
+            ;(cloudSession.messages || []).forEach(m => { cloudMsgById[m.id] = m })
+
+            const baseMerged = (localSession.messages || []).filter(localMsg => {
+              const existsInCloud = localMsg.id in cloudMsgById
+              if (existsInCloud) return true
+              if ((localMsg as any).pendingUpload === true) return true
+              if (!!localMsg.isStreaming) return true
+
+              const localMsgTs = (() => {
+                try {
+                  return localMsg.message_timestamp
+                    ? new Date(localMsg.message_timestamp).getTime()
+                    : localMsg.timestamp
+                      ? new Date(localMsg.timestamp as any).getTime()
+                      : 0
+                } catch {
+                  return 0
+                }
+              })()
+
+              const createdDuringThisSync = localMsgTs > syncStartTime
+              const createdRecently = (nowTs - localMsgTs) <= UNSYNCED_LOCAL_THRESHOLD_MS
+              return createdDuringThisSync || createdRecently
+            }).map(localMsg => {
+              const cloudMsg = cloudMsgById[localMsg.id]
+              if (cloudMsg) {
+                if ((localMsg as any).pendingUpload === true) {
+                  return {
+                    ...cloudMsg,
+                    ...localMsg,
+                    content: localMsg.content,
+                    versions: localMsg.versions,
+                    currentVersionIndex: localMsg.currentVersionIndex,
+                    reasoningContent: localMsg.reasoningContent,
+                    pendingUpload: true
+                  }
+                }
+                return { ...localMsg, ...cloudMsg }
+              }
+              return localMsg
+            })
+
+            const cloudOnly = (cloudSession.messages || []).filter(cm => {
+              return !(localSession.messages || []).some(lm => lm.id === cm.id)
+            })
+
+            const mergedMessages = [...baseMerged, ...cloudOnly]
+              .sort((a, b) => {
+                const ta = a.message_timestamp ? new Date(a.message_timestamp).getTime() : (a.timestamp ? new Date(a.timestamp).getTime() : 0)
+                const tb = b.message_timestamp ? new Date(b.message_timestamp).getTime() : (b.timestamp ? new Date(b.timestamp).getTime() : 0)
+                return ta - tb
+              })
+
+            mergedSessions.set(cloudSession.id, {
+              ...localSession,
+              messages: mergedMessages,
+              updatedAt: cloudTime > localTime ? cloudSession.updatedAt : localSession.updatedAt
+            })
           }
           // 否则保留本地数据（已经在map中）
         }
@@ -3031,8 +3161,13 @@ export const useUserData = () => {
   const hasUnsyncedLocalData = useCallback(() => {
     const now = Date.now()
     const recentThreshold = 30000 // 30秒内的数据认为可能未同步
-    
+
     return chatSessions.some(session => {
+      // 优先：如果存在 pendingUpload 的消息，认为有未同步数据
+      if (session.messages?.some(message => (message as any).pendingUpload === true)) {
+        return true
+      }
+
       // 检查会话是否在最近30秒内有更新
       const sessionTime = session.updatedAt ? new Date(session.updatedAt).getTime() : 0
       if (now - sessionTime < recentThreshold) {

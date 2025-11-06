@@ -136,6 +136,7 @@ export interface ChatMessage {
   message_timestamp?: string; // 业务时间戳，用于数据库存储和排序，一旦设置不可修改
   snowflake_id?: string; // Snowflake ID，用于分布式环境下的唯一标识和排序
   isStreaming?: boolean;
+  pendingUpload?: boolean; // 本地尚未上传到云端的标记
   roleId?: string; // 对于assistant消息，存储AI角色ID；对于user消息，可以为空
   userProfileId?: string; // 对于user消息，存储用户资料ID；对于assistant消息，可以为空
   versions?: string[]; // 消息的多个版本内容
@@ -180,6 +181,18 @@ export interface VoiceModel {
   isPreset?: boolean;
 }
 
+// 联网搜索配置接口
+export interface SearchConfig {
+  enabled: boolean;                 // 是否启用联网搜索（全局）
+  provider: 'google-cse';           // 搜索供应商（首期仅支持 Google CSE）
+  apiKey?: string;                  // 用户填写的密钥（可选）
+  engineId?: string;                // Google CSE 的 cx（可选）
+  language?: string;                // 语言偏好，例如 'zh-CN'
+  country?: string;                 // 地域，例如 'CN'
+  safeSearch?: 'off' | 'active';    // 安全搜索开关
+  maxResults?: number;              // 返回条数（默认 5）
+}
+
 // 应用状态接口
 interface AppState {
   // LLM配置
@@ -212,6 +225,9 @@ interface AppState {
   
   // 语音设置
   voiceSettings: VoiceSettings | null;
+
+  // 联网搜索设置
+  searchConfig: SearchConfig;
   
   // Actions
   // LLM配置相关
@@ -275,6 +291,10 @@ interface AppState {
   
   // 语音设置相关
   setVoiceSettings: (settings: VoiceSettings | null) => void;
+
+  // 联网搜索设置相关
+  setSearchConfig: (config: SearchConfig) => void;
+  updateSearchConfig: (partial: Partial<SearchConfig>) => void;
   
   // 数据导入导出
   exportData: () => string;
@@ -371,6 +391,18 @@ const loadVoiceSettingsFromStorage = (): VoiceSettings => {
   return defaultSettings;
 };
 
+// 默认联网搜索设置
+const defaultSearchConfig: SearchConfig = {
+  enabled: false,
+  provider: 'google-cse',
+  apiKey: '',
+  engineId: '',
+  language: 'zh-CN',
+  country: 'CN',
+  safeSearch: 'off',
+  maxResults: 5
+};
+
 // 默认AI角色 - 使用固定的UUID以确保跨用户一致性
 // 使用固定的日期以避免序列化问题
 const defaultRoleCreatedAt = new Date('2024-01-01T00:00:00.000Z');
@@ -434,6 +466,7 @@ export const useAppStore = create<AppState>()(
       theme: 'floaty',
       sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
       voiceSettings: loadVoiceSettingsFromStorage(),
+      searchConfig: defaultSearchConfig,
       
       // LLM配置相关actions
       addLLMConfig: (config) => {
@@ -1389,18 +1422,20 @@ export const useAppStore = create<AppState>()(
         // 首先检查是否是临时会话
         const session = state.tempSession?.id === sessionId ? state.tempSession : state.chatSessions.find(s => s.id === sessionId);
         
-        const newMessage: ChatMessage = {
-          ...message,
-          id: message.id || generateId(),
-          timestamp: message.timestamp || new Date(),
-          // 设置 message_timestamp，确保只在首次创建时生成
-          message_timestamp: message.message_timestamp || (message.timestamp || new Date()).toISOString(),
-          roleId: session?.roleId,
-          userProfileId: message.role === 'user' ? state.currentUserProfile?.id : undefined,
-          // 初始化版本管理字段
-          versions: message.versions || (message.content ? [message.content] : []),
-          currentVersionIndex: message.currentVersionIndex !== undefined ? message.currentVersionIndex : 0
-        };
+      const newMessage: ChatMessage = {
+        ...message,
+        id: message.id || generateId(),
+        timestamp: message.timestamp || new Date(),
+        // 设置 message_timestamp，确保只在首次创建时生成
+        message_timestamp: message.message_timestamp || (message.timestamp || new Date()).toISOString(),
+        roleId: session?.roleId,
+        userProfileId: message.role === 'user' ? state.currentUserProfile?.id : undefined,
+        // 新增：默认标记为待上传，成功同步后清除
+        pendingUpload: message.pendingUpload !== undefined ? message.pendingUpload : true,
+        // 初始化版本管理字段
+        versions: message.versions || (message.content ? [message.content] : []),
+        currentVersionIndex: message.currentVersionIndex !== undefined ? message.currentVersionIndex : 0
+      };
         
         // 调试日志：版本字段初始化
         console.log('🔧 消息版本字段初始化:', {
@@ -1951,6 +1986,14 @@ export const useAppStore = create<AppState>()(
           queueDataSync('voice_settings', settings);
         }
       },
+
+      // 联网搜索设置相关actions
+      setSearchConfig: (config) => {
+        set({ searchConfig: config });
+      },
+      updateSearchConfig: (partial) => {
+        set((state) => ({ searchConfig: { ...state.searchConfig, ...partial } }));
+      },
       
       // 数据导入导出actions
       exportData: () => {
@@ -2262,7 +2305,8 @@ export const useAppStore = create<AppState>()(
         tempSessionId: state.tempSessionId,
         theme: state.theme,
         sidebarOpen: state.sidebarOpen,
-        voiceSettings: state.voiceSettings
+        voiceSettings: state.voiceSettings,
+        searchConfig: state.searchConfig
       }),
       storage: {
         getItem: (name) => {

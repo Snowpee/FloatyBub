@@ -12,6 +12,7 @@ import GlobalPromptsPage from '../pages/GlobalPromptsPage';
 import VoiceSettingsPage from '../pages/VoiceSettingsPage';
 import DataPage from '../pages/DataPage';
 import KnowledgeManagement from '../pages/KnowledgeManagement';
+import SearchSettingsPage from '../pages/SearchSettingsPage';
 import VoiceTest from '../pages/tests/VoiceTest';
 import ToastTestPage from '../pages/tests/ToastTestPage';
 import DatabaseConnectionTestPage from '../pages/tests/DatabaseConnectionTestPage';
@@ -67,6 +68,10 @@ export const router = createBrowserRouter([
       {
         path: 'settings/voice',
         element: <VoiceSettingsPage />
+      },
+      {
+        path: 'settings/search',
+        element: <SearchSettingsPage />
       },
       {
         path: 'settings/data',

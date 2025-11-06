@@ -45,12 +45,11 @@ class DatabaseConnectionTester {
     try {
       this.updateStatus('testing')
 
-      // 1. 测试基本连接
-      const { data: healthCheck, error: healthError } = await supabase
+      // 1. 测试基本连接（使用 head + count 方式进行轻量健康检查）
+      const { error: healthError } = await supabase
         .from('user_profiles')
-        .select('count')
+        .select('id', { head: true, count: 'exact' })
         .limit(1)
-        .single()
 
       const responseTime = Date.now() - startTime
 
@@ -126,10 +125,10 @@ class DatabaseConnectionTester {
         setTimeout(() => reject(new Error('连接超时')), 5000)
       )
       
-      // 创建数据库查询Promise
+      // 创建数据库查询Promise（使用 head + count 方式）
       const dbQueryPromise = supabase
         .from('user_profiles')
-        .select('count')
+        .select('id', { head: true, count: 'exact' })
         .limit(1)
       
       // 使用Promise.race进行超时控制

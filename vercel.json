@@ -11,6 +11,9 @@
     },
     "api/model-info.js": {
       "maxDuration": 15
+    },
+    "api/search.js": {
+      "maxDuration": 10
     }
   },
   "rewrites": [
@@ -28,6 +31,8 @@
     }
   ],
   "env": {
-    "FISH_AUDIO_API_KEY": "@fish_audio_api_key"
+    "FISH_AUDIO_API_KEY": "@fish_audio_api_key",
+    "GOOGLE_SEARCH_API_KEY": "@google_search_api_key",
+    "GOOGLE_SEARCH_CX": "@google_search_cx"
   }
 }
