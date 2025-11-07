@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
+import { useAppStore } from '../store';
 
 interface GlobalSettingsPageProps {
   onCloseModal?: () => void;
@@ -10,6 +11,15 @@ type ChatStyle = 'conversation' | 'document';
 
 const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal }) => {
   const [chatStyle, setChatStyle] = useState<ChatStyle>('conversation');
+  const {
+    autoTitleConfig,
+    setAutoTitleConfig,
+    updateAutoTitleConfig,
+    llmConfigs,
+    currentModelId,
+    sendMessageShortcut,
+    setSendMessageShortcut
+  } = useAppStore();
 
   // 从localStorage加载设置
   useEffect(() => {
@@ -82,38 +92,73 @@ const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal })
                     <div className="text-sm text-base-content/60">适合长文本阅读</div>
                   </div>
                 </label>
-              </div>
-            </div>
+          </div>
+        </div>
+      </div>
+
+          {/* 发送消息快捷键 */}
+          <div className="form-control flex hero-fieldset items-center join-item py-4 gap-4 border-b border-base-300">
+            <p className="hero-label-md text-base my-2 flex-1">发送消息</p>
+            <label className="ml-auto flex flex-1">
+              {(() => {
+                const isMac = typeof navigator !== 'undefined' && ((navigator.platform || '').toUpperCase().includes('MAC') || /Mac|iPhone|iPad|iPod/.test(navigator.userAgent || ''));
+                const ctrlLabel = isMac ? 'Cmd + Enter' : 'Ctrl + Enter';
+                return (
+                  <select
+                    value={sendMessageShortcut}
+                    onChange={(e) => setSendMessageShortcut(e.target.value as 'enter' | 'ctrlEnter')}
+                    className="select select-ghost text-base w-full hero-mobile-group"
+                  >
+                    <option value="ctrlEnter">{ctrlLabel}</option>
+                    <option value="enter">Enter</option>
+                  </select>
+                );
+              })()}
+            </label>
           </div>
 
           {/* 自动标题总结 */}
           <div className="form-control flex hero-fieldset items-center join-item py-4 border-b border-base-300">
             <p className="hero-label-md text-base my-2 flex-1">自动总结标题</p>
             <label className="w-full md:w-auto ml-auto flex flex-1">
-              <input type="checkbox" defaultChecked className="toggle ml-auto checked:border-primary checked:text-primary" />
+              <input
+                type="checkbox"
+                checked={!!autoTitleConfig?.enabled}
+                onChange={(e) => updateAutoTitleConfig({ enabled: e.target.checked })}
+                className="toggle ml-auto checked:border-primary checked:text-primary"
+              />
             </label>
           </div>
 
-          {/* 总结模型 */}
-          <div className="form-control flex hero-fieldset items-center gap-4 join-item py-4 border-b border-base-300">
-            <p className="hero-label-md text-base my-2 flex-1">总结模型</p>
-            <label className="ml-auto flex flex-1">
-              <select defaultValue="Pick a font" className="select select-ghost text-base w-full hero-mobile-group">
-                <option disabled={true}>Pick a font</option>
-                <option>Inter</option>
-                <option>Poppins</option>
-                <option>Raleway</option>
-              </select>
-            </label>
-          </div>
-
-          {/* 自动标题总结 */}
-          <div className="form-control flex hero-fieldset items-center gap-4 join-item pt-4">
-            <p className="hero-label-md text-base my-2 flex-1">测试</p>
-            <label className="w-full ml-auto flex-1">
-              <input type="input" placeholder='请输入' className="input w-full hero-mobile-group" />
-            </label>
-          </div>
+          {/* 总结模型（含“跟随当前会话模型”首项） */}
+          {autoTitleConfig?.enabled && (
+            <div className="form-control flex hero-fieldset items-center gap-4 join-item py-4 border-base-300">
+              <p className="hero-label-md text-base my-2 flex-1">总结模型</p>
+              <label className="ml-auto flex flex-1">
+                <select
+                  value={(autoTitleConfig?.strategy === 'follow') ? 'follow' : (autoTitleConfig?.modelId || '')}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'follow') {
+                      updateAutoTitleConfig({ strategy: 'follow', modelId: null });
+                    } else {
+                      updateAutoTitleConfig({ strategy: 'custom', modelId: val });
+                    }
+                  }}
+                  className="select select-ghost text-base w-full hero-mobile-group"
+                >
+                  <option value="follow">跟随当前会话模型</option>
+                  {llmConfigs
+                    .filter(c => c.enabled)
+                    .map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name || `${c.provider}:${c.model}`}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
+          )}
 
         </div>
       </div>

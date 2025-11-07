@@ -193,6 +193,13 @@ export interface SearchConfig {
   maxResults?: number;              // 返回条数（默认 5）
 }
 
+// 自动标题配置接口
+export interface AutoTitleConfig {
+  enabled: boolean;                  // 是否启用自动总结标题
+  strategy: 'follow' | 'custom';     // 跟随当前会话模型或使用指定模型
+  modelId?: string | null;           // 指定模型ID（当 strategy = 'custom' 时生效）
+}
+
 // 应用状态接口
 interface AppState {
   // LLM配置
@@ -222,12 +229,16 @@ interface AppState {
   // UI状态
   theme: 'light' | 'dark' | 'cupcake' | 'floaty';
   sidebarOpen: boolean;
+  // 发送消息快捷键设置
+  sendMessageShortcut: 'enter' | 'ctrlEnter';
   
   // 语音设置
   voiceSettings: VoiceSettings | null;
 
   // 联网搜索设置
   searchConfig: SearchConfig;
+  // 自动标题设置
+  autoTitleConfig: AutoTitleConfig;
   
   // Actions
   // LLM配置相关
@@ -288,6 +299,7 @@ interface AppState {
   // UI相关
   setTheme: (theme: 'light' | 'dark' | 'cupcake' | 'floaty') => void;
   toggleSidebar: () => void;
+  setSendMessageShortcut: (shortcut: 'enter' | 'ctrlEnter') => void;
   
   // 语音设置相关
   setVoiceSettings: (settings: VoiceSettings | null) => void;
@@ -295,6 +307,9 @@ interface AppState {
   // 联网搜索设置相关
   setSearchConfig: (config: SearchConfig) => void;
   updateSearchConfig: (partial: Partial<SearchConfig>) => void;
+  // 自动标题设置相关
+  setAutoTitleConfig: (config: AutoTitleConfig) => void;
+  updateAutoTitleConfig: (partial: Partial<AutoTitleConfig>) => void;
   
   // 数据导入导出
   exportData: () => string;
@@ -403,6 +418,13 @@ const defaultSearchConfig: SearchConfig = {
   maxResults: 5
 };
 
+// 默认自动标题设置
+const defaultAutoTitleConfig: AutoTitleConfig = {
+  enabled: true,
+  strategy: 'follow',
+  modelId: null
+};
+
 // 默认AI角色 - 使用固定的UUID以确保跨用户一致性
 // 使用固定的日期以避免序列化问题
 const defaultRoleCreatedAt = new Date('2024-01-01T00:00:00.000Z');
@@ -465,8 +487,10 @@ export const useAppStore = create<AppState>()(
       sessionsNeedingTitle: new Set(),
       theme: 'floaty',
       sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
+      sendMessageShortcut: 'ctrlEnter',
       voiceSettings: loadVoiceSettingsFromStorage(),
       searchConfig: defaultSearchConfig,
+      autoTitleConfig: defaultAutoTitleConfig,
       
       // LLM配置相关actions
       addLLMConfig: (config) => {
@@ -1977,6 +2001,10 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => {
         set((state) => ({ sidebarOpen: !state.sidebarOpen }));
       },
+
+      setSendMessageShortcut: (shortcut) => {
+        set({ sendMessageShortcut: shortcut });
+      },
       
       // 语音设置相关actions
       setVoiceSettings: (settings) => {
@@ -1993,6 +2021,14 @@ export const useAppStore = create<AppState>()(
       },
       updateSearchConfig: (partial) => {
         set((state) => ({ searchConfig: { ...state.searchConfig, ...partial } }));
+      },
+
+      // 自动标题设置相关actions
+      setAutoTitleConfig: (config) => {
+        set({ autoTitleConfig: config });
+      },
+      updateAutoTitleConfig: (partial) => {
+        set((state) => ({ autoTitleConfig: { ...state.autoTitleConfig, ...partial } }));
       },
       
       // 数据导入导出actions
@@ -2026,6 +2062,7 @@ export const useAppStore = create<AppState>()(
           currentModelId: state.currentModelId,
           currentUserProfile,
           voiceSettings: state.voiceSettings,
+          autoTitleConfig: state.autoTitleConfig,
           theme: state.theme,
           exportedAt: new Date().toISOString(),
           version: '1.0'
@@ -2092,6 +2129,7 @@ export const useAppStore = create<AppState>()(
             currentModelId: data.currentModelId || null,
             currentUserProfile,
             voiceSettings: data.voiceSettings || null,
+            autoTitleConfig: data.autoTitleConfig || defaultAutoTitleConfig,
             theme: data.theme || 'light'
           });
           
@@ -2121,7 +2159,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'ai-chat-storage',
-      version: 5, // 增加版本号以触发迁移 - 修复默认角色UUID
+      version: 7, // 增加版本号以触发迁移 - 新增发送消息快捷键设置
       onRehydrateStorage: () => {
         console.log('🔄 zustand 开始恢复存储数据');
         return (state, error) => {
@@ -2283,14 +2321,28 @@ export const useAppStore = create<AppState>()(
             });
           }
           
-          if (hasChanges) {
-            console.log('✅ [迁移] 版本5迁移完成，已更新默认角色ID');
-          } else {
-            console.log('ℹ️ [迁移] 版本5迁移：未发现需要更新的默认角色ID');
-          }
+        if (hasChanges) {
+          console.log('✅ [迁移] 版本5迁移完成，已更新默认角色ID');
+        } else {
+          console.log('ℹ️ [迁移] 版本5迁移：未发现需要更新的默认角色ID');
         }
-        
-        return persistedState;
+      }
+
+      // 版本6迁移：注入自动标题默认配置
+      if (version < 6) {
+        if (!persistedState.autoTitleConfig) {
+          persistedState.autoTitleConfig = defaultAutoTitleConfig;
+        }
+      }
+
+      // 版本7迁移：注入发送消息快捷键默认配置
+      if (version < 7) {
+        if (!persistedState.sendMessageShortcut) {
+          persistedState.sendMessageShortcut = 'ctrlEnter';
+        }
+      }
+
+      return persistedState;
       },
       partialize: (state) => ({
         llmConfigs: state.llmConfigs,
@@ -2306,7 +2358,9 @@ export const useAppStore = create<AppState>()(
         theme: state.theme,
         sidebarOpen: state.sidebarOpen,
         voiceSettings: state.voiceSettings,
-        searchConfig: state.searchConfig
+        searchConfig: state.searchConfig,
+        autoTitleConfig: state.autoTitleConfig,
+        sendMessageShortcut: state.sendMessageShortcut
       }),
       storage: {
         getItem: (name) => {

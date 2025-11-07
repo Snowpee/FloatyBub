@@ -49,7 +49,7 @@
   --color-error-content: oklch(98% 0 0);
   --radius-selector: 2rem;
   --radius-field: 1.25rem;
-  --radius-box: 1rem;
+  --radius-box: 1.5rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 2px;
@@ -173,7 +173,7 @@ dialog .modal-box {
   max-height: calc(100vh - 2rem);
 }
 .chat-input {
-  @apply bg-base-100/60 border-base-300 p-2 transition-all;
+  @apply bg-base-100/60 border-base-300 p-3 transition-all;
   border-radius: var(--radius-box);
   box-shadow: 0 0 0 var(--border) color-mix(in oklab, var(--color-base-content) 10%, #0000);
   &:focus-within {
@@ -260,7 +260,7 @@ dialog .modal-box {
 }
 .hero-popover textarea {
   @apply w-full h-24 p-2 border border-base-300;
-  border-radius: var(--radius-box);
+  border-radius: var(--radius-field);
   border: var(--border) solid var(--color-base-300);
 }
 

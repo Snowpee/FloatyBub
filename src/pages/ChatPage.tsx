@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore, generateId } from '../store';
-import { Bot, Send, Square, Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, Users, User, Cpu, Plus, Edit3, Globe } from 'lucide-react';
+import { Bot, Send, Square, Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, Users, User, Cpu, Plus, Edit3, Globe, SlidersHorizontal } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
 import RoleSelector from '../components/RoleSelector';
@@ -82,6 +82,8 @@ const ChatPage: React.FC = () => {
     currentUserProfile,
     voiceSettings,
     searchConfig,
+    autoTitleConfig,
+    sendMessageShortcut,
     setCurrentSession,
     createChatSession,
     createTempSession,
@@ -172,7 +174,9 @@ const ChatPage: React.FC = () => {
           content: userMessage,
           timestamp: new Date()
         }, () => {
-          markSessionNeedsTitle(currentSession.id);
+          if (autoTitleConfig?.enabled) {
+            markSessionNeedsTitle(currentSession.id);
+          }
         });
 
         const aiMessageId = generateId();
@@ -479,8 +483,10 @@ const ChatPage: React.FC = () => {
       timestamp: new Date()
       // 注意：新消息不传入snowflake_id，让addMessage方法生成新的ID
     }, () => {
-      // 临时会话转为正式会话后，标记需要生成标题
-      markSessionNeedsTitle(currentSession.id);
+      // 临时会话转为正式会话后，标记需要生成标题（仅在开启时）
+      if (autoTitleConfig?.enabled) {
+        markSessionNeedsTitle(currentSession.id);
+      }
     });
 
     // 添加AI消息占位符
@@ -1331,16 +1337,34 @@ const ChatPage: React.FC = () => {
         // 同步失败不影响UI流程，但记录错误
       }
       
-      // 检查是否需要生成标题
-      if (checkSessionNeedsTitle(sessionId) && currentModel) {
-        generateSessionTitle(sessionId, currentModel)
-          .then(() => {
+      // 检查是否需要生成标题，并根据配置选择模型
+      if (checkSessionNeedsTitle(sessionId)) {
+        if (!autoTitleConfig?.enabled) {
+          // 若已关闭自动标题，则清除标记
+          removeSessionNeedsTitle(sessionId);
+        } else {
+          let titleModelConfig = currentModel;
+          if (autoTitleConfig?.strategy === 'custom' && autoTitleConfig?.modelId) {
+            titleModelConfig = llmConfigs.find(m => m.id === autoTitleConfig.modelId) || titleModelConfig;
+          } else {
+            const followModelId = currentSession?.modelId || currentModelId || titleModelConfig?.id;
+            titleModelConfig = llmConfigs.find(m => m.id === followModelId) || titleModelConfig;
+          }
+
+          if (titleModelConfig) {
+            generateSessionTitle(sessionId, titleModelConfig)
+              .then(() => {
+                removeSessionNeedsTitle(sessionId);
+              })
+              .catch(() => {
+                // 即使失败也要清除标记，避免重复尝试
+                removeSessionNeedsTitle(sessionId);
+              });
+          } else {
+            // 找不到模型也清除标记，避免卡住
             removeSessionNeedsTitle(sessionId);
-          })
-          .catch(error => {
-            // 即使失败也要清除标记，避免重复尝试
-            removeSessionNeedsTitle(sessionId);
-          });
+          }
+        }
       }
       
       // 请求完成后清理 AbortController
@@ -1981,15 +2005,30 @@ const ChatPage: React.FC = () => {
     console.log('✅ 重新生成流式输出完成，内容长度:', currentContent.length);
     
     // 检查是否需要生成标题（重新生成时也可能需要）
-    if (checkSessionNeedsTitle(sessionId) && currentModel) {
-      generateSessionTitle(sessionId, currentModel)
-        .then(() => {
+    if (checkSessionNeedsTitle(sessionId)) {
+      if (!autoTitleConfig?.enabled) {
+        removeSessionNeedsTitle(sessionId);
+      } else {
+        let titleModelConfig = currentModel;
+        if (autoTitleConfig?.strategy === 'custom' && autoTitleConfig?.modelId) {
+          titleModelConfig = llmConfigs.find(m => m.id === autoTitleConfig.modelId) || titleModelConfig;
+        } else {
+          const followModelId = currentSession?.modelId || currentModelId || titleModelConfig?.id;
+          titleModelConfig = llmConfigs.find(m => m.id === followModelId) || titleModelConfig;
+        }
+
+        if (titleModelConfig) {
+          generateSessionTitle(sessionId, titleModelConfig)
+            .then(() => {
+              removeSessionNeedsTitle(sessionId);
+            })
+            .catch(() => {
+              removeSessionNeedsTitle(sessionId);
+            });
+        } else {
           removeSessionNeedsTitle(sessionId);
-        })
-        .catch(error => {
-          // 即使失败也要清除标记，避免重复尝试
-          removeSessionNeedsTitle(sessionId);
-        });
+        }
+      }
     }
     
     // 请求完成后清理 AbortController
@@ -2003,9 +2042,18 @@ const ChatPage: React.FC = () => {
 
   // 处理键盘事件
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      handleSendMessage();
+    if (sendMessageShortcut === 'ctrlEnter') {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        handleSendMessage();
+      }
+    } else {
+      // enter 直接发送，Shift+Enter 允许换行
+      if (e.key === 'Enter') {
+        if (e.shiftKey) return;
+        e.preventDefault();
+        handleSendMessage();
+      }
     }
   };
 
@@ -2468,7 +2516,7 @@ const ChatPage: React.FC = () => {
       </div>
 
       {/* 输入区域 */}
-      <div className={cn('p-4 pt-0', (!currentSession) && "flex-1 pb-100")}>
+      <div className={cn('p-4 pt-0', (!currentSession) && "flex-1 pb-[calc(50vh-10rem)]")}>
         <div className="chat-input max-w-4xl mx-auto">
         {/* 输入框 - 单独一行 */}
         <div className="mb-3">
@@ -2501,41 +2549,54 @@ const ChatPage: React.FC = () => {
             {/* 模型选择器 */}
             <div className="flex items-center gap-1">
 
-              {/* 联网开关 */}
+              {/* 聊天选项（角色选择 + 联网设定） */}
               <div className="dropdown dropdown-top">
-                <div tabIndex={0} role="button" className="btn btn-xs btn-ghost h-8 min-h-8" title="联网选项">
-                  <Globe className="w-4 h-4 text-base-content/60" />
-                  {searchConfig?.enabled ? '智能联网' : '关闭联网'}
-                  <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                {/* 图标型按钮：调节 */}
+                <div tabIndex={0} role="button" className="btn btn-xs btn-ghost h-8 min-h-8" title="聊天选项">
+                  <SlidersHorizontal className="w-4 h-4 text-base-content/60" />
                 </div>
-                <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-40 p-2 shadow">
-                  <li>
-                    <a
-                      onClick={() => {
-                        updateSearchConfig({ enabled: false });
+                {/* tips 弹窗内容 */}
+                <div tabIndex={0} className="dropdown-content z-[1] shadow bg-base-100 rounded-box p-4 w-64 space-y-2">
+                  {/* 联网开关 */}
+                  <div className="flex items-center justify-between py-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Globe className="w-4 h-4 text-base-content/60" />
+                      <span>智能联网</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-primary toggle-sm"
+                      checked={!!searchConfig?.enabled}
+                      onChange={(e) => {
+                        updateSearchConfig({ enabled: e.target.checked });
                         (document.activeElement as HTMLElement)?.blur();
-                        toast.success('已关闭联网');
+                        toast.success(e.target.checked ? '已启用智能联网' : '已关闭联网');
                       }}
-                      className={!searchConfig?.enabled ? 'active' : ''}
-                    >
-                      关闭联网
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      onClick={() => {
-                        updateSearchConfig({ enabled: true });
+                    />
+                  </div>
+
+                  {/* 角色选择（内联选择器） */}
+                  <div className="flex items-center justify-between py-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Users className="w-4 h-4 text-base-content/60" />
+                      <span>角色</span>
+                    </div>
+                    <select
+                      className="select select-sm select-ghost w-auto"
+                      value={selectedRoleId ?? (aiRoles[0]?.id ?? '')}
+                      onChange={(e) => {
+                        setSelectedRoleId(e.target.value);
                         (document.activeElement as HTMLElement)?.blur();
-                        toast.success('已启用智能联网');
                       }}
-                      className={searchConfig?.enabled ? 'active' : ''}
                     >
-                      智能联网
-                    </a>
-                  </li>
-                </ul>
+                      {aiRoles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
               {/* 收藏助手下拉已移除，改为输入框下方按钮组 */}
               </div>
@@ -2600,31 +2661,7 @@ const ChatPage: React.FC = () => {
           </div>
         </div>
       </div>
-      {/* 收藏助手快捷按钮（仅在 /chat 首屏显示） */}
-      {!sessionId && favoriteRoles && favoriteRoles.length > 0 && (
-        <div className="my-4 flex flex-wrap gap-2 items-center justify-center">
-          {favoriteRoles.slice(0, 3).map((role) => (
-            <button
-              key={role.id}
-              onClick={() => {
-                setSelectedRoleId(role.id);
-                (document.activeElement as HTMLElement)?.blur();
-              }}
-              className={cn('btn btn-sm font-normal border-none', selectedRoleId === role.id ? 'bg-base-content/10' : 'bg-base-content/3')}
-              title={`选择助手：${role.name}`}
-            >
-              {role.name}
-            </button>
-          ))}
-          <button
-            onClick={() => navigate('/roles')}
-            className="btn btn-sm font-normal border-none bg-base-content/3"
-            title="更多助手"
-          >
-            更多
-          </button>
-        </div>
-      )}
+      {/* 收藏助手快捷按钮已移除：改为 tips 中的内联角色选择器 */}
       </div>
     </div>
   );
