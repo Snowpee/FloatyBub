@@ -12,11 +12,18 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "check": "tsc -b --noEmit",
-    "check-data-integrity": "node scripts/check-data-integrity.js"
+    "check-data-integrity": "node scripts/check-data-integrity.js",
+    "cap:add:ios": "npx cap add ios",
+    "cap:copy": "npx cap copy",
+    "cap:sync": "npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:run:ios": "npx cap run ios -l --external"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",
     "@aws-sdk/s3-request-presigner": "^3.864.0",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/ios": "^7.4.4",
     "@react-spring/web": "^10.0.1",
     "@supabase/supabase-js": "^2.53.0",
     "@use-gesture/react": "^10.3.1",
@@ -27,7 +34,6 @@
     "jieba-wasm": "^2.2.0",
     "lucide-react": "^0.511.0",
     "mime-types": "^3.0.1",
-
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
@@ -40,6 +46,7 @@
     "zustand": "^5.0.6"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.4.4",
     "@eslint/js": "^9.25.0",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/mime-types": "^3.0.1",

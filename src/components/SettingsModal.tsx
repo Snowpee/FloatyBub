@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Settings, Users, Database, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight, Globe, BookOpen, Search } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, isCapacitorIOS } from '../lib/utils';
 import { useDragToClose } from '../hooks/useDragToClose';
 import ConfigPage from '../pages/ConfigPage';
 import RolesPage from '../pages/RolesPage';
@@ -26,6 +26,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
   const [isClosing, setIsClosing] = useState(false); // 控制关闭动画
   const [shouldRender, setShouldRender] = useState(isOpen); // 控制组件渲染
   const [isVisible, setIsVisible] = useState(false); // 控制弹窗可见性
+  const isIOS = isCapacitorIOS();
+
+  // iOS 导航动画状态
+  const [navDirection, setNavDirection] = useState<'push' | 'pop' | null>(null);
+  const [iosEnterReady, setIosEnterReady] = useState(false);
+  const [iosSwipeX, setIosSwipeX] = useState(0);
+  const iosSwipeRef = useRef<{ tracking: boolean; startX: number; startY: number }>({ tracking: false, startX: 0, startY: 0 });
   
   // 二级页面检测状态
   const [isDetailView, setIsDetailView] = useState(false);
@@ -212,7 +219,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
   // 移动端处理函数
   const handleMobileTabClick = (tabId: TabType) => {
     setActiveTab(tabId);
-    setShowList(false);
+    if (isIOS) {
+      // iOS: 使用 push 动画进入详情页
+      setNavDirection('push');
+      setIosEnterReady(false);
+      setShowList(false);
+      // 下一帧标记准备进入，使 CSS 从 100% -> 0 过渡
+      setTimeout(() => setIosEnterReady(true), 16);
+    } else {
+      setShowList(false);
+    }
     
     // 强制更新状态检测，确保视图切换时状态正确
     const forceUpdateState = () => {
@@ -235,6 +251,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
   };
 
   const handleBackToList = () => {
+    if (isIOS && !showList) {
+      // iOS: 使用 pop 动画返回列表
+      setNavDirection('pop');
+      setIosEnterReady(false);
+      // 动画结束后再切换到列表视图
+      setTimeout(() => {
+        setShowList(true);
+        setNavDirection(null);
+        setIosSwipeX(0);
+      }, 250);
+      return;
+    }
     setShowList(true);
     // 返回列表时重置详情视图状态
     setIsDetailView(false);
@@ -318,11 +346,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       <div 
         key={`drag-container-${dragKey}`}
         className={cn(
-          "hero-modal relative bg-base-100 shadow-xl flex overflow-hidden",
+          "hero-modal settings-modal relative bg-base-100 shadow-xl flex overflow-hidden",
           // 桌面端：居中弹窗
           "md:rounded-lg md:w-full md:max-w-6xl md:h-[800px] md:max-h-[calc(100vh-2rem)] md:mx-4",
           // 移动端：全屏减去顶部预留空间
           "w-full h-full",
+          // iOS 专属动画模式
+          isIOS && "ios-mode",
           // 拖动距离超过阈值时禁用所有子元素的指针事件，防止误触按钮
           isChildrenDisabled && "[&_*]:pointer-events-none",
           // 桌面端透明度和位移动画
@@ -381,10 +411,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
         </div>
 
         {/* 移动端内容 */}
-        <div className="md:hidden w-full flex flex-col">
+        <div className="md:hidden w-full flex flex-col relative overflow-hidden">
           {showList ? (
             // 移动端设置列表视图
-            <>
+            <div className={cn("mobile-list")}> 
               <div 
                 {...bind()}
                 className={cn(
@@ -403,7 +433,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
                    className="btn btn-ghost btn-sm btn-circle"
                  >
                    <X className="h-4 w-4" />
-                 </button>
+                </button>
               </div>
               
               {/* 设置项列表 */}
@@ -415,7 +445,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
                       <li key={tab.id}>
                         <button
                           onClick={() => handleMobileTabClick(tab.id)}
-                          className="flex items-center gap-4 w-full text-left p-4 rounded-lg hover:bg-base-200 transition-colors"
+                          className="flex items-center gap-4 w-full text-left p-4 rounded-lg active:bg-base-200 md:hover:bg-base-200 transition-colors"
                         >
                           <div className="flex items-center justify-center w-10 h-10 bg-primary/10 rounded-lg">
                             <Icon className="h-5 w-5 text-primary" />
@@ -432,10 +462,49 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
                   })}
                 </ul>
               </div>
-            </>
+            </div>
           ) : (
             // 移动端设置详情视图
-            <>
+            <div
+              className={cn(
+                "mobile-detail",
+                // iOS 导航动画：push 进入 / pop 离开
+                isIOS && iosEnterReady && navDirection === 'push' && 'ios-enter',
+                isIOS && navDirection === 'pop' && 'ios-leave'
+              )}
+              // iOS 侧滑返回手势（左缘起滑）
+              onTouchStart={(e) => {
+                if (!isIOS) return;
+                if (e.touches.length !== 1) return;
+                const t = e.touches[0];
+                iosSwipeRef.current.tracking = t.clientX < 24; // 左缘 24px 以内启动
+                iosSwipeRef.current.startX = t.clientX;
+                iosSwipeRef.current.startY = t.clientY;
+              }}
+              onTouchMove={(e) => {
+                if (!isIOS || !iosSwipeRef.current.tracking) return;
+                const t = e.touches[0];
+                const dx = t.clientX - iosSwipeRef.current.startX;
+                const dy = Math.abs(t.clientY - iosSwipeRef.current.startY);
+                // 垂直滑动干扰时忽略
+                if (dy > 24 && dx < 30) return;
+                const clamped = Math.max(0, Math.min(dx, window.innerWidth));
+                setIosSwipeX(clamped);
+              }}
+              onTouchEnd={() => {
+                if (!isIOS || !iosSwipeRef.current.tracking) return;
+                const threshold = 80; // 触发返回的最小位移
+                if (iosSwipeX > threshold) {
+                  setIosSwipeX(0);
+                  handleBackToList();
+                } else {
+                  // 回弹
+                  setIosSwipeX(0);
+                }
+                iosSwipeRef.current.tracking = false;
+              }}
+              style={isIOS && iosSwipeX > 0 ? { transform: `translateX(${iosSwipeX}px)` } : undefined}
+            >
               <div 
                 {...bind()}
                 className={cn(
@@ -510,7 +579,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
                         {tabs.find(tab => tab.id === activeTab)?.name}
                       </h2>
                     </>
-                  );
+                 );
                 })()}
                 <button
                    onClick={handleClose}
@@ -524,7 +593,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
               <div className="flex-1 overflow-y-auto">
                 <ActiveComponent onCloseModal={handleClose} />
               </div>
-            </>
+            </div>
           )}
         </div>
 

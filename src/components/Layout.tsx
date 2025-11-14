@@ -20,15 +20,16 @@ import {
   X,
   Search,
   Clock,
-  BookOpen
+  
 } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import Popconfirm from './Popconfirm';
 import SettingsModal from './SettingsModal';
 import { useAuth } from '../hooks/useAuth';
 import { UserAvatar } from './auth/UserAvatar';
 import { AuthModal } from './auth/AuthModal';
-import HistoryModal from './HistoryModal';
+import HistoryModal from './HistoryModalNew';
 import Avatar from './Avatar';
 import VirtualScrollContainer from './VirtualScrollContainer';
 import AvatarUpload from './AvatarUpload';
@@ -46,6 +47,16 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, setTheme, currentUser, setCurrentUser, updateUserProfile } = useAppStore();
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const mainViewRef = useRef<HTMLDivElement>(null);
+  const [mobileTranslateX, setMobileTranslateX] = useState<number>(0);
+  const [mobileDragging, setMobileDragging] = useState<boolean>(false);
+  const [dragDirection, setDragDirection] = useState<null | 'horizontal' | 'vertical'>(null);
+  const startXRef = useRef<number>(0);
+  const startYRef = useRef<number>(0);
+  const currentXRef = useRef<number>(0);
+  const currentYRef = useRef<number>(0);
+  const drawerWidthRef = useRef<number>(280);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // 虚拟滚动配置
@@ -423,6 +434,186 @@ const Layout: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (isMobile()) {
+      const w = sidebarRef.current?.offsetWidth || drawerWidthRef.current;
+      drawerWidthRef.current = w;
+      setMobileTranslateX(sidebarOpen ? w : 0);
+    }
+  }, [sidebarOpen]);
+
+  const openDrawer = () => {
+    const w = drawerWidthRef.current;
+    setMobileTranslateX(w);
+    if (!sidebarOpen) toggleSidebar();
+  };
+
+  const closeDrawer = () => {
+    setMobileTranslateX(0);
+    if (sidebarOpen) toggleSidebar();
+  };
+
+  const DIRECTION_THRESHOLD = 15;
+  const HORIZONTAL_BIAS = 25;
+  const SNAP_THRESHOLD_RATIO = 0.35;
+  const VELOCITY_THRESHOLD = 0.3;
+  const QUICK_SWIPE_MIN_DISTANCE = 30;
+  const QUICK_SWIPE_MAX_TIME = 300;
+  const startTimeRef = useRef<number>(0);
+
+  const handleTouchStartMain = (e: React.TouchEvent) => {
+    if (!isMobile()) return;
+    startXRef.current = e.touches[0].clientX;
+    startYRef.current = e.touches[0].clientY;
+    currentXRef.current = startXRef.current;
+    currentYRef.current = startYRef.current;
+    startTimeRef.current = performance.now();
+    setDragDirection(null);
+  };
+
+  const handleTouchMoveMain = (e: React.TouchEvent) => {
+    if (!isMobile()) return;
+    currentXRef.current = e.touches[0].clientX;
+    currentYRef.current = e.touches[0].clientY;
+    const deltaX = currentXRef.current - startXRef.current;
+    const deltaY = currentYRef.current - startYRef.current;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+    if (dragDirection === null) {
+      if (absDeltaX < DIRECTION_THRESHOLD && absDeltaY < DIRECTION_THRESHOLD) {
+        return;
+      }
+      if (absDeltaX > absDeltaY + HORIZONTAL_BIAS) {
+        setDragDirection('horizontal');
+        setMobileDragging(true);
+      } else if (absDeltaY > absDeltaX * 0.5) {
+        setDragDirection('vertical');
+        return;
+      } else {
+        return;
+      }
+    }
+    if (dragDirection !== 'horizontal') return;
+    e.preventDefault();
+    const w = drawerWidthRef.current;
+    if (sidebarOpen) {
+      const newTranslate = Math.max(0, Math.min(w, w + deltaX));
+      setMobileTranslateX(newTranslate);
+    } else {
+      if (deltaX > 0) {
+        const newTranslate = Math.max(0, Math.min(w, deltaX));
+        setMobileTranslateX(newTranslate);
+      }
+    }
+  };
+
+  const handleTouchEndMain = () => {
+    if (!isMobile()) return;
+    if (dragDirection !== 'horizontal' || !mobileDragging) {
+      setDragDirection(null);
+      return;
+    }
+    setMobileDragging(false);
+    setDragDirection(null);
+    const deltaX = currentXRef.current - startXRef.current;
+    const deltaTime = Math.max(1, performance.now() - startTimeRef.current);
+    const velocity = Math.abs(deltaX) / deltaTime;
+    const isQuickSwipe = velocity > VELOCITY_THRESHOLD && Math.abs(deltaX) > QUICK_SWIPE_MIN_DISTANCE && deltaTime < QUICK_SWIPE_MAX_TIME;
+    const w = drawerWidthRef.current;
+    if (isQuickSwipe) {
+      if (deltaX > 0) {
+        openDrawer();
+      } else {
+        closeDrawer();
+      }
+      return;
+    }
+    const shouldOpen = mobileTranslateX >= w * SNAP_THRESHOLD_RATIO;
+    if (shouldOpen) {
+      openDrawer();
+    } else {
+      closeDrawer();
+    }
+  };
+
+  const handleTouchCancelMain = () => {
+    handleTouchEndMain();
+  };
+
+  const handleTouchStartOverlay = (e: React.TouchEvent) => {
+    if (!isMobile() || mobileTranslateX <= 0) return;
+    startXRef.current = e.touches[0].clientX;
+    startYRef.current = e.touches[0].clientY;
+    currentXRef.current = startXRef.current;
+    currentYRef.current = startYRef.current;
+    startTimeRef.current = performance.now();
+    setDragDirection(null);
+  };
+
+  const handleTouchMoveOverlay = (e: React.TouchEvent) => {
+    if (!isMobile() || mobileTranslateX <= 0) return;
+    currentXRef.current = e.touches[0].clientX;
+    currentYRef.current = e.touches[0].clientY;
+    const deltaX = currentXRef.current - startXRef.current;
+    const deltaY = currentYRef.current - startYRef.current;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+    if (dragDirection === null) {
+      if (absDeltaX < DIRECTION_THRESHOLD && absDeltaY < DIRECTION_THRESHOLD) {
+        return;
+      }
+      if (absDeltaX > absDeltaY + HORIZONTAL_BIAS) {
+        setDragDirection('horizontal');
+        setMobileDragging(true);
+      } else if (absDeltaY > absDeltaX * 0.5) {
+        setDragDirection('vertical');
+        return;
+      } else {
+        return;
+      }
+    }
+    if (dragDirection !== 'horizontal') return;
+    e.preventDefault();
+    const w = drawerWidthRef.current;
+    const newTranslate = Math.max(0, Math.min(w, w + deltaX));
+    setMobileTranslateX(newTranslate);
+  };
+
+  const handleTouchEndOverlay = () => {
+    if (!isMobile()) return;
+    if (dragDirection !== 'horizontal' || !mobileDragging) {
+      setDragDirection(null);
+      return;
+    }
+    setMobileDragging(false);
+    setDragDirection(null);
+    const deltaX = currentXRef.current - startXRef.current;
+    const deltaTime = Math.max(1, performance.now() - startTimeRef.current);
+    const velocity = Math.abs(deltaX) / deltaTime;
+    const isQuickSwipe = velocity > VELOCITY_THRESHOLD && Math.abs(deltaX) > QUICK_SWIPE_MIN_DISTANCE && deltaTime < QUICK_SWIPE_MAX_TIME;
+    const w = drawerWidthRef.current;
+    if (isQuickSwipe) {
+      if (deltaX < 0) {
+        closeDrawer();
+      } else {
+        openDrawer();
+      }
+      return;
+    }
+    const shouldOpen = mobileTranslateX >= w * SNAP_THRESHOLD_RATIO;
+    if (shouldOpen) {
+      openDrawer();
+    } else {
+      closeDrawer();
+    }
+  };
+
+  const handleTouchCancelOverlay = () => {
+    handleTouchEndOverlay();
+  };
+
+  
+
   // 渲染单个聊天项目的函数
   const renderChatItem = useCallback((session: any, index: number, isVisible: boolean) => {
     const isActive = session.id === currentSessionId;
@@ -439,7 +630,7 @@ const Layout: React.FC = () => {
           closeSidebarOnNonDesktop();
         }}
         className={cn(
-          "chat-list p-3 my-1 transition-colors group block group",
+          "chat-list p-2 my-1 transition-colors group block group",
           isActive 
             ? "bg-base-300" 
             : "hover:bg-base-200"
@@ -469,7 +660,7 @@ const Layout: React.FC = () => {
           >
             <button
               tabIndex={0}
-              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 btn btn-ghost btn-xs"
+              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 btn btn-ghost btn-sm btn-circle"
               title="更多操作"
             >
               <MoreHorizontal className="h-4 w-4" />
@@ -486,7 +677,7 @@ const Layout: React.FC = () => {
                     // 关闭dropdown
                     (document.activeElement as HTMLElement)?.blur();
                   }}
-                  className="text-sm"
+                  className="text-base"
                 >
                   {session.isPinned ? (
                     <PinOff className="h-4 w-4" />
@@ -552,7 +743,7 @@ const Layout: React.FC = () => {
                   cancelText="取消"
                   getPopupContainer={() => sessionRefs.current[session.id]?.current || undefined}
                 >
-                  <button className="text-sm w-full text-left flex items-center">
+                  <button className="text-base w-full text-left flex items-center">
                     <Edit3 className="h-4 w-4 mr-2" />
                     重命名
                   </button>
@@ -566,7 +757,7 @@ const Layout: React.FC = () => {
                      // 关闭dropdown
                      (document.activeElement as HTMLElement)?.blur();
                    }}
-                   className="text-sm"
+                   className="text-base"
                  >
                    <EyeOff className="h-4 w-4" />
                    隐藏对话
@@ -602,7 +793,7 @@ const Layout: React.FC = () => {
                   cancelText="取消"
                   getPopupContainer={() => linkRef?.current || undefined}
                 >
-                  <button className="text-sm text-error w-full text-left flex items-center">
+                  <button className="text-base text-error w-full text-left flex items-center">
                     <Trash2 className="h-4 w-4 mr-2" />
                     移至回收站
                   </button>
@@ -648,14 +839,21 @@ const Layout: React.FC = () => {
       {/* 侧边栏 */}
       <div 
         className={cn(
-          'w-70 md:w-64 bg-base-100 border-base-300/50 border-r-[length:var(--border)]  transition-all duration-200 ease-in-out flex-shrink-0',
+          'w-70 md:w-64 bg-base-100 border-base-300/50 border-r-[length:var(--border)]  transition-transform duration-200 ease-in-out flex-shrink-0',
           // 移动端：固定定位
           'fixed lg:fixed z-40 h-full lg:h-screen',
           // PWA 安全区
           'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]',
           // 显示控制：移动端和桌面端都根据sidebarOpen状态控制
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        )}>
+          isMobile() ? 'translate-x-0' : (sidebarOpen ? 'translate-x-0' : '-translate-x-full')
+        )}
+        ref={sidebarRef}
+        style={isMobile() ? {
+          width: sidebarRef.current?.offsetWidth,
+          transform: `translateX(${mobileTranslateX - (sidebarRef.current?.offsetWidth || drawerWidthRef.current)}px)`,
+          transition: mobileDragging ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        } : undefined}
+      >
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-between h-16 px-4 box-content flex-shrink-0">
@@ -668,11 +866,33 @@ const Layout: React.FC = () => {
           <div className="p-4 pb-0">
             <button
               onClick={handleNewChat}
-              className="btn mr-2 w-full"
+              className="btn border-none p-3 flex items-center justify-start flex-1 min-w-0 gap-2 w-full"
             >
-              <Plus className="h-4 w-4" />
-              新建对话
+              <div className="flex items-center flex-1 min-w-0 gap-2">
+                <span className="w-6 h-6 rounded-full flex items-center justify-center">
+                  <Plus className="h-4 w-4" />
+                </span>
+                <h4 className="text-sm text-base-content truncate">
+                  新建对话
+                </h4>
+              </div>
             </button>
+            {/* 发现智能体入口 */}
+            <div className="mt-2">
+              <button
+                onClick={() => { navigate('/roles'); closeSidebarOnNonDesktop(); }}
+                className="btn btn-ghost border-none p-3 flex items-center justify-start flex-1 min-w-0 gap-2 w-full"
+              >
+                <div className="flex items-center flex-1 min-w-0 gap-2">
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center">
+                    <Sparkles className="h-4 w-4" />
+                  </span>
+                  <h4 className="text-sm text-base-content font-normal truncate">
+                    发现智能体
+                  </h4>
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* 导航菜单已移除，保留新建聊天按钮作为主要入口 */}
@@ -863,11 +1083,23 @@ const Layout: React.FC = () => {
       </div>
 
       {/* 主内容区域 */}
-      <div className={cn(
-        "flex flex-col flex-1 min-h-screen transition-all duration-200 ease-in-out h-screen bg-base-100",
+      <div
+        ref={mainViewRef}
+        className={cn(
+        "flex flex-col flex-1 min-h-screen h-screen bg-base-100",
         // 在桌面端根据侧边栏状态调整左边距
         sidebarOpen ? "lg:ml-64" : "lg:ml-0"
-      )}>
+      )}
+        style={isMobile() ? {
+          transform: `translateX(${mobileTranslateX}px)`,
+          transition: mobileDragging ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          touchAction: dragDirection === 'horizontal' ? 'none' as any : 'auto'
+        } : undefined}
+        onTouchStart={handleTouchStartMain}
+        onTouchMove={handleTouchMoveMain}
+        onTouchEnd={handleTouchEndMain}
+        onTouchCancel={handleTouchCancelMain}
+      >
         {/* 顶部栏 */}
         <header className="bg-base-100 bg-opacity-90 pt-[env(safe-area-inset-top)]">
           <div className="relative flex items-center h-16 px-4">
@@ -875,7 +1107,7 @@ const Layout: React.FC = () => {
             <div className="flex items-center space-x-4">
               <button
                 onClick={toggleSidebar}
-                className="btn btn-ghost btn-sm"
+                className="btn btn-ghost"
               >
                 <Menu className="h-5 w-5" />
               </button>
@@ -905,7 +1137,7 @@ const Layout: React.FC = () => {
                   <div className="dropdown dropdown-end">
                     <button
                       tabIndex={0}
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost"
                       title="更多操作"
                     >
                       <MoreHorizontal className="h-4 w-4" />
@@ -915,7 +1147,9 @@ const Layout: React.FC = () => {
                         <button onClick={() => {
                           handleNewSession();
                           (document.activeElement as HTMLElement)?.blur();
-                        }}>
+                          }}
+                          className="text-base"
+                        >
                           <Plus className="h-4 w-4" />
                           聊聊新话题
                         </button>
@@ -931,7 +1165,7 @@ const Layout: React.FC = () => {
                             // 关闭dropdown
                             (document.activeElement as HTMLElement)?.blur();
                           }}
-                          className="text-sm"
+                          className="text-base"
                         >
                           {currentSession.isPinned ? (
                             <PinOff className="h-4 w-4" />
@@ -951,7 +1185,7 @@ const Layout: React.FC = () => {
                              // 关闭dropdown
                              (document.activeElement as HTMLElement)?.blur();
                            }}
-                           className="text-sm"
+                           className="text-base"
                          >
                            <EyeOff className="h-4 w-4" />
                            隐藏对话
@@ -986,7 +1220,7 @@ const Layout: React.FC = () => {
                           okText="移至回收站"
                           cancelText="取消"
                         >
-                          <button className="text-sm text-error w-full text-left flex items-center">
+                          <button className="text-base text-error w-full text-left flex items-center">
                             <Trash2 className="h-4 w-4 mr-2" />
                             移至回收站
                           </button>
@@ -1008,11 +1242,21 @@ const Layout: React.FC = () => {
         </main>
       </div>
 
-      {/* 移动端遮罩 */}
-      {sidebarOpen && (
+      {/* 移动端遮罩：抽屉开启时显示半透明黑色遮罩，点击可关闭，拦截底部交互 */}
+      {isMobile() && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
-          onClick={toggleSidebar}
+          className="fixed inset-0 z-30 lg:hidden bg-black"
+          style={{
+            opacity: Math.max(0, Math.min(0.5, (mobileTranslateX / (sidebarRef.current?.offsetWidth || drawerWidthRef.current)) * 0.5)),
+            pointerEvents: mobileTranslateX > 0 ? 'auto' as any : 'none' as any,
+            transition: mobileDragging ? 'none' : 'opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            touchAction: 'none' as any,
+          }}
+          onClick={closeDrawer}
+          onTouchStart={handleTouchStartOverlay}
+          onTouchMove={handleTouchMoveOverlay}
+          onTouchEnd={handleTouchEndOverlay}
+          onTouchCancel={handleTouchCancelOverlay}
         />
       )}
 

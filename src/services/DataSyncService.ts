@@ -5,7 +5,7 @@ import type { Database } from '../lib/supabase'
 // 同步项目类型
 export interface SyncItem {
   id: string
-  type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'user_profile' | 'user_role'
+  type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile' | 'user_role'
   data: any
   timestamp: number
   retries: number
@@ -152,6 +152,9 @@ export class DataSyncService {
         break
       case 'voice_settings':
         await this.syncVoiceSettings(dataWithUserId)
+        break
+      case 'general_settings':
+        await this.syncGeneralSettings(dataWithUserId)
         break
       case 'user_profile':
         await this.syncUserProfile(dataWithUserId)
@@ -343,6 +346,77 @@ export class DataSyncService {
     }
   }
 
+  // 同步通用设置（快捷键、自动标题等）
+  private async syncGeneralSettings(data: any): Promise<void> {
+    const isFullReplace = data.__full === true
+
+    // 读取已有设置以执行合并，避免覆盖其他字段
+    const { data: existing, error: fetchError } = await supabase
+      .from('general_settings')
+      .select('id, settings')
+      .eq('user_id', data.user_id)
+      .maybeSingle()
+
+    if (fetchError) {
+      // 不阻断同步；记录后继续执行 upsert
+      console.warn('⚠️ general_settings 获取失败，继续执行 upsert:', fetchError.message)
+    }
+
+    // 仅将传入的字段合并/替换到 settings，移除未定义键
+    const incomingSettings: Record<string, any> = {}
+    if (data.settings && typeof data.settings === 'object') {
+      Object.entries(data.settings).forEach(([k, v]) => {
+        if (v !== undefined) incomingSettings[k] = v
+      })
+    } else {
+      // 兼容直接传递具体字段的情况
+      if (data.sendMessageShortcut !== undefined) {
+        incomingSettings.sendMessageShortcut = data.sendMessageShortcut
+      }
+      if (data.assistantConfig !== undefined) {
+        incomingSettings.assistantConfig = data.assistantConfig
+      }
+      if (data.autoTitleConfig !== undefined) {
+        incomingSettings.autoTitleConfig = data.autoTitleConfig
+      }
+      if (data.searchConfig !== undefined) {
+        incomingSettings.searchConfig = data.searchConfig
+      }
+      if (data.chatStyle !== undefined) {
+        incomingSettings.chatStyle = data.chatStyle
+      }
+    }
+
+    // 保持双向兼容：若仅存在其中一个配置，自动补齐另一个
+    if (incomingSettings.assistantConfig && !incomingSettings.autoTitleConfig) {
+      incomingSettings.autoTitleConfig = incomingSettings.assistantConfig
+    }
+    if (incomingSettings.autoTitleConfig && !incomingSettings.assistantConfig) {
+      incomingSettings.assistantConfig = incomingSettings.autoTitleConfig
+    }
+
+    const settingsToWrite = isFullReplace
+      ? incomingSettings // 全量替换：直接使用传入的设置对象
+      : {
+          ...(existing?.settings || {}),
+          ...incomingSettings // 增量合并：保留已有字段，更新传入的部分
+        }
+
+    const upsertData = {
+      user_id: data.user_id,
+      settings: settingsToWrite,
+      updated_at: data.updated_at || new Date().toISOString()
+    }
+
+    const { error } = await supabase
+      .from('general_settings')
+      .upsert(upsertData, { onConflict: 'user_id' })
+
+    if (error) {
+      throw new Error(`通用设置同步失败: ${error.message}`)
+    }
+  }
+
   // 同步用户资料
   private async syncUserProfile(data: any): Promise<void> {
     console.log('🔄 DataSyncService.syncUserProfile: 开始同步用户资料', data)
@@ -407,6 +481,7 @@ export class DataSyncService {
     aiRoles: any[]
     globalPrompts: any[]
     voiceSettings: any | null
+    generalSettings: any | null
     userRoles: any[]
   }> {
     let user = userParam
@@ -418,11 +493,12 @@ export class DataSyncService {
       throw new Error('用户未登录')
     }
 
-    const [llmConfigsResult, aiRolesResult, globalPromptsResult, voiceSettingsResult, userRolesResult] = await Promise.all([
+    const [llmConfigsResult, aiRolesResult, globalPromptsResult, voiceSettingsResult, generalSettingsResult, userRolesResult] = await Promise.all([
       supabase.from('llm_configs').select('*').eq('user_id', user.id),
       supabase.from('ai_roles').select('*').eq('user_id', user.id),
       supabase.from('global_prompts').select('*').eq('user_id', user.id),
       supabase.from('voice_settings').select('*').eq('user_id', user.id).maybeSingle(),
+      supabase.from('general_settings').select('*').eq('user_id', user.id).maybeSingle(),
       supabase.from('user_roles').select('*').eq('user_id', user.id)
     ])
 
@@ -439,6 +515,7 @@ export class DataSyncService {
       throw new Error(`拉取用户角色失败: ${userRolesResult.error.message}`)
     }
     // 语音设置可能不存在，不抛出错误
+    // 通用设置可能不存在，不抛出错误
 
     // 将数据库字段映射回前端格式
     const llmConfigs = (llmConfigsResult.data || []).map((item: any) => ({
@@ -508,11 +585,27 @@ export class DataSyncService {
       updatedAt: item.updated_at
     }))
 
+    // 将通用设置数据库格式转换回前端格式
+    let generalSettings = null
+    if (generalSettingsResult.data) {
+      const gs = generalSettingsResult.data
+      generalSettings = {
+        // 仅在存在云端记录时返回，避免覆盖本地默认值
+        sendMessageShortcut: gs.settings?.sendMessageShortcut,
+        assistantConfig: gs.settings?.assistantConfig || gs.settings?.autoTitleConfig,
+        autoTitleConfig: gs.settings?.autoTitleConfig,
+        searchConfig: gs.settings?.searchConfig,
+        // 新增：同步 chatStyle 到前端，兼容旧数据不存在该字段的情况
+        chatStyle: gs.settings?.chatStyle
+      }
+    }
+
     return {
       llmConfigs,
       aiRoles,
       globalPrompts,
       voiceSettings,
+      generalSettings,
       userRoles
     }
   }

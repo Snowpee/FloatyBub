@@ -64,6 +64,29 @@ export interface Database {
           updated_at?: string
         }
       }
+      general_settings: {
+        Row: {
+          id: string
+          user_id: string
+          settings: Record<string, any>
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          settings?: Record<string, any>
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          settings?: Record<string, any>
+          created_at?: string
+          updated_at?: string
+        }
+      }
       chat_sessions: {
         Row: {
           id: string

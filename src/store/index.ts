@@ -200,6 +200,13 @@ export interface AutoTitleConfig {
   modelId?: string | null;           // 指定模型ID（当 strategy = 'custom' 时生效）
 }
 
+// 助手配置接口（统一管理用于辅助任务的模型与开关）
+export interface AssistantConfig {
+  enabled: boolean;                  // 是否启用助手辅助能力（用于自动标题、意图识别等）
+  strategy: 'follow' | 'custom';     // 跟随当前会话模型或使用指定模型
+  modelId?: string | null;           // 指定模型ID（当 strategy = 'custom' 时生效）
+}
+
 // 应用状态接口
 interface AppState {
   // LLM配置
@@ -229,6 +236,7 @@ interface AppState {
   // UI状态
   theme: 'light' | 'dark' | 'cupcake' | 'floaty';
   sidebarOpen: boolean;
+  chatStyle: 'conversation' | 'document';
   // 发送消息快捷键设置
   sendMessageShortcut: 'enter' | 'ctrlEnter';
   
@@ -239,6 +247,8 @@ interface AppState {
   searchConfig: SearchConfig;
   // 自动标题设置
   autoTitleConfig: AutoTitleConfig;
+  // 助手设置（新）
+  assistantConfig: AssistantConfig;
   
   // Actions
   // LLM配置相关
@@ -299,6 +309,7 @@ interface AppState {
   // UI相关
   setTheme: (theme: 'light' | 'dark' | 'cupcake' | 'floaty') => void;
   toggleSidebar: () => void;
+  setChatStyle: (style: 'conversation' | 'document') => void;
   setSendMessageShortcut: (shortcut: 'enter' | 'ctrlEnter') => void;
   
   // 语音设置相关
@@ -310,6 +321,11 @@ interface AppState {
   // 自动标题设置相关
   setAutoTitleConfig: (config: AutoTitleConfig) => void;
   updateAutoTitleConfig: (partial: Partial<AutoTitleConfig>) => void;
+  // 助手设置相关（新）
+  setAssistantConfig: (config: AssistantConfig) => void;
+  updateAssistantConfig: (partial: Partial<AssistantConfig>) => void;
+  // 全量同步通用设置
+  syncGeneralSettingsFull: () => Promise<void>;
   
   // 数据导入导出
   exportData: () => string;
@@ -343,7 +359,7 @@ const convertToUUID = (oldId: string): string => {
 };
 
 // 数据同步辅助函数
-const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'user_profile' | 'user_role', data: any) => {
+const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile' | 'user_role', data: any) => {
   try {
     console.log('🔄 queueDataSync: 准备同步数据', { type, data })
     
@@ -425,6 +441,13 @@ const defaultAutoTitleConfig: AutoTitleConfig = {
   modelId: null
 };
 
+// 默认助手设置（与自动标题一致，后续可扩展）
+const defaultAssistantConfig: AssistantConfig = {
+  enabled: true,
+  strategy: 'follow',
+  modelId: null
+};
+
 // 默认AI角色 - 使用固定的UUID以确保跨用户一致性
 // 使用固定的日期以避免序列化问题
 const defaultRoleCreatedAt = new Date('2024-01-01T00:00:00.000Z');
@@ -487,10 +510,12 @@ export const useAppStore = create<AppState>()(
       sessionsNeedingTitle: new Set(),
       theme: 'floaty',
       sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
+      chatStyle: (typeof window !== 'undefined' ? (localStorage.getItem('chatStyle') as 'conversation' | 'document' | null) : null) || 'conversation',
       sendMessageShortcut: 'ctrlEnter',
       voiceSettings: loadVoiceSettingsFromStorage(),
       searchConfig: defaultSearchConfig,
       autoTitleConfig: defaultAutoTitleConfig,
+      assistantConfig: defaultAssistantConfig,
       
       // LLM配置相关actions
       addLLMConfig: (config) => {
@@ -2002,8 +2027,24 @@ export const useAppStore = create<AppState>()(
         set((state) => ({ sidebarOpen: !state.sidebarOpen }));
       },
 
+      setChatStyle: (style) => {
+        set({ chatStyle: style });
+        try {
+          // 兼容旧逻辑：同时写入 localStorage，避免尚未迁移的组件读取失败
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('chatStyle', style);
+          }
+        } catch (_) {}
+        // 云同步 general_settings（增量）
+        queueDataSync('general_settings', { chatStyle: style });
+      },
+
       setSendMessageShortcut: (shortcut) => {
         set({ sendMessageShortcut: shortcut });
+        // 云同步 general_settings
+        if (shortcut) {
+          queueDataSync('general_settings', { sendMessageShortcut: shortcut });
+        }
       },
       
       // 语音设置相关actions
@@ -2018,17 +2059,64 @@ export const useAppStore = create<AppState>()(
       // 联网搜索设置相关actions
       setSearchConfig: (config) => {
         set({ searchConfig: config });
+        if (config) {
+          queueDataSync('general_settings', { searchConfig: config });
+        }
       },
       updateSearchConfig: (partial) => {
-        set((state) => ({ searchConfig: { ...state.searchConfig, ...partial } }));
+        const current = get().searchConfig;
+        const newConfig = { ...current, ...partial };
+        set({ searchConfig: newConfig });
+        queueDataSync('general_settings', { searchConfig: newConfig });
       },
 
-      // 自动标题设置相关actions
+      // 自动标题设置相关actions（保持与助手设置同步）
       setAutoTitleConfig: (config) => {
-        set({ autoTitleConfig: config });
+        set({ autoTitleConfig: config, assistantConfig: { ...get().assistantConfig, ...config } });
+        if (config) {
+          queueDataSync('general_settings', { assistantConfig: config, autoTitleConfig: config });
+        }
       },
       updateAutoTitleConfig: (partial) => {
-        set((state) => ({ autoTitleConfig: { ...state.autoTitleConfig, ...partial } }));
+        const currentAuto = get().autoTitleConfig;
+        const newConfig = { ...currentAuto, ...partial };
+        set({ autoTitleConfig: newConfig, assistantConfig: { ...get().assistantConfig, ...newConfig } });
+        queueDataSync('general_settings', { assistantConfig: newConfig, autoTitleConfig: newConfig });
+      },
+
+      // 助手设置相关actions（新）
+      setAssistantConfig: (config) => {
+        set({ assistantConfig: config, autoTitleConfig: { ...get().autoTitleConfig, ...config } });
+        if (config) {
+          queueDataSync('general_settings', { assistantConfig: config, autoTitleConfig: config });
+        }
+      },
+      updateAssistantConfig: (partial) => {
+        const current = get().assistantConfig;
+        const newConfig = { ...current, ...partial };
+        set({ assistantConfig: newConfig, autoTitleConfig: { ...get().autoTitleConfig, ...newConfig } });
+        queueDataSync('general_settings', { assistantConfig: newConfig, autoTitleConfig: newConfig });
+      },
+
+      // 全量同步：将当前所有通用设置一次性推送云端
+      syncGeneralSettingsFull: async () => {
+        try {
+          const state = get();
+          const payload = {
+            settings: {
+              chatStyle: state.chatStyle,
+              sendMessageShortcut: state.sendMessageShortcut,
+              assistantConfig: state.assistantConfig,
+              // 兼容旧客户端：同时提供 autoTitleConfig
+              autoTitleConfig: state.autoTitleConfig,
+              searchConfig: state.searchConfig
+            },
+            __full: true
+          };
+          await queueDataSync('general_settings', payload);
+        } catch (error) {
+          console.error('❌ syncGeneralSettingsFull 失败:', error);
+        }
       },
       
       // 数据导入导出actions
@@ -2062,6 +2150,7 @@ export const useAppStore = create<AppState>()(
           currentModelId: state.currentModelId,
           currentUserProfile,
           voiceSettings: state.voiceSettings,
+          assistantConfig: state.assistantConfig,
           autoTitleConfig: state.autoTitleConfig,
           theme: state.theme,
           exportedAt: new Date().toISOString(),
@@ -2129,7 +2218,8 @@ export const useAppStore = create<AppState>()(
             currentModelId: data.currentModelId || null,
             currentUserProfile,
             voiceSettings: data.voiceSettings || null,
-            autoTitleConfig: data.autoTitleConfig || defaultAutoTitleConfig,
+            assistantConfig: data.assistantConfig || data.autoTitleConfig || defaultAssistantConfig,
+            autoTitleConfig: data.autoTitleConfig || data.assistantConfig || defaultAutoTitleConfig,
             theme: data.theme || 'light'
           });
           
@@ -2159,7 +2249,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'ai-chat-storage',
-      version: 7, // 增加版本号以触发迁移 - 新增发送消息快捷键设置
+      version: 9, // 版本9：引入 assistantConfig 并与 autoTitleConfig 向后兼容
       onRehydrateStorage: () => {
         console.log('🔄 zustand 开始恢复存储数据');
         return (state, error) => {
@@ -2342,6 +2432,29 @@ export const useAppStore = create<AppState>()(
         }
       }
 
+      // 版本8迁移：注入 chatStyle 默认配置，兼容旧 localStorage
+      if (version < 8) {
+        if (!persistedState.chatStyle) {
+          try {
+            const fromLocal = (typeof window !== 'undefined' ? (localStorage.getItem('chatStyle') as 'conversation' | 'document' | null) : null) || null;
+            persistedState.chatStyle = fromLocal && (fromLocal === 'conversation' || fromLocal === 'document') ? fromLocal : 'conversation';
+          } catch (_) {
+            persistedState.chatStyle = 'conversation';
+          }
+        }
+      }
+
+      // 版本9迁移：新增 assistantConfig，优先从 autoTitleConfig 迁移，确保双向兼容
+      if (version < 9) {
+        if (!persistedState.assistantConfig) {
+          persistedState.assistantConfig = persistedState.autoTitleConfig || defaultAssistantConfig;
+        }
+        // 兼容旧代码路径：若缺失 autoTitleConfig，则从 assistantConfig 回填
+        if (!persistedState.autoTitleConfig) {
+          persistedState.autoTitleConfig = persistedState.assistantConfig || defaultAutoTitleConfig;
+        }
+      }
+
       return persistedState;
       },
       partialize: (state) => ({
@@ -2357,8 +2470,10 @@ export const useAppStore = create<AppState>()(
         tempSessionId: state.tempSessionId,
         theme: state.theme,
         sidebarOpen: state.sidebarOpen,
+        chatStyle: state.chatStyle,
         voiceSettings: state.voiceSettings,
         searchConfig: state.searchConfig,
+        assistantConfig: state.assistantConfig,
         autoTitleConfig: state.autoTitleConfig,
         sendMessageShortcut: state.sendMessageShortcut
       }),

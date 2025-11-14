@@ -104,14 +104,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
       sessionId: sessionId,
       sessionTitle: session?.title || '未知会话'
     });
-    modalRef.current?.showModal();
   };
 
   const confirmDeleteSession = async () => {
     try {
       await deleteChatSession(confirmDialog.sessionId);
       toast.success('会话已移至回收站');
-      modalRef.current?.close();
+      setConfirmDialog({ isOpen: false, sessionId: '', sessionTitle: '' });
     } catch (error) {
       console.error('删除会话失败:', error);
       toast.error(error instanceof Error ? error.message : '删除会话失败');
@@ -119,19 +118,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
   };
 
   const handleCancel = () => {
-    modalRef.current?.close();
+    setConfirmDialog({ isOpen: false, sessionId: '', sessionTitle: '' });
   };
 
-  useEffect(() => {
-    const dialog = modalRef.current;
-    if (dialog) {
-      const handleClose = () => {
-        setConfirmDialog({ isOpen: false, sessionId: '', sessionTitle: '' });
-      };
-      dialog.addEventListener('close', handleClose);
-      return () => dialog.removeEventListener('close', handleClose);
-    }
-  }, []);
+  // 使用 ConfirmDialog 控制打开/关闭，无需原生 dialog 事件监听
 
   const handleToggleSession = (sessionId: string, isHidden: boolean, e: React.MouseEvent) => {
     e.preventDefault();
@@ -221,11 +211,11 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
 
   return (
     <div className="p-6 max-w-6xl mx-auto md:pt-0">
-      <div className="mb-6">
+      {/* <div className="mb-6">
         <p className="text-base-content/70">
           查看和管理您的聊天历史记录
         </p>
-      </div>
+      </div> */}
 
       {/* 搜索和过滤器 */}
       <div className="mb-6 space-y-4">
@@ -448,32 +438,17 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
         </div>
       )}
 
-      {/* 移至回收站确认模态框 */}
-      <dialog ref={modalRef} className="modal">
-        <div className="modal-box">
-          <h3 className="font-bold text-lg mb-4">移至回收站</h3>
-          <p className="py-4">
-            确定要将会话 "{confirmDialog.sessionTitle}" 移至回收站吗？该操作不会立即永久删除。
-          </p>
-          <div className="modal-action">
-            <button
-              onClick={handleCancel}
-              className="btn"
-            >
-              取消
-            </button>
-            <button
-              onClick={confirmDeleteSession}
-              className="btn btn-error"
-            >
-              移至回收站
-            </button>
-          </div>
-        </div>
-        <form method="dialog" className="modal-backdrop">
-          <button>close</button>
-        </form>
-      </dialog>
+      {/* 移至回收站确认弹窗（统一使用 ConfirmDialog） */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, sessionId: '', sessionTitle: '' })}
+        onConfirm={confirmDeleteSession}
+        title="移至回收站"
+        message={`确定要将会话 "${confirmDialog.sessionTitle}" 移至回收站吗？该操作不会立即永久删除。`}
+        confirmText="移至回收站"
+        cancelText="取消"
+        variant="warning"
+      />
     </div>
   );
 };

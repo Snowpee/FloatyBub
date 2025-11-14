@@ -11,6 +11,7 @@ import {
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
 import EmptyState from '../components/EmptyState';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 
 interface GlobalPromptsPageProps {
@@ -34,7 +35,6 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
   }>({ isOpen: false, promptId: '', promptTitle: '' });
   
   const modalRef = useRef<HTMLDialogElement>(null);
-  const confirmModalRef = useRef<HTMLDialogElement>(null);
   const [formData, setFormData] = useState<Partial<GlobalPrompt>>({
     title: '',
     description: '',
@@ -82,32 +82,23 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
 
   useEffect(() => {
     const modal = modalRef.current;
-    const confirmModal = confirmModalRef.current;
     
     const handleModalClose = () => {
       setIsEditing(false);
       setEditingId(null);
     };
     
-    const handleConfirmModalClose = () => {
-      setConfirmDialog({ isOpen: false, promptId: '', promptTitle: '' });
-    };
     
     if (modal) {
       modal.addEventListener('close', handleModalClose);
     }
     
-    if (confirmModal) {
-      confirmModal.addEventListener('close', handleConfirmModalClose);
-    }
     
     return () => {
       if (modal) {
         modal.removeEventListener('close', handleModalClose);
       }
-      if (confirmModal) {
-        confirmModal.removeEventListener('close', handleConfirmModalClose);
-      }
+      // 无需处理删除确认模态的 close 事件，交由 ConfirmDialog 的 onClose 控制
     };
   }, []);
 
@@ -122,14 +113,13 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
       promptId: id,
       promptTitle: prompt?.title || '未知提示词'
     });
-    confirmModalRef.current?.showModal();
   };
 
   const confirmDelete = async () => {
     try {
       await deleteGlobalPrompt(confirmDialog.promptId);
       toast.success('全局提示词已删除');
-      confirmModalRef.current?.close();
+      setConfirmDialog({ isOpen: false, promptId: '', promptTitle: '' });
     } catch (error) {
       console.error('删除全局提示词失败:', error);
       toast.error(error instanceof Error ? error.message : '删除全局提示词失败');
@@ -138,7 +128,6 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
 
   const handleConfirmCancel = () => {
     setConfirmDialog({ isOpen: false, promptId: '', promptTitle: '' });
-    confirmModalRef.current?.close();
   };
 
   return (
@@ -294,34 +283,17 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal }) =
         </form>
       </dialog>
 
-      {/* 删除确认模态框 */}
-      <dialog ref={confirmModalRef} className="modal">
-        <div className="modal-box">
-            <h3 className="text-lg font-semibold text-base-content mb-4">
-              删除全局提示词
-            </h3>
-            <p className="text-base-content/70 mb-6">
-              确定要删除全局提示词 "{confirmDialog.promptTitle}" 吗？此操作不可撤销，使用该提示词的角色将失去关联。
-            </p>
-            <div className="modal-action">
-              <button
-                onClick={handleConfirmCancel}
-                className="btn btn-ghost"
-              >
-                取消
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="btn btn-error"
-              >
-                删除
-              </button>
-            </div>
-        </div>
-        <form method="dialog" className="modal-backdrop">
-          <button>close</button>
-        </form>
-      </dialog>
+      {/* 删除确认弹窗（统一使用 ConfirmDialog） */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, promptId: '', promptTitle: '' })}
+        onConfirm={confirmDelete}
+        title="删除全局提示词"
+        message={`确定要删除全局提示词 "${confirmDialog.promptTitle}" 吗？此操作不可撤销，使用该提示词的角色将失去关联。`}
+        confirmText="删除"
+        cancelText="取消"
+        variant="danger"
+      />
     </div>
   );
 };

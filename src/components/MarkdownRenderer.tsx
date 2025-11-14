@@ -10,7 +10,7 @@ interface MarkdownRendererProps {
 
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
   return (
-    <div className={`markdown-content ${className}`}>
+    <div className={`markdown-content text-wrap whitespace-normal wrap-break-word overflow-x-hidden ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}

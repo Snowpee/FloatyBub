@@ -1,0 +1,316 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { X } from 'lucide-react';
+import { cn } from '../lib/utils';
+import HistoryPage from '../pages/HistoryPage';
+import { Capacitor } from '@capacitor/core';
+
+interface HistoryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const HistoryModal: React.FC<HistoryModalProps> = ({ isOpen, onClose }) => {
+  const [isClosing, setIsClosing] = useState(false);
+  const [shouldRender, setShouldRender] = useState(isOpen);
+  const [isVisible, setIsVisible] = useState(false);
+
+  // 检测是否为 Capacitor iOS 环境
+  const isCapacitorIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+  const [touchStartY, setTouchStartY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+  const [dragOffsetY, setDragOffsetY] = useState(0); // 专门存储拖动偏移量
+  // 防止父级瞬开打断划出动画
+  const justClosedRef = React.useRef(false);
+
+  // 重置状态
+  const resetState = useCallback(() => {
+    setTouchStartY(0);
+    setIsDragging(false);
+    setIsAnimatingOut(false);
+    setDragOffsetY(0);
+  }, []);
+
+  // 处理拖动结束动画 - 分帧划出，避免闪回顶部
+  const handleDragEnd = useCallback(() => {
+    if (isCapacitorIOS && isDragging) {
+      const deltaY = dragOffsetY;
+      
+      if (deltaY > 100) {
+        // 第 1 帧：仅结束拖动，保留当前偏移量，启用过渡
+        setIsDragging(false);
+        setTouchStartY(0);
+        
+        // 第 2 帧：把 transform 切到 100%，浏览器会从当前位置继续向下过渡
+        requestAnimationFrame(() => {
+          console.log('[HistoryModal] 第2帧 开始划出');   // 确认分帧回调执行
+          setIsAnimatingOut(true);
+          // 动画完成后关闭
+          setTimeout(() => {
+            justClosedRef.current = true;   // 标记刚刚关闭
+            onClose();
+            // 300ms 后解除“刚关闭”标记，允许再次打开
+            setTimeout(() => { justClosedRef.current = false; }, 300);
+          }, 220);
+        });
+      } else {
+        // 回弹同理：先结束拖动，再下一帧归零
+        setIsDragging(false);
+        setTouchStartY(0);
+        requestAnimationFrame(() => setDragOffsetY(0));
+      }
+    }
+  }, [isCapacitorIOS, isDragging, dragOffsetY, onClose]);
+
+  // iOS 原生触摸事件处理
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    console.log('[HistoryModal] handleTouchStart', {
+      isCapacitorIOS,
+      isVisible,
+      isAnimatingOut,
+      isClosing,
+      touchStartY,
+      isDragging,
+      dragOffsetY
+    });
+    if (isCapacitorIOS && isVisible && !isAnimatingOut && !isClosing) {
+      const startY = e.touches[0].clientY;
+      setTouchStartY(startY);
+      setDragOffsetY(0);
+      setIsDragging(false);
+      setIsAnimatingOut(false);
+    }
+  }, [isCapacitorIOS, isVisible, isAnimatingOut, isClosing]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    console.log('[HistoryModal] handleTouchMove', {
+      isCapacitorIOS,
+      touchStartY,
+      isAnimatingOut,
+      isVisible,
+      isClosing,
+      isDragging,
+      dragOffsetY
+    });
+    if (isCapacitorIOS && touchStartY > 0 && !isAnimatingOut && isVisible && !isClosing) {
+      const currentY = e.touches[0].clientY;
+      const deltaY = currentY - touchStartY;
+      
+      // 只处理向下滑动，防止页面滚动
+      if (deltaY > 0) {
+        e.preventDefault(); // 防止默认滚动行为
+        if (!isDragging) {
+          setIsDragging(true);
+        }
+        setDragOffsetY(deltaY); // 直接存储偏移量
+      }
+    }
+  }, [isCapacitorIOS, touchStartY, isAnimatingOut, isVisible, isClosing, isDragging]);
+
+  const handleTouchEnd = useCallback(() => {
+    console.log('[HistoryModal] handleTouchEnd', {
+      isCapacitorIOS,
+      isDragging,
+      dragOffsetY
+    });
+    handleDragEnd();
+  }, [handleDragEnd]);
+
+  // 处理弹窗打开逻辑 - 移除 H5 关闭动画
+  useEffect(() => {
+    if (isOpen) {
+      // 如果刚刚关闭，忽略本次打开，防止划出动画被瞬开打断
+      if (justClosedRef.current) {
+        console.log('[HistoryModal] 忽略瞬开，等待划出动画完成');
+        return;
+      }
+      console.log('[HistoryModal] 打开弹窗 - 重置状态');
+      setShouldRender(true);
+      setIsClosing(false);
+      // 重置拖动状态
+      setTouchStartY(0);
+      setIsDragging(false);
+      setIsAnimatingOut(false);
+      setDragOffsetY(0);
+      
+      // 使用 requestAnimationFrame 确保动画从初始状态开始
+      requestAnimationFrame(() => {
+        setIsVisible(true);
+      });
+      return;
+    }
+
+    // ===== 以下是关闭逻辑 =====
+    if (!shouldRender) return;   // 已经卸载
+
+    console.log('[HistoryModal] 关闭弹窗 - 当前状态', { isCapacitorIOS, isAnimatingOut });
+
+    // 1. iOS 拖动关闭：保持现有划出动画
+    if (isCapacitorIOS && isAnimatingOut) {
+      const t = setTimeout(() => {
+        setShouldRender(false);
+        setIsClosing(false);
+        setIsAnimatingOut(false);
+      }, 200);
+      return () => clearTimeout(t);
+    }
+
+    // 2. 其它任何情况（包括按钮点击）→ 立即卸载，不再播放向下动画
+    setShouldRender(false);
+    setIsClosing(false);
+    setIsVisible(false);
+  }, [isOpen, shouldRender, isCapacitorIOS, isAnimatingOut]);
+
+  const handleClose = () => {
+    console.log('[HistoryModal] 按钮点击关闭');
+    onClose();
+  };
+
+  if (!shouldRender) {
+    return null;
+  }
+
+  return (
+    <div className={cn(
+      "fixed inset-0 z-50",
+      "md:flex md:items-center md:justify-center",
+      "pt-4 md:pt-0",
+      "pt-[calc(env(safe-area-inset-top)+1rem)]"
+    )}>
+      {/* 背景遮罩 */}
+      <div 
+        className={cn(
+          "modal-backdrop absolute inset-0 bg-black/50",
+          isCapacitorIOS ? "" : "md:animate-in md:fade-in md:duration-200",
+          isCapacitorIOS ? "" : "transition-opacity duration-200 ease-out"
+        )}
+        style={{
+          opacity: isVisible ? 1 : 0,
+          ...(isCapacitorIOS ? {
+            transition: 'opacity 0.2s ease-out'
+          } : {})
+        }}
+        onClick={handleClose}
+      />
+      
+      {/* 弹窗内容 */}
+      <div 
+        className={cn(
+          "hero-modal relative bg-base-100 shadow-xl flex flex-col overflow-hidden",
+          "md:rounded-lg md:w-full md:!max-w-4xl md:h-[800px] md:max-h-[calc(100vh-2rem)] md:mx-4",
+          "w-full h-full",
+          // 桌面端透明度和位移动画 - 仅非 Capacitor iOS 使用
+          isCapacitorIOS ? "" : "md:transition-all md:duration-200 md:ease-out",
+          // 移动端动画状态控制 - 仅非 Capacitor iOS 使用
+          isCapacitorIOS ? "" : (
+            isVisible && !isClosing 
+              ? "md:opacity-100 md:translate-y-0" 
+              : "md:opacity-0 md:translate-y-2"
+          )
+        )}
+        style={{
+          // 基础动画状态 - 使用专门的偏移量
+          transform: (() => {
+            if (isAnimatingOut) {
+              // 划出动画：向下移动到屏幕外
+              return 'translateY(100%)';
+            } else if (isCapacitorIOS && (isDragging || dragOffsetY > 0)) {
+              // 拖动时的实时位置，或者拖动结束但还有偏移量时的位置
+              return `translateY(${Math.max(0, dragOffsetY)}px)`;
+            } else if (!isVisible) {
+              // 初始状态：在屏幕下方
+              return 'translateY(100%)';
+            } else {
+              // 正常显示状态
+              return 'translateY(0)';
+            }
+          })(),
+          transition: (() => {
+            if (isDragging) {
+              // 拖动时无动画
+              return 'none';
+            } else if (isAnimatingOut || (!isDragging && dragOffsetY > 0)) {
+              // 划出或回弹动画
+              return 'transform 0.2s ease-out';
+            } else {
+              // 正常弹出动画
+              return 'transform 0.2s ease-out';
+            }
+          })(),
+        }}
+        onTouchStart={isCapacitorIOS ? handleTouchStart : undefined}
+        onTouchMove={isCapacitorIOS ? handleTouchMove : undefined}
+        onTouchEnd={isCapacitorIOS ? handleTouchEnd : undefined}
+      >
+        {/* 标题栏 - 拖动区域 */}
+        <div 
+          className={cn(
+            "flex items-center justify-between p-4 px-6 border-b border-base-300 bg-base-100",
+            // Capacitor iOS 触摸事件处理 - 仅 iOS 启用拖动，H5 不启用
+            isCapacitorIOS 
+              ? cn("select-none", isDragging && "bg-base-200/50") 
+              : "select-none"
+          )}
+        >
+          <h2 className="text-lg font-semibold text-base-content">历史记录</h2>
+          <button
+            onClick={handleClose}
+            className="btn btn-ghost btn-sm btn-square"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* 历史记录内容 */}
+        <div className="flex-1 overflow-hidden">
+          <div className="h-full overflow-y-auto pt-4">
+            <HistoryPage onCloseModal={handleClose} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default HistoryModal;
+import React from 'react';
+import { X } from 'lucide-react';
+import HistoryPage from '../pages/HistoryPage';
+import { Capacitor } from '@capacitor/core';
+import BottomSheetModal from './BottomSheetModal';
+
+interface HistoryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const HistoryModal: React.FC<HistoryModalProps> = ({ isOpen, onClose }) => {
+  const isCapacitorIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+
+  if (!isOpen) return null;
+
+  return (
+    <BottomSheetModal
+      isOpen={isOpen}
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      onClose={onClose}
+      dismissible={true}
+      dragEnabled={isCapacitorIOS}
+      distanceThreshold={120}
+      velocityThreshold={0.5}
+      rubberband={true}
+      safeArea={true}
+      debug={false}
+      headerTitle={<div className="text-center text-lg font-semibold text-base-content">历史记录</div>}
+      rightActions={[{ icon: <X className="h-4 w-4" />, className: 'btn btn-ghost btn-sm btn-square', onClick: onClose }]}
+    >
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full overflow-y-auto pt-4">
+          <HistoryPage onCloseModal={onClose} />
+        </div>
+      </div>
+    </BottomSheetModal>
+  );
+};
+
+export default HistoryModal;

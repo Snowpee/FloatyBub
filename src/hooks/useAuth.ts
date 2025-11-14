@@ -136,16 +136,31 @@ export function useAuth(): AuthState & AuthActions {
           mergedAiRoles = [...defaultRoles, ...cloudCustomRoles]
         }
         
+        // 合并通用设置（仅在云端存在时更新本地，避免覆盖本地默认值）
+        const gs = cloudData.generalSettings || null
         useAppStore.setState({
           ...currentState,
           ...(cloudData.llmConfigs && { llmConfigs: cloudData.llmConfigs }),
           aiRoles: mergedAiRoles,
           ...(cloudData.globalPrompts && { globalPrompts: cloudData.globalPrompts }),
           ...(cloudData.voiceSettings && { voiceSettings: cloudData.voiceSettings }),
-          ...(cloudData.userRoles && { userRoles: cloudData.userRoles })
+          ...(cloudData.userRoles && { userRoles: cloudData.userRoles }),
+          ...(gs && gs.sendMessageShortcut !== undefined ? { sendMessageShortcut: gs.sendMessageShortcut } : {}),
+          ...(gs && (gs.assistantConfig || gs.autoTitleConfig) ? { assistantConfig: gs.assistantConfig || gs.autoTitleConfig } : {}),
+          ...(gs && (gs.autoTitleConfig || gs.assistantConfig) ? { autoTitleConfig: gs.autoTitleConfig || gs.assistantConfig } : {}),
+          ...(gs && gs.searchConfig ? { searchConfig: gs.searchConfig } : {}),
+          ...(gs && gs.chatStyle ? { chatStyle: gs.chatStyle as 'conversation' | 'document' } : {})
         })
         
         console.log('✅ [useAuth] 云端数据同步成功')
+
+        // 在合并 generalSettings 后触发一次全量推送，确保云端数据完整性
+        try {
+          await useAppStore.getState().syncGeneralSettingsFull()
+          console.log('✅ [useAuth] 已触发通用设置全量推送')
+        } catch (syncError: any) {
+          console.warn('⚠️ [useAuth] 通用设置全量推送失败，但不影响主流程:', syncError?.message || syncError)
+        }
         
         // 确保默认角色存在于数据库中
         try {

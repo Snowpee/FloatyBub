@@ -52,7 +52,7 @@ export interface UserDataActions {
   enableAutoSync: () => void
   disableAutoSync: () => void
   clearSyncError: () => void
-  queueDataSync: (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings', data: any) => Promise<void>
+  queueDataSync: (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile', data: any) => Promise<void>
   manualDataSync: () => Promise<SyncResult>
 }
 
@@ -610,18 +610,34 @@ export const useUserData = () => {
             if (existsInCloud) return true
 
             const locked = isSessionLocked(local.id)
-            const localUpdated = local.updatedAt ? new Date(local.updatedAt as any).getTime() : 0
+            const localUpdated = local.updatedAt ? new Date(local.updatedAt as any).getTime() : (local.createdAt ? new Date(local.createdAt as any).getTime() : 0)
             const age = now - localUpdated
 
-            const shouldKeep = locked || age < GRACE_PERIOD_MS
+            const messages = local.messages || []
+            const hasStreaming = messages.some(m => (m as any).isStreaming === true)
+            const hasPendingUpload = messages.some(m => (m as any).pendingUpload === true)
+            const lastMsg = messages[messages.length - 1]
+            const lastMsgTs = lastMsg ? (lastMsg.message_timestamp ? new Date(lastMsg.message_timestamp).getTime() : (lastMsg.timestamp ? new Date(lastMsg.timestamp as any).getTime() : 0)) : 0
+            const awaitingAI = lastMsg ? (lastMsg.role === 'user' && !hasStreaming && (now - lastMsgTs) <= 30000) : false
+
+            const shouldKeep = locked || hasStreaming || hasPendingUpload || awaitingAI || age < GRACE_PERIOD_MS
             if (!shouldKeep) {
               console.log('🗑️ 轮询检测到云端缺失，移除本地会话', {
                 sessionId: local.id,
                 locked,
+                hasStreaming,
+                hasPendingUpload,
+                awaitingAI,
                 age
               })
             } else if (locked) {
               console.log('⏳ 保留云端缺失的本地会话（锁定中）', { sessionId: local.id })
+            } else if (hasStreaming) {
+              console.log('⏳ 保留云端缺失的本地会话（消息流式中）', { sessionId: local.id })
+            } else if (hasPendingUpload) {
+              console.log('⏳ 保留云端缺失的本地会话（存在未上传消息）', { sessionId: local.id })
+            } else if (awaitingAI) {
+              console.log('⏳ 保留云端缺失的本地会话（等待AI响应）', { sessionId: local.id })
             } else {
               // 宽限期内保留，等待后续同步
               console.log('⏳ 保留云端缺失的本地会话（宽限期内）', { sessionId: local.id, age })
@@ -1616,12 +1632,20 @@ export const useUserData = () => {
         })
       }
 
-      // 安全的时间比较函数
+      // 安全的时间比较函数（容错 NaN/非法值）
       const safeGetTime = (dateValue: any): number => {
-        if (!dateValue) return 0
-        if (dateValue instanceof Date) return dateValue.getTime()
-        if (typeof dateValue === 'string') return new Date(dateValue).getTime()
-        if (typeof dateValue === 'number') return dateValue
+        if (dateValue === null || dateValue === undefined) return 0
+        if (dateValue instanceof Date) {
+          const t = dateValue.getTime()
+          return Number.isFinite(t) ? t : 0
+        }
+        if (typeof dateValue === 'string') {
+          const t = new Date(dateValue).getTime()
+          return Number.isFinite(t) ? t : 0
+        }
+        if (typeof dateValue === 'number') {
+          return Number.isFinite(dateValue) ? dateValue : 0
+        }
         return 0
       }
 
@@ -1878,14 +1902,31 @@ export const useUserData = () => {
       for (const [id, localSession] of Array.from(mergedSessions.entries())) {
         if (!cloudActiveIds.has(id)) {
           const locked = isSessionLocked(id)
-          const age = now - safeGetTime(localSession.updatedAt)
-          if (!locked && age >= REMOVAL_GRACE_PERIOD) {
+          const updatedTs = safeGetTime(localSession.updatedAt) || safeGetTime((localSession as any).createdAt)
+          const age = now - updatedTs
+          const messages = localSession.messages || []
+          const hasStreaming = messages.some(m => (m as any).isStreaming === true)
+          const hasPendingUpload = messages.some(m => (m as any).pendingUpload === true)
+          const lastMsg = messages[messages.length - 1]
+          const lastMsgTs = lastMsg ? (lastMsg.message_timestamp ? new Date(lastMsg.message_timestamp).getTime() : (lastMsg.timestamp ? new Date(lastMsg.timestamp as any).getTime() : 0)) : 0
+          const awaitingAI = lastMsg ? (lastMsg.role === 'user' && !hasStreaming && (now - lastMsgTs) <= 30000) : false
+
+          const shouldRemove = !locked && !hasStreaming && !hasPendingUpload && !awaitingAI && age >= REMOVAL_GRACE_PERIOD
+          if (shouldRemove) {
             mergedSessions.delete(id)
-            console.log('🗑️ 从云端同步时移除本地会话（云端缺失）', { id, age })
-          } else if (locked) {
-            console.log('⏳ 保留本地会话（锁定中，云端缺失）', { id })
+            console.log('🗑️ 从云端同步时移除本地会话（云端缺失）', { id, age, locked, hasStreaming, hasPendingUpload, awaitingAI })
           } else {
-            console.log('⏳ 保留本地会话（新近更新，云端缺失）', { id, age })
+            if (locked) {
+              console.log('⏳ 保留本地会话（锁定中，云端缺失）', { id })
+            } else if (hasStreaming) {
+              console.log('⏳ 保留本地会话（消息流式中，云端缺失）', { id })
+            } else if (hasPendingUpload) {
+              console.log('⏳ 保留本地会话（存在未上传消息，云端缺失）', { id })
+            } else if (awaitingAI) {
+              console.log('⏳ 保留本地会话（等待AI响应，云端缺失）', { id })
+            } else {
+              console.log('⏳ 保留本地会话（新近更新，云端缺失）', { id, age })
+            }
           }
         }
       }
@@ -2107,7 +2148,7 @@ export const useUserData = () => {
   }, [])
 
   // 队列数据同步
-  const queueDataSync = useCallback(async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'user_profile', data: any) => {
+  const queueDataSync = useCallback(async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile', data: any) => {
     try {
       await dataSyncService.queueSync(type, data)
     } catch (error) {
@@ -3418,39 +3459,46 @@ export const useUserData = () => {
     }
   }, [user?.id, syncing, chatSessions])
   
-  // 检测是否有新的用户消息需要立即同步
-  const checkForNewUserMessages = useCallback(() => {
+  // 检测是否有新的用户消息（含“用户+占位”快速追加场景），返回会话ID列表
+  const checkForNewUserMessages = useCallback((): string[] => {
     const currentSessionsData = chatSessions.map(s => ({
       id: s.id,
       messageCount: s.messages?.length || 0,
       lastMessageId: s.messages?.[s.messages.length - 1]?.id,
       lastMessageRole: s.messages?.[s.messages.length - 1]?.role,
-      lastMessageIsStreaming: s.messages?.[s.messages.length - 1]?.isStreaming || false
+      lastMessageIsStreaming: s.messages?.[s.messages.length - 1]?.isStreaming || false,
+      secondLastRole: s.messages?.[s.messages.length - 2]?.role,
+      secondLastIsStreaming: s.messages?.[s.messages.length - 2]?.isStreaming || false
     }))
     
     const currentSessionsStr = JSON.stringify(currentSessionsData)
     const hasChanged = prevSessionsRef.current !== currentSessionsStr
+    const resultSessionIds: string[] = []
     
-    // 检查是否有新的用户消息
-    let hasNewUserMessage = false
     if (prevSessionsRef.current && hasChanged) {
       try {
         const prevData = JSON.parse(prevSessionsRef.current)
         for (let i = 0; i < currentSessionsData.length; i++) {
           const current = currentSessionsData[i]
           const prev = prevData.find((p: any) => p.id === current.id)
+          if (!prev) continue
           
-          // 检查是否有新消息且最后一条是用户消息
-          if (prev && current.messageCount > prev.messageCount && 
-              current.lastMessageRole === 'user' && !current.lastMessageIsStreaming) {
-            hasNewUserMessage = true
-            console.log('🔍 检测到新的用户消息，需要立即同步:', {
+          const increased = current.messageCount > prev.messageCount
+          
+          // 情况1：最后一条是用户消息（未开始流式）
+          const caseUserLast = increased && current.lastMessageRole === 'user' && !current.lastMessageIsStreaming
+          // 情况2：快速追加“用户+AI占位”，最后是assistant流式，占位之前是用户
+          const caseUserThenPlaceholder = increased && current.lastMessageRole === 'assistant' && current.lastMessageIsStreaming && current.secondLastRole === 'user'
+          
+          if (caseUserLast || caseUserThenPlaceholder) {
+            resultSessionIds.push(current.id)
+            console.log('🔍 检测到新的用户消息，需要立即同步与保护:', {
               sessionId: current.id,
-              messageId: current.lastMessageId,
+              lastMessageId: current.lastMessageId,
               prevCount: prev.messageCount,
-              currentCount: current.messageCount
+              currentCount: current.messageCount,
+              pattern: caseUserLast ? 'user_last' : 'user_then_placeholder'
             })
-            break
           }
         }
       } catch (e) {
@@ -3458,7 +3506,8 @@ export const useUserData = () => {
       }
     }
     
-    return hasNewUserMessage
+    prevSessionsRef.current = currentSessionsStr
+    return resultSessionIds
   }, [chatSessions])
 
   // 启动备用同步机制
@@ -3511,11 +3560,13 @@ export const useUserData = () => {
     }
 
     // 检查是否有新的用户消息
-    const hasNewUserMessage = checkForNewUserMessages()
+    const newUserMessageSessionIds = checkForNewUserMessages()
     
-    if (hasNewUserMessage) {
+    if (newUserMessageSessionIds.length > 0) {
       // 用户消息创建时立即同步，不受流式检测和防抖限制
-      console.log('🚀 用户消息立即同步触发')
+      console.log('🚀 用户消息立即同步触发', { sessions: newUserMessageSessionIds })
+      // 为“等待AI响应”场景添加短期会话锁，避免误删
+      newUserMessageSessionIds.forEach(id => lockSession(id, '等待AI响应'))
       if (debouncedSyncToCloud.current) {
         clearTimeout(debouncedSyncToCloud.current)
       }

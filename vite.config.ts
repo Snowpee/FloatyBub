@@ -17,9 +17,7 @@ export default defineConfig(({ mode }) => ({
       'Cross-Origin-Opener-Policy': 'same-origin'
     }
   },
-  optimizeDeps: {
-    include: ['jieba-wasm']
-  },
+  // 不需要预打包本地 wasm 入口，避免 Vite 依赖优化器寻找不存在的包
   define: {
     global: 'globalThis'
   },

@@ -6,7 +6,7 @@ export interface DataSyncHookReturn {
   status: SyncStatus
   lastSyncTime: number | null
   isOnline: boolean
-  queueSync: (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings', data: any) => Promise<void>
+  queueSync: (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings', data: any) => Promise<void>
   manualSync: () => Promise<SyncResult>
   pullFromCloud: (userParam?: any) => Promise<any>
   clearQueue: () => void
@@ -61,7 +61,7 @@ export function useDataSync(): DataSyncHookReturn {
 
   // 添加到同步队列
   const queueSync = useCallback(async (
-    type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings', 
+    type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings', 
     data: any
   ) => {
     if (!user) {

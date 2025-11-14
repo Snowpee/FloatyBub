@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
 import { useAppStore } from '../store';
@@ -10,33 +10,25 @@ interface GlobalSettingsPageProps {
 type ChatStyle = 'conversation' | 'document';
 
 const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal }) => {
-  const [chatStyle, setChatStyle] = useState<ChatStyle>('conversation');
   const {
     autoTitleConfig,
-    setAutoTitleConfig,
-    updateAutoTitleConfig,
+    assistantConfig,
+    setAssistantConfig,
+    updateAssistantConfig,
     llmConfigs,
     currentModelId,
     sendMessageShortcut,
-    setSendMessageShortcut
+    setSendMessageShortcut,
+    chatStyle,
+    setChatStyle
   } = useAppStore();
 
-  // 从localStorage加载设置
-  useEffect(() => {
-    const savedChatStyle = localStorage.getItem('chatStyle') as ChatStyle;
-    if (savedChatStyle && ['conversation', 'document'].includes(savedChatStyle)) {
-      setChatStyle(savedChatStyle);
-    }
-  }, []);
+  // 统一辅助配置：优先使用新的 assistantConfig，回退到 autoTitleConfig
+  const effectiveAssistantConfig = assistantConfig || autoTitleConfig;
 
   // 保存聊天样式设置
   const handleChatStyleChange = (style: ChatStyle) => {
     setChatStyle(style);
-    localStorage.setItem('chatStyle', style);
-
-    
-    // 触发页面重新渲染以应用新样式
-    window.dispatchEvent(new CustomEvent('chatStyleChanged', { detail: { style } }));
   };
 
   return (
@@ -57,8 +49,9 @@ const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal })
 
           {/* 组合 */}
           <div className="join join-vertical hero-join-items">
+
           {/* 聊天样式设置 */}
-          <div className="bg-base-100 join-item">
+          <div className="bg-base-100 join-item border-b border-base-300 pb-4">
             <div className="form-control w-full gap-4 flex items-center">
               <div className="w-full flex flex-row gap-3">
                 {/* 对话样式选项 */}
@@ -94,8 +87,34 @@ const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal })
                 </label>
           </div>
         </div>
-      </div>
-
+          </div>
+          {/* 全局辅助模型（含“跟随当前会话模型”首项），常显并置于自动标题之上 */}
+          <div className="form-control flex hero-fieldset items-center gap-4 join-item py-4 border-b border-base-300">
+            <p className="hero-label-md text-base my-2 flex-1">全局辅助模型</p>
+            <label className="ml-auto flex flex-1">
+              <select
+                value={(effectiveAssistantConfig?.strategy === 'follow') ? 'follow' : (effectiveAssistantConfig?.modelId || '')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'follow') {
+                    updateAssistantConfig({ strategy: 'follow', modelId: null });
+                  } else {
+                    updateAssistantConfig({ strategy: 'custom', modelId: val });
+                  }
+                }}
+                className="select select-ghost text-base w-full hero-mobile-group"
+              >
+                <option value="follow">跟随当前会话模型</option>
+                {llmConfigs
+                  .filter(c => c.enabled)
+                  .map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || `${c.provider}:${c.model}`}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </div>
           {/* 发送消息快捷键 */}
           <div className="form-control flex hero-fieldset items-center join-item py-4 gap-4 border-b border-base-300">
             <p className="hero-label-md text-base my-2 flex-1">发送消息</p>
@@ -118,47 +137,19 @@ const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal })
           </div>
 
           {/* 自动标题总结 */}
-          <div className="form-control flex hero-fieldset items-center join-item py-4 border-b border-base-300">
+          <div className="form-control flex hero-fieldset items-center join-item py-4">
             <p className="hero-label-md text-base my-2 flex-1">自动总结标题</p>
             <label className="w-full md:w-auto ml-auto flex flex-1">
               <input
                 type="checkbox"
-                checked={!!autoTitleConfig?.enabled}
-                onChange={(e) => updateAutoTitleConfig({ enabled: e.target.checked })}
+                checked={!!effectiveAssistantConfig?.enabled}
+                onChange={(e) => updateAssistantConfig({ enabled: e.target.checked })}
                 className="toggle ml-auto checked:border-primary checked:text-primary"
               />
             </label>
           </div>
 
-          {/* 总结模型（含“跟随当前会话模型”首项） */}
-          {autoTitleConfig?.enabled && (
-            <div className="form-control flex hero-fieldset items-center gap-4 join-item py-4 border-base-300">
-              <p className="hero-label-md text-base my-2 flex-1">总结模型</p>
-              <label className="ml-auto flex flex-1">
-                <select
-                  value={(autoTitleConfig?.strategy === 'follow') ? 'follow' : (autoTitleConfig?.modelId || '')}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'follow') {
-                      updateAutoTitleConfig({ strategy: 'follow', modelId: null });
-                    } else {
-                      updateAutoTitleConfig({ strategy: 'custom', modelId: val });
-                    }
-                  }}
-                  className="select select-ghost text-base w-full hero-mobile-group"
-                >
-                  <option value="follow">跟随当前会话模型</option>
-                  {llmConfigs
-                    .filter(c => c.enabled)
-                    .map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name || `${c.provider}:${c.model}`}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            </div>
-          )}
+          {/* 原“总结模型”选择已升级为“全局辅助模型”，不再与自动标题开关联动 */}
 
         </div>
       </div>

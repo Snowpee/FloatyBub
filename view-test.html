@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Safe Area 测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        /* 顶部安全区测试 */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-left: env(safe-area-inset-left, 0px);
+            padding-right: env(safe-area-inset-right, 0px);
+            z-index: 100;
+        }
+        
+        .top-content {
+            padding: 16px;
+            text-align: center;
+        }
+        
+        /* 底部安全区测试 */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-left: env(safe-area-inset-left, 0px);
+            padding-right: env(safe-area-inset-right, 0px);
+            z-index: 100;
+        }
+        
+        .bottom-content {
+            padding: 16px;
+            text-align: center;
+        }
+        
+        /* 可视化安全区 */
+        .safe-area-visualizer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 200;
+        }
+        
+        .safe-top {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: env(safe-area-inset-top, 0px);
+            background: rgba(255, 0, 0, 0.3);
+            border-bottom: 2px solid red;
+        }
+        
+        .safe-bottom {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: env(safe-area-inset-bottom, 0px);
+            background: rgba(0, 255, 0, 0.3);
+            border-top: 2px solid lime;
+        }
+        
+        /* 内容区域 */
+        .content {
+            padding-top: calc(60px + env(safe-area-inset-top, 0px));
+            padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+            padding-left: env(safe-area-inset-left, 16px);
+            padding-right: env(safe-area-inset-right, 16px);
+            min-height: 100vh;
+        }
+        
+        .info-box {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .value {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 12px;
+            border-radius: 6px;
+            display: inline-block;
+            margin: 4px 0;
+            font-size: 14px;
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        h2 {
+            font-size: 18px;
+            margin: 16px 0 8px;
+            opacity: 0.9;
+        }
+        
+        p {
+            line-height: 1.6;
+            opacity: 0.8;
+        }
+        
+        .warning {
+            background: rgba(255, 165, 0, 0.2);
+            border-left: 4px solid orange;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 4px;
+        }
+        
+        .success {
+            background: rgba(0, 255, 0, 0.2);
+            border-left: 4px solid lime;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部栏 -->
+    <div class="top-bar">
+        <div class="top-content">
+            <strong>顶部安全区测试</strong>
+        </div>
+    </div>
+    
+    <!-- 底部栏 -->
+    <div class="bottom-bar">
+        <div class="bottom-content">
+            <strong>底部安全区测试</strong>
+        </div>
+    </div>
+    
+    <!-- 安全区可视化 -->
+    <div class="safe-area-visualizer">
+        <div class="safe-top"></div>
+        <div class="safe-bottom"></div>
+    </div>
+    
+    <!-- 主内容 -->
+    <div class="content">
+        <div class="info-box">
+            <h1>🔍 Safe Area 检测</h1>
+            <p>这个页面用于测试 iOS WebView 中的 safe-area-inset 是否生效</p>
+        </div>
+        
+        <div class="info-box">
+            <h2>📊 当前值</h2>
+            <div>
+                <strong>Top:</strong> <span class="value" id="top-value">计算中...</span><br>
+                <strong>Bottom:</strong> <span class="value" id="bottom-value">计算中...</span><br>
+                <strong>Left:</strong> <span class="value" id="left-value">计算中...</span><br>
+                <strong>Right:</strong> <span class="value" id="right-value">计算中...</span>
+            </div>
+        </div>
+        
+        <div class="info-box">
+            <h2>✅ 预期行为</h2>
+            <div id="status"></div>
+        </div>
+        
+        <div class="info-box">
+            <h2>📱 设备信息</h2>
+            <p><strong>User Agent:</strong></p>
+            <div class="value" style="display: block; word-break: break-all; font-size: 11px;" id="ua"></div>
+            <p style="margin-top: 12px;"><strong>视口尺寸:</strong> <span class="value" id="viewport"></span></p>
+            <p><strong>屏幕尺寸:</strong> <span class="value" id="screen"></span></p>
+        </div>
+        
+        <div class="info-box">
+            <h2>🎨 视觉提示</h2>
+            <p>• 红色半透明区域 = 顶部安全区</p>
+            <p>• 绿色半透明区域 = 底部安全区</p>
+            <p>• 如果看不到彩色区域,说明 env() 返回了 0</p>
+        </div>
+    </div>
+    
+    <script>
+        function updateValues() {
+            const root = document.documentElement;
+            const style = getComputedStyle(root);
+            
+            // 获取安全区值
+            const top = style.getPropertyValue('padding-top') || '0px';
+            const bottom = style.getPropertyValue('padding-bottom') || '0px';
+            const left = style.getPropertyValue('padding-left') || '0px';
+            const right = style.getPropertyValue('padding-right') || '0px';
+            
+            // 尝试直接从 CSS 变量读取
+            const topBar = document.querySelector('.top-bar');
+            const bottomBar = document.querySelector('.bottom-bar');
+            const topComputed = getComputedStyle(topBar).paddingTop;
+            const bottomComputed = getComputedStyle(bottomBar).paddingBottom;
+            
+            document.getElementById('top-value').textContent = topComputed;
+            document.getElementById('bottom-value').textContent = bottomComputed;
+            document.getElementById('left-value').textContent = getComputedStyle(topBar).paddingLeft;
+            document.getElementById('right-value').textContent = getComputedStyle(topBar).paddingRight;
+            
+            // 状态判断
+            const statusDiv = document.getElementById('status');
+            const topPx = parseFloat(topComputed);
+            const bottomPx = parseFloat(bottomComputed);
+            
+            if (topPx > 0 || bottomPx > 0) {
+                statusDiv.innerHTML = `
+                    <div class="success">
+                        <strong>✅ 成功!</strong> env() 正常工作<br>
+                        检测到安全区: 顶部 ${topPx}px, 底部 ${bottomPx}px
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="warning">
+                        <strong>⚠️ 警告!</strong> env() 返回 0<br>
+                        • 可能原因: contentInsetAdjustmentBehavior 设置错误<br>
+                        • 请检查 Swift 代码中的 scrollView 配置<br>
+                        • 在有刘海/Home Indicator 的设备上应该有值
+                    </div>
+                `;
+            }
+            
+            // 设备信息
+            document.getElementById('ua').textContent = navigator.userAgent;
+            document.getElementById('viewport').textContent = 
+                `${window.innerWidth} × ${window.innerHeight}`;
+            document.getElementById('screen').textContent = 
+                `${screen.width} × ${screen.height}`;
+        }
+        
+        // 初始加载和窗口调整时更新
+        updateValues();
+        window.addEventListener('resize', updateValues);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(updateValues, 100);
+        });
+        
+        // 定期更新以捕获延迟加载
+        setTimeout(updateValues, 500);
+        setTimeout(updateValues, 1000);
+    </script>
+</body>
+</html>

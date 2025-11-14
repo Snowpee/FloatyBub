@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, Play, Square, RefreshCw, Settings, Plus, Trash2, Activity, X, Database } from 'lucide-react';
 import { toast } from '../hooks/useToast';
 import { useAppStore } from '../store';
+import { getApiBaseUrl } from '../lib/utils';
 import { getCacheStats, clearAllCache, generateStreamingVoiceUrl } from '../utils/voiceUtils';
 
 interface VoiceModel {
@@ -153,8 +154,8 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
     let currentKeyStatus: 'valid' | 'invalid' | 'unknown' = 'unknown';
     
     try {
-      const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
-      const response = await fetch(`${apiBaseUrl}/api/health`, {
+  const apiBaseUrl = getApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/api/health`, {
         headers: {
           'x-api-key': import.meta.env.VITE_API_SECRET || ''
         }
@@ -174,8 +175,8 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
     
     if (settings.apiKey.trim()) {
       try {
-        const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
-        const response = await fetch(`${apiBaseUrl}/api/validate-key`, {
+  const apiBaseUrl = getApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/api/validate-key`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -218,8 +219,8 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
   // 获取模型信息
   const fetchModelInfo = async (modelId: string): Promise<VoiceModel | null> => {
     try {
-      const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
-      const response = await fetch(`${apiBaseUrl}/api/model-info/${encodeURIComponent(modelId)}`, {
+  const apiBaseUrl = getApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/api/model-info/${encodeURIComponent(modelId)}`, {
         method: 'GET',
         headers: {
           'x-api-key': import.meta.env.VITE_API_SECRET || '',

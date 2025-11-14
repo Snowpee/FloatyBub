@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore, generateId } from '../store';
-import { Bot, Send, Square, Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, Users, User, Cpu, Plus, Edit3, Globe, SlidersHorizontal } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { Bot, Send, Square, Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, Users, User, Cpu, Plus, Edit3, Globe, SlidersHorizontal, X } from 'lucide-react';
+import { cn, getApiBaseUrl } from '../lib/utils';
 import { toast } from '../hooks/useToast';
 import RoleSelector from '../components/RoleSelector';
 import MarkdownRenderer from '../components/MarkdownRenderer';
@@ -19,6 +19,7 @@ import { useUserData } from '../hooks/useUserData';
 import { useAuth } from '../hooks/useAuth';
 import { ChatEnhancementService } from '../services/chatEnhancementService';
 import { useKnowledgeStore } from '../stores/knowledgeStore';
+import { useScrollMask } from '../hooks/useScrollMask';
 
 const ChatPage: React.FC = () => {
   const { sessionId } = useParams();
@@ -27,14 +28,19 @@ const ChatPage: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  const editDialogRef = useRef<HTMLDialogElement>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [visibleActionButtons, setVisibleActionButtons] = useState<string | null>(null);
   const [voicePlayingState, setVoicePlayingState] = useState(getVoiceState());
   const [isUserScrolling, setIsUserScrolling] = useState(false);
-  const [chatStyle, setChatStyle] = useState<'conversation' | 'document'>('conversation');
+  // 聊天样式由全局 store 管理
+  // 联网搜索阶段指示
+  const [isWebSearching, setIsWebSearching] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevSessionIdRef = useRef<string | null>(null);
+  const prevMessageCountRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingMessageRef = useRef<string | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
@@ -48,25 +54,7 @@ const ChatPage: React.FC = () => {
   // 获取知识库store
   const { getRoleKnowledgeBase } = useKnowledgeStore();
 
-  // 初始化聊天样式
-  useEffect(() => {
-    const savedStyle = localStorage.getItem('chatStyle') as 'conversation' | 'document' | null;
-    if (savedStyle) {
-      setChatStyle(savedStyle);
-    }
-  }, []);
-
-  // 监听聊天样式变更事件
-  useEffect(() => {
-    const handleChatStyleChange = (event: CustomEvent<{ style: 'conversation' | 'document' }>) => {
-      setChatStyle(event.detail.style);
-    };
-
-    window.addEventListener('chatStyleChanged', handleChatStyleChange as EventListener);
-    return () => {
-      window.removeEventListener('chatStyleChanged', handleChatStyleChange as EventListener);
-    };
-  }, []);
+  // 过去通过 localStorage + 事件管理；现在改为从 store 读取
 
   const {
     currentSessionId,
@@ -83,7 +71,9 @@ const ChatPage: React.FC = () => {
     voiceSettings,
     searchConfig,
     autoTitleConfig,
+    assistantConfig,
     sendMessageShortcut,
+    chatStyle,
     setCurrentSession,
     createChatSession,
     createTempSession,
@@ -104,8 +94,22 @@ const ChatPage: React.FC = () => {
     getFavoriteRoles
   } = useAppStore();
 
+  // 统一辅助配置：优先使用新的 assistantConfig，回退到 autoTitleConfig
+  const effectiveAssistantConfig = assistantConfig || autoTitleConfig;
+
   // 获取启用的模型
   const enabledModels = llmConfigs.filter(m => m.enabled);
+
+  // 控制编辑消息模态显示/隐藏
+  useEffect(() => {
+    const dialog = editDialogRef.current;
+    if (!dialog) return;
+    if (isEditModalOpen) {
+      dialog.showModal();
+    } else {
+      dialog.close();
+    }
+  }, [isEditModalOpen]);
 
   // 收藏助手（用于 /chat 首屏默认与选择）
   const favoriteRoles = getFavoriteRoles();
@@ -148,6 +152,12 @@ const ChatPage: React.FC = () => {
   }, [currentSession?.id, currentSession?.roleId, aiRoles, tempSessionId, selectedRoleId]);
   const currentModel = currentSession ? llmConfigs.find(m => m.id === currentSession.modelId) : llmConfigs.find(m => m.id === currentModelId);
 
+  // 智能滚动遮罩：根据滚动位置动态添加/移除顶部/底部/两端遮罩
+  const { scrollContainerRef: scrollMaskRef, scrollMaskClasses } = useScrollMask({
+    gradientPadding: '1rem',
+    dependencies: [currentSession?.id, currentSession?.messages?.length]
+  });
+
   // 如果有sessionId参数，设置为当前会话
   useEffect(() => {
     if (sessionId && sessionId !== currentSessionId) {
@@ -174,7 +184,7 @@ const ChatPage: React.FC = () => {
           content: userMessage,
           timestamp: new Date()
         }, () => {
-          if (autoTitleConfig?.enabled) {
+          if (effectiveAssistantConfig?.enabled) {
             markSessionNeedsTitle(currentSession.id);
           }
         });
@@ -307,7 +317,7 @@ const ChatPage: React.FC = () => {
 
   // 用户滚动检测
   useEffect(() => {
-    const container = messagesContainerRef.current;
+    const container = scrollMaskRef.current;
     if (!container) return;
 
     const handleScroll = () => {
@@ -347,13 +357,39 @@ const ChatPage: React.FC = () => {
     };
   }, []);
 
-  // 优化的自动滚动到底部
   useEffect(() => {
-    // 只有在用户没有主动滚动时才自动滚动
-    if (!isUserScrolling) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = scrollMaskRef.current;
+    if (!container) return;
+    requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+      setIsUserScrolling(false);
+    });
+  }, [currentSession?.id]);
+
+  const isStreamingActive = useMemo(() => {
+    return !!currentSession?.messages?.some(m => (m as any).isStreaming);
+  }, [currentSession?.id, currentSession?.messages]);
+
+  useEffect(() => {
+    if (!isStreamingActive) return;
+    const container = scrollMaskRef.current;
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const atBottom = scrollHeight - scrollTop - clientHeight < 10;
+    if (atBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
     }
-  }, [currentSession?.messages, isUserScrolling]);
+  }, [isStreamingActive, currentSession?.messages]);
+
+  useEffect(() => {
+    const msgs = currentSession?.messages || [];
+    if (msgs.length === 0) return;
+    const last = msgs[msgs.length - 1];
+    if (last.role === 'user') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      setIsUserScrolling(false);
+    }
+  }, [currentSession?.messages?.length]);
 
   // 点击外部区域关闭按钮组
   useEffect(() => {
@@ -484,7 +520,7 @@ const ChatPage: React.FC = () => {
       // 注意：新消息不传入snowflake_id，让addMessage方法生成新的ID
     }, () => {
       // 临时会话转为正式会话后，标记需要生成标题（仅在开启时）
-      if (autoTitleConfig?.enabled) {
+      if (effectiveAssistantConfig?.enabled) {
         markSessionNeedsTitle(currentSession.id);
       }
     });
@@ -663,14 +699,30 @@ const ChatPage: React.FC = () => {
         let headers: Record<string, string> = { 'Content-Type': 'application/json' };
         let body: any = {};
 
-        switch (currentModel.provider) {
+        // 选择用于判定的“全局辅助模型”
+        let auxModel = currentModel;
+        if (effectiveAssistantConfig?.strategy === 'custom' && effectiveAssistantConfig?.modelId) {
+          const custom = llmConfigs.find(m => m.id === effectiveAssistantConfig.modelId);
+          if (custom) auxModel = custom;
+        } else {
+          const followModelId = currentSession?.modelId || currentModelId || auxModel?.id;
+          const followed = llmConfigs.find(m => m.id === followModelId);
+          if (followed) auxModel = followed;
+        }
+
+        if (!auxModel) {
+          console.warn('⚠️ [联网搜索] 未找到可用的辅助模型，回退不触发搜索');
+          return { need: false, queries: [], confidence: 0.0 };
+        }
+
+        switch (auxModel.provider) {
           case 'claude': {
-            apiUrl = currentModel.baseUrl || getDefaultBaseUrl('claude');
+            apiUrl = auxModel.baseUrl || getDefaultBaseUrl('claude');
             if (!apiUrl.endsWith('/v1/messages')) apiUrl = apiUrl.replace(/\/$/, '') + '/v1/messages';
-            headers['x-api-key'] = currentModel.apiKey;
+            headers['x-api-key'] = auxModel.apiKey;
             headers['anthropic-version'] = '2023-06-01';
             body = {
-              model: currentModel.model,
+              model: auxModel.model,
               max_tokens: 128,
               temperature: 0,
               stream: false,
@@ -682,13 +734,13 @@ const ChatPage: React.FC = () => {
           }
           case 'gemini': {
             // 如果是 OpenRouter 的 Gemini，走 OpenAI 兼容格式；否则回退启发式
-            const isOpenRouter = currentModel.baseUrl?.includes('openrouter');
+            const isOpenRouter = auxModel.baseUrl?.includes('openrouter');
             if (isOpenRouter) {
-              apiUrl = currentModel.baseUrl || getDefaultBaseUrl(currentModel.provider);
+              apiUrl = auxModel.baseUrl || getDefaultBaseUrl(auxModel.provider);
               if (!apiUrl.endsWith('/v1/chat/completions')) apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
-              headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
+              headers['Authorization'] = `Bearer ${auxModel.apiKey}`;
               body = {
-                model: currentModel.model,
+                model: auxModel.model,
                 temperature: 0,
                 max_tokens: 128,
                 stream: false,
@@ -706,11 +758,11 @@ const ChatPage: React.FC = () => {
           }
           default: {
             // OpenAI兼容：openai, deepseek, kimi, custom, openrouter等
-            apiUrl = currentModel.baseUrl || getDefaultBaseUrl(currentModel.provider);
+            apiUrl = auxModel.baseUrl || getDefaultBaseUrl(auxModel.provider);
             if (!apiUrl.endsWith('/v1/chat/completions')) apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
-            headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
+            headers['Authorization'] = `Bearer ${auxModel.apiKey}`;
             body = {
-              model: currentModel.model,
+              model: auxModel.model,
               temperature: 0,
               max_tokens: 128,
               stream: false,
@@ -732,13 +784,13 @@ const ChatPage: React.FC = () => {
 
         // 解析不同提供商的文本内容
         let textOut = '';
-        if (currentModel.provider === 'claude') {
+        if (auxModel.provider === 'claude') {
           try {
             const blocks = json?.content || [];
             const firstText = blocks.find((b: any) => b?.type === 'text')?.text || '';
             textOut = String(firstText || '');
           } catch (_) {}
-        } else if (currentModel.provider === 'gemini' && currentModel.baseUrl?.includes('openrouter')) {
+        } else if (auxModel.provider === 'gemini' && auxModel.baseUrl?.includes('openrouter')) {
           textOut = json?.choices?.[0]?.message?.content || '';
         } else {
           textOut = json?.choices?.[0]?.message?.content || '';
@@ -850,8 +902,10 @@ const ChatPage: React.FC = () => {
 
         if (needSearch) {
           console.log('🌐 [联网搜索] LLM判定需要搜索，准备执行搜索');
+          // 开始显示联网搜索指示
+          setIsWebSearching(true);
         try {
-          const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+          const apiBaseUrl = getApiBaseUrl();
           const params = new URLSearchParams();
           // 关键词：优先使用 LLM 给出的查询词（由后端统一处理编码）
           params.set('q', queryToUse);
@@ -861,6 +915,8 @@ const ChatPage: React.FC = () => {
           // 语言与国家（如果提供）
           if (searchConfig?.language) params.set('hl', searchConfig.language);
           if (searchConfig?.country) params.set('gl', searchConfig.country);
+          // 请求返回日期信息（包含可选 Last-Modified 回退）
+          params.set('withDate', '1');
           // 可选：前端透传自定义 key/cx（若用户手动配置）
           if (searchConfig?.apiKey?.trim()) params.set('key', searchConfig.apiKey.trim());
           if (searchConfig?.engineId?.trim()) params.set('cx', searchConfig.engineId.trim());
@@ -885,7 +941,10 @@ const ChatPage: React.FC = () => {
                 const link = (it?.link || '').toString();
                 const snippetRaw = (it?.snippet || it?.htmlSnippet || '') as string;
                 const snippet = snippetRaw.replace(/\s+/g, ' ').trim();
-                return `${idx + 1}. ${title}\n链接：${link}\n摘要：${snippet}`;
+                const dateTxt = it?.date ? (() => {
+                  try { return new Date(it.date).toISOString().slice(0, 10); } catch { return String(it.date).slice(0, 10); }
+                })() : '未知';
+                return `${idx + 1}. ${title}\n链接：${link}\n日期：${dateTxt}\n摘要：${snippet}`;
               }).join('\n\n');
               webSearchContext = `[联网搜索结果]\n${formatted}\n[/联网搜索结果]`;
               console.log('✅ [联网搜索] 成功获取并格式化搜索结果:', {
@@ -898,6 +957,9 @@ const ChatPage: React.FC = () => {
           }
         } catch (searchErr) {
           console.warn('⚠️ [联网搜索] 搜索流程出现异常，不影响对话生成:', searchErr);
+        } finally {
+          // 结束联网搜索指示
+          setIsWebSearching(false);
         }
         } else {
           console.log('ℹ️ [联网搜索] LLM 判定不需要搜索，已跳过');
@@ -908,6 +970,14 @@ const ChatPage: React.FC = () => {
 
       // 构建分离的系统消息
       const systemMessages = buildSystemMessages(currentRole, globalPrompts, currentUserProfile, knowledgeContext);
+
+      // 注入当前日期与时区信息，避免模型因缺失来源日期而误判
+      try {
+        const now = new Date();
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local';
+        const dateContext = `[当前日期信息]\n现在是：${now.toISOString()}（${tz}）\n在使用联网搜索结果时，若某条结果未提供发布日期或更新日期，请避免自行推断并明确标注“日期未知”。\n[/当前日期信息]`;
+        systemMessages.push({ role: 'system', content: dateContext });
+      } catch {}
 
       // 将联网搜索上下文作为独立的system消息追加（若有）
       if (webSearchContext && webSearchContext.trim()) {
@@ -1339,13 +1409,13 @@ const ChatPage: React.FC = () => {
       
       // 检查是否需要生成标题，并根据配置选择模型
       if (checkSessionNeedsTitle(sessionId)) {
-        if (!autoTitleConfig?.enabled) {
+        if (!effectiveAssistantConfig?.enabled) {
           // 若已关闭自动标题，则清除标记
           removeSessionNeedsTitle(sessionId);
         } else {
           let titleModelConfig = currentModel;
-          if (autoTitleConfig?.strategy === 'custom' && autoTitleConfig?.modelId) {
-            titleModelConfig = llmConfigs.find(m => m.id === autoTitleConfig.modelId) || titleModelConfig;
+          if (effectiveAssistantConfig?.strategy === 'custom' && effectiveAssistantConfig?.modelId) {
+            titleModelConfig = llmConfigs.find(m => m.id === effectiveAssistantConfig.modelId) || titleModelConfig;
           } else {
             const followModelId = currentSession?.modelId || currentModelId || titleModelConfig?.id;
             titleModelConfig = llmConfigs.find(m => m.id === followModelId) || titleModelConfig;
@@ -2006,12 +2076,12 @@ const ChatPage: React.FC = () => {
     
     // 检查是否需要生成标题（重新生成时也可能需要）
     if (checkSessionNeedsTitle(sessionId)) {
-      if (!autoTitleConfig?.enabled) {
+      if (!effectiveAssistantConfig?.enabled) {
         removeSessionNeedsTitle(sessionId);
       } else {
         let titleModelConfig = currentModel;
-        if (autoTitleConfig?.strategy === 'custom' && autoTitleConfig?.modelId) {
-          titleModelConfig = llmConfigs.find(m => m.id === autoTitleConfig.modelId) || titleModelConfig;
+        if (effectiveAssistantConfig?.strategy === 'custom' && effectiveAssistantConfig?.modelId) {
+          titleModelConfig = llmConfigs.find(m => m.id === effectiveAssistantConfig.modelId) || titleModelConfig;
         } else {
           const followModelId = currentSession?.modelId || currentModelId || titleModelConfig?.id;
           titleModelConfig = llmConfigs.find(m => m.id === followModelId) || titleModelConfig;
@@ -2067,10 +2137,18 @@ const ChatPage: React.FC = () => {
     }>
       {/* 消息列表 */}
       <div 
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 pb-10 space-y-4 gradient-mask-y [--gradient-mask-padding:1rem] md:[--gradient-mask-padding:2rem]"
+        ref={scrollMaskRef}
+        className={cn(
+          "flex-1 overflow-y-auto p-4 space-y-4 flex justify-end",
+          scrollMaskClasses,
+          "md:[--gradient-mask-padding:2rem]"
+        )}
       >
-        <div className={cn('max-w-4xl mx-auto h-full', chatStyle === 'document' && 'px-4')}>
+        <div className={cn(
+          'max-w-3xl mx-auto w-full pb-12',
+          (!currentSession || !currentSession.messages || currentSession.messages.length === 0) ? " h-full" : "h-fit",
+           chatStyle === 'document' && 'px-4'
+           )}>
         {(!currentSession || !currentSession.messages || currentSession.messages.length === 0) ? (
           <div className={cn(
             'flex flex-col items-center text-base-content/60 h-full',
@@ -2095,7 +2173,9 @@ const ChatPage: React.FC = () => {
             </h3>
           </div>
         ) : (
-          currentSession.messages
+          <>
+            {/* 联网搜索进度指示：移至助手对话气泡内显示 */}
+            {currentSession.messages
             .slice() // 创建副本避免修改原数组
             .sort((a, b) => {
               // 三级排序策略：snowflake_id -> message_timestamp -> created_at
@@ -2222,9 +2302,21 @@ const ChatPage: React.FC = () => {
                    {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
                      <ThinkingProcess 
                        content={msg.reasoningContent}
-                       isComplete={msg.isReasoningComplete || false}
+                       // 为兼容旧消息或缺失标记的情况：
+                       // 1) 若 isReasoningComplete 已存在，直接使用
+                       // 2) 若缺失，则当正文已出现或消息不在流式状态时视为已完成
+                       isComplete={msg.isReasoningComplete ?? (!!msg.content || !msg.isStreaming)}
                      />
                    )}
+
+                  {/* 联网搜索进度指示：当助手消息占位符正在生成且触发了联网搜索时，显示在气泡内 */}
+                  {msg.role === 'assistant' && msg.isStreaming && isWebSearching && (
+                    <div className="mb-2 flex items-center gap-2 text-xs text-base-content/70">
+                      <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                      <span>正在联网搜索…</span>
+                      <progress className="progress progress-primary w-24" />
+                    </div>
+                  )}
                   
                   {(() => {
                     const processedContent = replaceTemplateVariables(
@@ -2257,13 +2349,13 @@ const ChatPage: React.FC = () => {
                     </div>
                   )}
                   
-                  {msg.isStreaming && (
+                  {msg.isStreaming && !isWebSearching && (
                     <Loader2 className="h-4 w-4 animate-spin mt-2" />
                   )}
 
                 {/* 操作按钮组 - hover时显示或移动端点击显示 */}
                 <div className={cn(
-                  'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-md transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-[var(--radius-box)] transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
                   'opacity-0 group-hover:opacity-100', // 桌面端hover显示
                   'md:opacity-0 md:group-hover:opacity-100', // 桌面端确保hover效果
                   visibleActionButtons === msg.id ? 'opacity-100' : '', // 移动端点击显示
@@ -2290,7 +2382,7 @@ const ChatPage: React.FC = () => {
                     // 只有在最新AI消息且不是第一条开场白（或已开始对话）时显示
                     return isLatestAssistant && (!isFirstAssistantMessage || hasUserMessages) ? (
                       <button
-                        className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors disabled:opacity-50"
+                        className="btn btn-sm btn-circle btn-ghost h-7 w-7"
                         title="重新生成"
                         disabled={isLoading}
                         onClick={() => handleRegenerateMessage(msg.id)}
@@ -2301,48 +2393,17 @@ const ChatPage: React.FC = () => {
                   })()}
                   
                   {/* 编辑按钮 */}
-                  <Popconfirm
-                    title="编辑消息"
-                    description={
-                      <div className="">
-                        <textarea
-                          value={editingMessageId === msg.id ? editingContent : msg.content}
-                          onChange={(e) => {
-                            if (editingMessageId === msg.id) {
-                              setEditingContent(e.target.value);
-                            } else {
-                              setEditingMessageId(msg.id);
-                              setEditingContent(e.target.value);
-                            }
-                          }}
-                          className="textarea w-full p-2 resize-none text-sm"
-                          rows={3}
-                          placeholder="编辑消息内容..."
-                        />
-                      </div>
-                    }
-                    onConfirm={() => {
-                      if (editingContent.trim()) {
-                        updateMessage(currentSession!.id, msg.id, editingContent.trim());
-                        setEditingMessageId(null);
-                        setEditingContent('');
-                        toast.success('消息已更新');
-                      }
+                  <button
+                    className="btn btn-sm btn-circle btn-ghost h-7 w-7"
+                    title="编辑"
+                    onClick={() => {
+                      setEditingMessageId(msg.id);
+                      setEditingContent(msg.content);
+                      setIsEditModalOpen(true);
                     }}
-                    onCancel={() => {
-                      setEditingMessageId(null);
-                      setEditingContent('');
-                    }}
-                    okText="保存"
-                    cancelText="取消"
                   >
-                    <button
-                      className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
-                      title="编辑"
-                    >
-                      <Edit3 className="h-4 w-4 " />
-                    </button>
-                  </Popconfirm>
+                    <Edit3 className="h-4 w-4 " />
+                  </button>
                   
                   {/* 删除按钮 */}
                   <Popconfirm
@@ -2358,7 +2419,7 @@ const ChatPage: React.FC = () => {
                     }}
                   >
                     <button
-                      className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
+                      className="btn btn-sm btn-circle btn-ghost h-7 w-7"
                       title="移至回收站"
                     >
                       <Trash2 className="h-4 w-4 " />
@@ -2369,10 +2430,10 @@ const ChatPage: React.FC = () => {
                   {msg.role === 'assistant' && (
                     <button
                       className={cn(
-                        "p-1 rounded transition-colors",
+                        "btn btn-sm btn-circle btn-ghost h-7 w-7",
                         voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id
                           ? "text-primary hover:bg-primary/10"
-                          : "text-gray-500 hover:bg-black/10"
+                          : " hover:bg-black/10"
                       )}
                       title={
                         voicePlayingState.isGenerating && voicePlayingState.currentMessageId === msg.id
@@ -2423,7 +2484,7 @@ const ChatPage: React.FC = () => {
                     return isFirstAssistantMessage && hasMultipleOpenings && !hasUserMessages ? (
                       <>
                         <button
-                          className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
+                          className="btn btn-sm btn-circle btn-ghost h-7 w-7"
                           title="上一个开场白"
                           onClick={() => {
                             const currentIndex = messageRole.openingMessages.findIndex(opening => opening === msg.content) || 0;
@@ -2441,7 +2502,7 @@ const ChatPage: React.FC = () => {
                           {(messageRole.openingMessages.findIndex(opening => opening === msg.content) || 0) + 1}/{messageRole.openingMessages.length}
                         </span>
                         <button
-                          className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors"
+                          className="btn btn-sm btn-circle btn-ghost h-7 w-7"
                           title="下一个开场白"
                           onClick={() => {
                             const currentIndex = messageRole.openingMessages.findIndex(opening => opening === msg.content) || 0;
@@ -2461,7 +2522,7 @@ const ChatPage: React.FC = () => {
                 </div>
                 {/* 版本切换按钮组 - hover时显示或移动端点击显示 */}
                 <div className={cn(
-                  'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-md transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-[var(--radius-box)] transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
                   'opacity-0 group-hover:opacity-100', // 桌面端hover显示
                   'md:opacity-0 md:group-hover:opacity-100', // 桌面端确保hover效果
                   visibleActionButtons === msg.id ? 'opacity-100' : '', // 移动端点击显示
@@ -2473,7 +2534,7 @@ const ChatPage: React.FC = () => {
                   {msg.versions && msg.versions.length > 1 && (
                     <>
                       <button
-                        className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors disabled:opacity-50"
+                        className="btn btn-sm btn-circle btn-ghost h-7 w-7"
                         title="上一个版本"
                         disabled={(msg.currentVersionIndex || 0) === 0}
                         onClick={() => {
@@ -2489,7 +2550,7 @@ const ChatPage: React.FC = () => {
                         {(msg.currentVersionIndex || 0) + 1}/{msg.versions.length}
                       </span>
                       <button
-                        className="p-1 rounded text-gray-500 hover:bg-black/10 transition-colors disabled:opacity-50"
+                        className="btn btn-sm btn-circle btn-ghost h-7 w-7"
                         title="下一个版本"
                         disabled={(msg.currentVersionIndex || 0) === msg.versions.length - 1}
                         onClick={() => {
@@ -2509,7 +2570,8 @@ const ChatPage: React.FC = () => {
 
               </div>
 
-          ))
+          ))}
+          </>
         )}
         <div ref={messagesEndRef} />
         </div>
@@ -2517,7 +2579,7 @@ const ChatPage: React.FC = () => {
 
       {/* 输入区域 */}
       <div className={cn('p-4 pt-0', (!currentSession) && "flex-1 pb-[calc(50vh-10rem)]")}>
-        <div className="chat-input max-w-4xl mx-auto">
+        <div className="chat-input max-w-3xl mx-auto">
         {/* 输入框 - 单独一行 */}
         <div className="mb-3">
           <textarea
@@ -2540,7 +2602,7 @@ const ChatPage: React.FC = () => {
           )}
         </div>
         
-
+        
 
         {/* 按钮区域 - 左右分布 */}
         <div className="flex justify-between items-center">
@@ -2606,7 +2668,7 @@ const ChatPage: React.FC = () => {
           {/* 右下角按钮组 */}
           <div className="flex space-x-2">
             {/* 模型选择器 */}
-            <div className="dropdown dropdown-top">
+            <div className="dropdown dropdown-top dropdown-end">
               <div tabIndex={0} role="button" className="btn btn-xs btn-ghost h-8 min-h-8 font-normal" title="选择模型">
               {currentModel?.name || '选择模型'}
               <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2661,6 +2723,76 @@ const ChatPage: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* 编辑消息模态框：常规尺寸 */}
+      <dialog 
+        ref={editDialogRef}
+        className="modal"
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingMessageId(null);
+          setEditingContent('');
+        }}
+      >
+        <div className="modal-box max-w-2xl w-full p-0">
+          <div className="flex items-center justify-between p-6">
+            <h2 className="text-xl font-bold text-base-content">编辑消息</h2>
+            <form method="dialog">
+              <button className="btn btn-sm btn-circle btn-ghost" title="关闭">
+                <X className="h-5 w-5" />
+              </button>
+            </form>
+          </div>
+
+          <div className="px-6 pb-4">
+            <fieldset className="fieldset floating-label">
+              <span className="label">消息内容</span>
+              <textarea
+                value={editingContent}
+                onChange={(e) => setEditingContent(e.target.value)}
+                rows={6}
+                className="textarea textarea-bordered w-full"
+                placeholder="编辑消息内容..."
+              />
+            </fieldset>
+          </div>
+
+          <div className="modal-action px-6 pb-6">
+            <form method="dialog">
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingMessageId(null);
+                  setEditingContent('');
+                }}
+              >
+                取消
+              </button>
+            </form>
+            <form
+              method="dialog"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!editingMessageId || !editingContent.trim()) return;
+                try {
+                  updateMessage(currentSession!.id, editingMessageId, editingContent.trim());
+                  toast.success('消息已更新');
+                } finally {
+                  setIsEditModalOpen(false);
+                  setEditingMessageId(null);
+                  setEditingContent('');
+                }
+              }}
+            >
+              <button className="btn btn-primary" type="submit">保存</button>
+            </form>
+          </div>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
+
       {/* 收藏助手快捷按钮已移除：改为 tips 中的内联角色选择器 */}
       </div>
     </div>

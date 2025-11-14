@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../store';
 import { toast } from '../hooks/useToast';
 import { Search, Globe, Shield, KeyRound, Activity } from 'lucide-react';
+import { getApiBaseUrl } from '../lib/utils';
 
 export interface SearchSettingsPageProps {
   onCloseModal?: () => void;
@@ -54,7 +55,7 @@ const SearchSettingsPage: React.FC<SearchSettingsPageProps> = ({ onCloseModal })
   };
 
   const runHealthCheck = async () => {
-    const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+    const apiBaseUrl = getApiBaseUrl();
     const q = 'site:example.com 测试';
     const params = new URLSearchParams({ q, num: '1' });
     // 若用户提供密钥/engine，传给服务端（否则服务端会用环境变量）

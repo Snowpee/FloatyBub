@@ -1,4 +1,5 @@
 import { AIRole, VoiceSettings, VoiceModel } from '../store';
+import { getApiBaseUrl } from '../lib/utils';
 
 // 音频缓存相关接口和常量
 interface AudioCacheItem {
@@ -407,7 +408,7 @@ export const generateStreamingVoiceUrl = (
   voiceModel: VoiceModel,
   voiceSettings: VoiceSettings
 ): string => {
-  const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+  const apiBaseUrl = getApiBaseUrl();
   
   // 构建查询参数
   const params = new URLSearchParams({
@@ -453,7 +454,7 @@ export const generateVoiceAudio = async (
     
     try {
       // 使用本地代理服务器而不是直接调用官方API
-      const apiBaseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+      const apiBaseUrl = getApiBaseUrl();
       
       const response = await fetch(`${apiBaseUrl}/api/tts`, {
         method: 'POST',
