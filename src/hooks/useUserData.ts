@@ -10,6 +10,8 @@ import type { ChatSession, ChatMessage } from '../store'
 import type { SyncStatus, SyncResult } from '../services/DataSyncService'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
+const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} }
+
 // 配置开关：控制是否启用Realtime订阅功能
 // 设置为false以禁用所有Realtime订阅，但保留轮询和手动同步功能
 // 修改此值为true可重新启用Realtime功能

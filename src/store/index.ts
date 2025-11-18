@@ -5,6 +5,8 @@ import { dataSyncService } from '../services/DataSyncService';
 import { supabase } from '../lib/supabase';
 import { generateSnowflakeId, ensureSnowflakeIdString } from '../utils/snowflakeId';
 
+const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} };
+
 // 🔧 自定义序列化器：保护 snowflake_id 字段的大整数精度
 const SNOWFLAKE_ID_PREFIX = '__SNOWFLAKE_ID__';
 

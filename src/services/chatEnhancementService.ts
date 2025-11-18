@@ -3,6 +3,8 @@
 import { KnowledgeService } from './knowledgeService';
 import type { KnowledgeEntry, KnowledgeBase } from '../types/knowledge';
 
+const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} };
+
 // WASM Jieba 分词器状态管理
 interface WasmJiebaState {
   isLoaded: boolean;

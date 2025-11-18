@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase'
 
+const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} }
+
 export interface ConnectionTestResult {
   isConnected: boolean
   responseTime: number

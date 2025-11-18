@@ -51,14 +51,14 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
   const getLastActiveTime = (session: any) => {
     if (session.messages && session.messages.length > 0) {
       const lastMessage = session.messages[session.messages.length - 1];
-      // 优先使用 message_timestamp，其次是 timestamp，最后是 updatedAt
       const messageTime = lastMessage.message_timestamp || lastMessage.timestamp;
       if (messageTime) {
-        return new Date(messageTime).getTime();
+        const t = new Date(messageTime).getTime();
+        return isNaN(t) ? 0 : t;
       }
     }
-    // 如果没有消息或消息没有时间戳，使用会话的更新时间
-    return new Date(session.updatedAt).getTime();
+    const ut = new Date(session.updatedAt).getTime();
+    return isNaN(ut) ? 0 : ut;
   };
 
   // 过滤和排序会话
@@ -175,11 +175,17 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
     toast.success('会话已导出');
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string | number) => {
+    if (!date) return '未知日期';
+    let d = date instanceof Date ? date : new Date(date as any);
+    if (isNaN(d.getTime()) && typeof date === 'string') {
+      const normalized = (date as string).replace(' ', 'T');
+      d = new Date(normalized);
+    }
+    if (isNaN(d.getTime())) return '未知日期';
     const now = new Date();
-    const diff = now.getTime() - new Date(date).getTime();
+    const diff = now.getTime() - d.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
     if (days === 0) {
       return '今天';
     } else if (days === 1) {
@@ -187,7 +193,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
     } else if (days < 7) {
       return `${days}天前`;
     } else {
-      return new Date(date).toLocaleDateString();
+      return d.toLocaleDateString();
     }
   };
 
@@ -210,7 +216,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto md:pt-0">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto md:pt-4">
       {/* <div className="mb-6">
         <p className="text-base-content/70">
           查看和管理您的聊天历史记录
@@ -218,7 +224,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
       </div> */}
 
       {/* 搜索和过滤器 */}
-      <div className="mb-6 space-y-4">
+      <div className="mb-4 space-y-4">
         {/* 搜索框 */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-base-content/40" />
@@ -235,7 +241,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="btn btn-ghost md:btn-sm"
+            className="btn md:btn-sm"
           >
             <Filter className="h-4 w-4 mr-1" />
             过滤器
@@ -339,31 +345,20 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
         <div className="space-y-4">
           {filteredAndSortedSessions.map((session) => (
             <div key={session.id} className="card bg-base-100 shadow-sm border border-base-300 hover:shadow-md transition-shadow">
-              <div className="card-body">
+              <div className="card-body p-4">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between space-y-4 md:space-y-0">
                   <div className="flex-1 min-w-0">
                     {/* 会话标题 */}
                     <div className="mb-2">
-                      <h3 className="card-title text-base-content truncate">
+                      <h4 className="card-title text-base-content text-base truncate">
                         {session.title}
-                      </h3>
-                    </div>
-
-                    {/* 角色信息 */}
-                    <div className="flex items-center space-x-2 text-sm text-base-content/70 mb-2">
-                      <Avatar
-                        name={getRoleName(session.roleId)}
-                        avatar={getRole(session.roleId)?.avatar}
-                        size="sm"
-                      />
-                      <span>{getRoleName(session.roleId)}</span>
+                      </h4>
                     </div>
 
                     {/* 模型和统计信息 - 移动端一行显示 */}
-                    <div className="flex items-center space-x-4 mb-3 text-sm">
-                      <span className="flex items-center text-base-content/70">
-                        <Bot className="h-3 w-3 mr-1" />
-                        {getModelName(session.modelId)}
+                    <div className="flex items-center space-x-4 text-sm">
+                      <span className="flex items-center text-base-content/60">
+                        {getRoleName(session.roleId)}
                       </span>
                       <span className="text-base-content/60">
                         {session.messages.length} 条消息
@@ -373,11 +368,6 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
                         {formatDate(session.updatedAt)}
                       </span>
                     </div>
-
-                    {/* 消息预览 */}
-                    <p className="text-base-content/60 text-sm line-clamp-2">
-                      {getMessagePreview(session.messages)}
-                    </p>
                   </div>
 
                   {/* 操作按钮 */}
@@ -426,6 +416,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
                       to={`/chat/${session.id}`}
                       onClick={() => {
                         setCurrentSession(session.id);
+                        console.log('[HistoryModal] trigger: navigate to session', { sessionId: session.id });
                         onCloseModal?.();
                       }}
                       className="btn btn-sm md:ml-2"

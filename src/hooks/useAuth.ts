@@ -5,6 +5,8 @@ import { useAppStore } from '../store'
 import { useDataSync } from './useDataSync'
 import { dataSyncService } from '../services/DataSyncService'
 
+const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} }
+
 export interface AuthState {
   user: User | null
   session: Session | null

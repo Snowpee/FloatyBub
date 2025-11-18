@@ -1,6 +1,8 @@
 import { useAppStore } from '../store';
 import { ChatSession } from '../store';
 
+const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} };
+
 /**
  * 手动同步函数 - 可在浏览器控制台中调用
  * 使用方式: window.manualSync(forceSync = false)

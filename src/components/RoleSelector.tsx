@@ -170,17 +170,18 @@ const RoleSelector: React.FC = () => {
   }
 
   return (
-    <div className="h-full w-full mx-auto p-6 pt-12 bg-base-100">
+    <div className="w-full mx-auto p-6 py-12 bg-base-100">
       <div className='max-w-6xl mx-auto'>
       <div className="text-center mb-8">
         <div className="flex items-center justify-center mb-4">
           <Sparkles className="h-8 w-8 text-primary mr-2" />
-          <h1 className="text-3xl font-bold text-base-content">
+          <h1 className="text-2xl font-bold text-base-content">
             选择角色，开始聊天
           </h1>
+          <Sparkles className="h-8 w-8 text-primary ml-2" />
         </div>
         <p className="text-base-content/60">
-          选择一个AI角色开始对话，每个角色都有独特的个性和专长
+          每个角色都有独特的个性和专长
         </p>
       </div>
 
@@ -204,12 +205,11 @@ const RoleSelector: React.FC = () => {
       {/* 收藏角色区域 */}
       {favoriteRoles.length > 0 && (
         <div className="mb-8">
-          <div className="flex items-center mb-4">
-            <Star className="h-5 w-5 text-yellow-500 mr-2 fill-current" />
+          <div className="flex items-center justify-center align-center mb-4">
             <h2 className="text-xl font-semibold text-base-content">
               收藏角色
             </h2>
-            <span className="ml-2 text-sm text-base-content/60">
+            <span className="ml-2 text-xl text-base-content/60">
               ({favoriteRoles.length})
             </span>
           </div>
@@ -221,12 +221,11 @@ const RoleSelector: React.FC = () => {
 
       {/* 所有角色区域 */}
       <div className="mb-8">
-        <div className="flex items-center mb-4">
-          <Users className="h-5 w-5 text-base-content/70 mr-2" />
+        <div className="flex items-center justify-center align-center mb-4">
           <h2 className="text-xl font-semibold text-base-content">
             {favoriteRoles.length > 0 ? '其他角色' : '所有角色'}
           </h2>
-          <span className="ml-2 text-sm text-base-content/60">
+          <span className="ml-2 text-xl text-base-content/60">
             ({regularRoles.length})
           </span>
         </div>

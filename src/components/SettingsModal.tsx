@@ -414,7 +414,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
         <div className="md:hidden w-full flex flex-col relative overflow-hidden">
           {showList ? (
             // 移动端设置列表视图
-            <div className={cn("mobile-list")}> 
+            <div className={cn("mobile-list flex flex-col relative overflow-hidden")}> 
               <div 
                 {...bind()}
                 className={cn(
@@ -467,7 +467,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
             // 移动端设置详情视图
             <div
               className={cn(
-                "mobile-detail",
+                "mobile-detail flex flex-col overflow-hidden",
                 // iOS 导航动画：push 进入 / pop 离开
                 isIOS && iosEnterReady && navDirection === 'push' && 'ios-enter',
                 isIOS && navDirection === 'pop' && 'ios-leave'

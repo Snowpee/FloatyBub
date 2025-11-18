@@ -17,6 +17,10 @@ import VoiceTest from '../pages/tests/VoiceTest';
 import ToastTestPage from '../pages/tests/ToastTestPage';
 import DatabaseConnectionTestPage from '../pages/tests/DatabaseConnectionTestPage';
 import S3StorageTestPage from '../pages/tests/S3StorageTestPage';
+import LongPressMenuPlayground from '../pages/tests/LongPressMenuPlayground';
+import MobileNavPlayground from '../pages/tests/MobileNavPlayground';
+import MobileNavStandalone from '../pages/tests/MobileNavStandalone';
+import MobileNavDragTest from '../pages/tests/MobileNavDragTest';
 import SupabaseDebugPage from '../pages/SupabaseDebugPage';
 import SyncTestPage from '../pages/SyncTestPage';
 
@@ -95,6 +99,14 @@ export const router = createBrowserRouter([
         element: <S3StorageTestPage />
       },
       {
+        path: 'tests/longpress-menu',
+        element: <LongPressMenuPlayground />
+      },
+      {
+        path: 'tests/mobile-nav',
+        element: <MobileNavPlayground />
+      },
+      {
         path: 'tests/toast-test',
         element: <ToastTestPage />
       },
@@ -111,5 +123,13 @@ export const router = createBrowserRouter([
         element: <NotFound />
       }
     ]
+  },
+  {
+    path: '/tests/mobile-nav-standalone',
+    element: <MobileNavStandalone />
+  },
+  {
+    path: '/tests/mobile-nav-drag',
+    element: <MobileNavDragTest />
   }
 ]);

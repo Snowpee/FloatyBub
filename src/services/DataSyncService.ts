@@ -2,6 +2,8 @@ import { supabase } from '../lib/supabase'
 import { convertAvatarFromImport } from '../utils/avatarUtils'
 import type { Database } from '../lib/supabase'
 
+const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} }
+
 // 同步项目类型
 export interface SyncItem {
   id: string

@@ -23,7 +23,9 @@ import {
   
 } from 'lucide-react';
 import { Sparkles } from 'lucide-react';
-import { cn } from '../lib/utils';
+import LongPressMenu from './LongPressMenu';
+import { cn, isCapacitorIOS } from '../lib/utils';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import Popconfirm from './Popconfirm';
 import SettingsModal from './SettingsModal';
 import { useAuth } from '../hooks/useAuth';
@@ -38,7 +40,7 @@ import { supabase } from '../lib/supabase';
 import { avatarCache } from '../utils/imageCache';
 import { useScrollMask } from '../hooks/useScrollMask';
 
-
+const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} };
 
 type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'knowledge' | 'search';
 
@@ -99,6 +101,11 @@ const Layout: React.FC = () => {
   
   // 历史记录弹窗状态
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  
+  // 稳定的历史记录弹窗关闭函数
+  const handleCloseHistoryModal = useCallback(() => {
+    setIsHistoryModalOpen(false);
+  }, []);
   
   // 用户资料modal状态
   const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
@@ -446,11 +453,21 @@ const Layout: React.FC = () => {
     const w = drawerWidthRef.current;
     setMobileTranslateX(w);
     if (!sidebarOpen) toggleSidebar();
+    if (isCapacitorIOS()) {
+      try {
+        Haptics.impact({ style: ImpactStyle.Medium });
+      } catch {}
+    }
   };
 
   const closeDrawer = () => {
     setMobileTranslateX(0);
     if (sidebarOpen) toggleSidebar();
+    if (isCapacitorIOS()) {
+      try {
+        Haptics.impact({ style: ImpactStyle.Light });
+      } catch {}
+    }
   };
 
   const DIRECTION_THRESHOLD = 15;
@@ -618,24 +635,44 @@ const Layout: React.FC = () => {
   const renderChatItem = useCallback((session: any, index: number, isVisible: boolean) => {
     const isActive = session.id === currentSessionId;
     const linkRef = sessionRefs.current[session.id];
+    dropdownRefs.current[session.id] = dropdownRefs.current[session.id] || React.createRef<HTMLButtonElement>();
+    const isIOSCap = isCapacitorIOS();
     
-    return (
+    const content = (
       <Link
         ref={linkRef}
         key={session.id}
         to={`/chat/${session.id}`}
-        onClick={() => {
+        onClick={(e) => {
+        if (suppressClickSessionIdRef.current === session.id) {
+          console.warn('[longpress] navigation suppressed', { sessionId: session.id, ts: Date.now() });
+          e.preventDefault();
+          e.stopPropagation();
+          suppressClickSessionIdRef.current = null;
+          return;
+        }
           setCurrentSession(session.id);
-          // 在移动端自动关闭侧边栏
           closeSidebarOnNonDesktop();
         }}
+        onTouchStart={(e) => handleItemTouchStart(session.id, e)}
+        onTouchMove={(e) => handleItemTouchMove(session.id, e)}
+        onTouchEnd={(e) => handleItemTouchEnd(session.id, e)}
+        onTouchCancel={(e) => handleItemTouchCancel(session.id, e)}
+        onMouseDown={(e) => handleItemMouseDown(session.id, e)}
+        onMouseUp={(e) => handleItemMouseUp(session.id, e)}
+        onMouseLeave={(e) => handleItemMouseLeave(session.id, e)}
         className={cn(
-          "chat-list p-2 my-1 transition-colors group block group",
+          "chat-list p-3 pr-2 my-1 transition-colors transition-shadow transform transition-transform group block group select-none",
           isActive 
             ? "bg-base-300" 
-            : "hover:bg-base-200"
+            : "hover:bg-base-200 active:bg-base-300"
         )}
-        style={{ height: ITEM_HEIGHT }}
+        style={{ height: ITEM_HEIGHT, WebkitTouchCallout: 'none' as any, WebkitUserSelect: 'none' as any }}
+        draggable={false}
+        onDragStart={(e) => { e.preventDefault(); }}
+        onDragOver={(e) => { e.preventDefault(); }}
+        onDrop={(e) => { e.preventDefault(); }}
+        onContextMenu={(e) => { e.preventDefault(); }}
       >
         <div className="flex items-center justify-between h-full">
           <div className="flex items-center flex-1 min-w-0 gap-2">
@@ -652,16 +689,23 @@ const Layout: React.FC = () => {
             )}
           </div>
           <div 
-            className="dropdown dropdown-end md:hidden group-hover:block"
+            className={cn("dropdown dropdown-end md:hidden group-hover:block", isIOSCap ? "hidden" : "")}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
+            }}
+            onMouseEnter={() => {
+              adjustDropdownPlacement(session.id);
             }}
           >
             <button
               tabIndex={0}
               className="opacity-100 md:opacity-0 md:group-hover:opacity-100 btn btn-ghost btn-sm btn-circle"
               title="更多操作"
+              ref={dropdownRefs.current[session.id]}
+              onFocus={() => {
+                adjustDropdownPlacement(session.id);
+              }}
             >
               <MoreHorizontal className="h-4 w-4" />
             </button>
@@ -804,7 +848,268 @@ const Layout: React.FC = () => {
         </div>
       </Link>
     );
+
+    if (isIOSCap) {
+      const items = [
+        {
+          key: 'pin',
+          label: session.isPinned ? '取消置顶' : '置顶',
+          icon: session.isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />,
+          onClick: () => { session.isPinned ? unpinSession(session.id) : pinSession(session.id); }
+        },
+        {
+          key: 'rename',
+          label: '重命名',
+          icon: <Edit3 className="h-4 w-4" />,
+        },
+        {
+          key: 'hide',
+          label: '隐藏对话',
+          icon: <EyeOff className="h-4 w-4" />,
+          onClick: () => { hideSession(session.id); toast.success('对话已从列表中隐藏'); }
+        },
+        {
+          key: 'trash',
+          label: '移至回收站',
+          icon: <Trash2 className="h-4 w-4" />,
+        }
+      ];
+      return <LongPressMenu items={items}>{content}</LongPressMenu>;
+    }
+    return content;
   }, [currentSessionId, renamingSessionId, renamingTitle, setCurrentSession, closeSidebarOnNonDesktop, getAIRole, updateChatSession, hideSession, deleteSession, sessionRefs, ITEM_HEIGHT]);
+
+  const dropdownRefs = useRef<Record<string, React.RefObject<HTMLButtonElement>>>({});
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressStartPosRef = useRef<{x:number; y:number} | null>(null);
+  const suppressClickSessionIdRef = useRef<string | null>(null);
+  const [longPressHighlightId, setLongPressHighlightId] = useState<string | null>(null);
+  const longPressDuration = 450; // ms
+  const moveThreshold = 10; // px
+
+  const clearLongPress = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressStartPosRef.current = null;
+  };
+
+  const animateDropdownOpen = (sessionId: string) => {
+    const btn = dropdownRefs.current[sessionId]?.current;
+    const ul = btn?.parentElement?.querySelector('.dropdown-content') as HTMLElement | null;
+    if (!ul) return;
+    ul.style.willChange = 'transform, opacity';
+    const container = btn?.parentElement;
+    const isTop = container?.classList.contains('dropdown-top');
+    const isStart = container?.classList.contains('dropdown-start');
+    if (isTop && isStart) ul.style.transformOrigin = 'bottom left';
+    else if (isTop && !isStart) ul.style.transformOrigin = 'bottom right';
+    else if (!isTop && isStart) ul.style.transformOrigin = 'top left';
+    else ul.style.transformOrigin = 'top right';
+    ul.style.transition = 'transform 150ms ease-out, opacity 150ms ease-out';
+    ul.style.opacity = '0';
+    ul.style.transform = 'scale(0.95)';
+    requestAnimationFrame(() => {
+      ul.style.opacity = '1';
+      ul.style.transform = 'scale(1)';
+    });
+  };
+
+  const adjustDropdownPlacement = (sessionId: string) => {
+    const btn = dropdownRefs.current[sessionId]?.current;
+    const container = btn?.parentElement as HTMLElement | null;
+    const ul = container?.querySelector('.dropdown-content') as HTMLElement | null;
+    if (!btn || !container || !ul) return;
+    const prevDisplay = ul.style.display;
+    const prevVisibility = ul.style.visibility;
+    ul.style.visibility = 'hidden';
+    ul.style.display = 'block';
+    const ulRect = ul.getBoundingClientRect();
+    ul.style.display = prevDisplay;
+    ul.style.visibility = prevVisibility;
+    const btnRect = btn.getBoundingClientRect();
+    const scrollEl = btn.closest('.virtual-scroll-container') as HTMLElement | null;
+    const bounds = (scrollEl ? scrollEl.getBoundingClientRect() : { top: 0, bottom: window.innerHeight, left: 0, right: window.innerWidth });
+    const overflowBottom = btnRect.bottom + ulRect.height > bounds.bottom;
+    const canOpenTop = btnRect.top - ulRect.height >= bounds.top;
+    if (overflowBottom && canOpenTop) {
+      container.classList.add('dropdown-top');
+    } else {
+      container.classList.remove('dropdown-top');
+    }
+    const leftEnd = btnRect.right - ulRect.width;
+    const leftStart = btnRect.left;
+    const endOverflowLeft = leftEnd < bounds.left;
+    const startOverflowRight = leftStart + ulRect.width > bounds.right;
+    container.classList.remove('dropdown-start');
+    container.classList.remove('dropdown-center');
+    if (endOverflowLeft && !startOverflowRight) {
+      container.classList.remove('dropdown-end');
+      container.classList.add('dropdown-start');
+    } else if (endOverflowLeft && startOverflowRight) {
+      container.classList.remove('dropdown-end');
+      container.classList.add('dropdown-center');
+    } else {
+      if (!container.classList.contains('dropdown-end')) {
+        container.classList.add('dropdown-end');
+      }
+    }
+  };
+
+  const animateDropdownClose = (sessionId: string) => {
+    const btn = dropdownRefs.current[sessionId]?.current;
+    const ul = btn?.parentElement?.querySelector('.dropdown-content') as HTMLElement | null;
+    if (!ul) { btn?.blur(); return; }
+    ul.style.transition = 'transform 150ms ease-in, opacity 150ms ease-in';
+    ul.style.opacity = '0';
+    ul.style.transform = 'scale(0.95)';
+    setTimeout(() => { btn?.blur(); }, 160);
+  };
+
+  const openDropdownSessionIdRef = useRef<string | null>(null);
+  const outsideHandlerRef = useRef<((e: Event) => void) | null>(null);
+
+  const attachOutsideClose = (sessionId: string) => {
+    if (!isCapacitorIOS()) return;
+    detachOutsideClose();
+    const handler = (e: Event) => {
+      const btn = dropdownRefs.current[sessionId]?.current;
+      const container = btn?.parentElement;
+      if (container && container.contains(e.target as Node)) return;
+      closeDropdown(sessionId);
+    };
+    document.addEventListener('pointerdown', handler, { capture: true });
+    document.addEventListener('click', handler, { capture: true });
+    outsideHandlerRef.current = handler;
+    openDropdownSessionIdRef.current = sessionId;
+  };
+
+  const detachOutsideClose = () => {
+    if (!isCapacitorIOS()) return;
+    const handler = outsideHandlerRef.current;
+    if (handler) {
+      document.removeEventListener('pointerdown', handler, { capture: true } as any);
+      document.removeEventListener('click', handler, { capture: true } as any);
+      outsideHandlerRef.current = null;
+    }
+    openDropdownSessionIdRef.current = null;
+  };
+
+  const openDropdown = (sessionId: string) => {
+    if (!isCapacitorIOS()) return;
+    const btn = dropdownRefs.current[sessionId]?.current;
+    const container = btn?.parentElement;
+    if (!container) return;
+    adjustDropdownPlacement(sessionId);
+    container.classList.add('dropdown-open');
+    animateDropdownOpen(sessionId);
+    setLongPressHighlightId(sessionId);
+    attachOutsideClose(sessionId);
+  };
+
+  const closeDropdown = (sessionId: string) => {
+    if (!isCapacitorIOS()) return;
+    animateDropdownClose(sessionId);
+    const btn = dropdownRefs.current[sessionId]?.current;
+    const container = btn?.parentElement;
+    setTimeout(() => {
+      container?.classList.remove('dropdown-open');
+      setLongPressHighlightId(prev => (prev === sessionId ? null : prev));
+      detachOutsideClose();
+    }, 160);
+  };
+
+  const triggerLongPressMenu = (sessionId: string) => {
+    const btn = dropdownRefs.current[sessionId]?.current;
+    if (btn) {
+      suppressClickSessionIdRef.current = sessionId;
+      btn.focus();
+      if (isCapacitorIOS()) {
+        openDropdown(sessionId);
+      }
+      console.warn('[longpress] trigger menu', { sessionId, ios: isCapacitorIOS(), ts: Date.now() });
+      if (isCapacitorIOS()) {
+        try {
+          Haptics.impact({ style: ImpactStyle.Light });
+          console.warn('[longpress] haptics impact(light) invoked');
+        } catch (e) {
+          console.warn('[longpress] haptics selection failed', e);
+        }
+      }
+      const onBlur = () => {
+        console.warn('[longpress] button blur, clear highlight', { sessionId, ts: Date.now() });
+        setLongPressHighlightId(prev => (prev === sessionId ? null : prev));
+        btn.removeEventListener('blur', onBlur as any);
+      };
+      btn.addEventListener('blur', onBlur as any);
+    }
+  };
+
+  const handleItemTouchStart = (sessionId: string, e: React.TouchEvent) => {
+    if (!isCapacitorIOS()) return;
+    if (e.touches.length > 1) return; // 多指不处理
+    const t = e.touches[0];
+    longPressStartPosRef.current = { x: t.clientX, y: t.clientY };
+    clearLongPress();
+    console.warn('[longpress] start', { sessionId, ios: isCapacitorIOS(), pos: longPressStartPosRef.current, ts: Date.now() });
+    longPressTimerRef.current = window.setTimeout(() => {
+      triggerLongPressMenu(sessionId);
+      clearLongPress();
+    }, longPressDuration);
+  };
+
+  const handleItemTouchMove = (_sessionId: string, e: React.TouchEvent) => {
+    if (!isCapacitorIOS()) return;
+    if (!longPressStartPosRef.current) return;
+    const t = e.touches[0];
+    const dx = Math.abs(t.clientX - longPressStartPosRef.current.x);
+    const dy = Math.abs(t.clientY - longPressStartPosRef.current.y);
+    if (dx > moveThreshold || dy > moveThreshold) {
+      clearLongPress();
+      console.warn('[longpress] cancel by move', { sessionId: _sessionId, dx, dy, ts: Date.now() });
+    }
+  };
+
+  const handleItemTouchEnd = (_sessionId: string, _e: React.TouchEvent) => {
+    if (!isCapacitorIOS()) return;
+    clearLongPress();
+    console.warn('[longpress] cancel by end', { sessionId: _sessionId, ts: Date.now() });
+    suppressClickSessionIdRef.current = null;
+  };
+
+  const handleItemTouchCancel = (_sessionId: string, _e: React.TouchEvent) => {
+    if (!isCapacitorIOS()) return;
+    clearLongPress();
+    console.warn('[longpress] cancel by cancel', { sessionId: _sessionId, ts: Date.now() });
+    suppressClickSessionIdRef.current = null;
+  };
+
+  const mouseDownTimeRef = useRef<number | null>(null);
+  const handleItemMouseDown = (sessionId: string, e: React.MouseEvent) => {
+    if (!isCapacitorIOS()) return;
+    // 仅在移动端或iOS环境需要长按，桌面也支持以统一体验
+    mouseDownTimeRef.current = Date.now();
+    console.warn('[longpress] mousedown', { sessionId, ts: Date.now() });
+    longPressTimerRef.current = window.setTimeout(() => {
+      triggerLongPressMenu(sessionId);
+      clearLongPress();
+    }, longPressDuration);
+  };
+
+  const handleItemMouseUp = (_sessionId: string, _e: React.MouseEvent) => {
+    if (!isCapacitorIOS()) return;
+    clearLongPress();
+    console.warn('[longpress] mouseup', { sessionId: _sessionId, ts: Date.now() });
+    suppressClickSessionIdRef.current = null;
+  };
+
+  const handleItemMouseLeave = (_sessionId: string, _e: React.MouseEvent) => {
+    if (!isCapacitorIOS()) return;
+    clearLongPress();
+    console.warn('[longpress] mouseleave', { sessionId: _sessionId, ts: Date.now() });
+    suppressClickSessionIdRef.current = null;
+  };
 
   const handleNewChat = () => {
     // 导航到聊天页面，让用户选择角色
@@ -877,22 +1182,39 @@ const Layout: React.FC = () => {
                 </h4>
               </div>
             </button>
-            {/* 发现智能体入口 */}
+          {/* 发现智能体入口 */}
+          <div className="mt-2">
+            <button
+              onClick={() => { navigate('/roles'); closeSidebarOnNonDesktop(); }}
+              className="btn btn-ghost border-none p-3 flex items-center justify-start flex-1 min-w-0 gap-2 w-full"
+            >
+              <div className="flex items-center flex-1 min-w-0 gap-2">
+                <span className="w-6 h-6 rounded-full flex items-center justify-center">
+                  <Sparkles className="h-4 w-4" />
+                </span>
+                <h4 className="text-sm text-base-content font-normal truncate">
+                  发现智能体
+                </h4>
+              </div>
+            </button>
+          </div>
+          {isMobile() && isCapacitorIOS() && (
             <div className="mt-2">
               <button
-                onClick={() => { navigate('/roles'); closeSidebarOnNonDesktop(); }}
+                onClick={() => { navigate('/tests/mobile-nav-drag'); closeSidebarOnNonDesktop(); }}
                 className="btn btn-ghost border-none p-3 flex items-center justify-start flex-1 min-w-0 gap-2 w-full"
               >
                 <div className="flex items-center flex-1 min-w-0 gap-2">
                   <span className="w-6 h-6 rounded-full flex items-center justify-center">
-                    <Sparkles className="h-4 w-4" />
+                    <Menu className="h-4 w-4" />
                   </span>
                   <h4 className="text-sm text-base-content font-normal truncate">
-                    发现智能体
+                    MobileNav 测试
                   </h4>
                 </div>
               </button>
             </div>
+          )}
           </div>
 
           {/* 导航菜单已移除，保留新建聊天按钮作为主要入口 */}
@@ -1102,12 +1424,12 @@ const Layout: React.FC = () => {
       >
         {/* 顶部栏 */}
         <header className="bg-base-100 bg-opacity-90 pt-[env(safe-area-inset-top)]">
-          <div className="relative flex items-center h-16 px-4">
+          <div className="relative flex items-center h-16 px-3 md:px-4">
             {/* 左侧按钮 */}
             <div className="flex items-center space-x-4">
               <button
                 onClick={toggleSidebar}
-                className="btn btn-ghost"
+                className="btn btn-ghost btn-circle"
               >
                 <Menu className="h-5 w-5" />
               </button>
@@ -1137,7 +1459,7 @@ const Layout: React.FC = () => {
                   <div className="dropdown dropdown-end">
                     <button
                       tabIndex={0}
-                      className="btn btn-ghost"
+                      className="btn btn-ghost btn-circle"
                       title="更多操作"
                     >
                       <MoreHorizontal className="h-4 w-4" />
@@ -1282,7 +1604,7 @@ const Layout: React.FC = () => {
       {/* 历史记录弹窗 */}
       <HistoryModal 
         isOpen={isHistoryModalOpen} 
-        onClose={() => setIsHistoryModalOpen(false)}
+        onClose={handleCloseHistoryModal}
       />
       
       {/* 用户资料编辑弹窗 */}

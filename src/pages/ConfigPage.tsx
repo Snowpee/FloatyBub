@@ -206,7 +206,7 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
       const testPayload = {
         model: config.model,
         messages: [{ role: 'user', content: 'Hello' }],
-        max_tokens: 10,
+        max_tokens: 16,
         temperature: 0.1
       };
       

@@ -140,7 +140,7 @@ const HeroModal: React.FC<HeroModalProps> = ({
       >
         {/* 头部 - 移动端特殊布局，桌面端保留常规右上关闭 */}
         <div className={cn(
-          'p-3 border-b border-base-300 pt-[env(safe-area-inset-top)]',
+          'p-3 border-b border-base-300 pt-[calc(env(safe-area-inset-top)+1rem)]',
           'md:p-4 md:border-none'
         )}>
           {/* Mobile 头部：左关闭 / 中标题 / 右确认（可拖动） */}

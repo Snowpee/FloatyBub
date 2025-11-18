@@ -3,6 +3,8 @@ import Layout from './components/Layout';
 import ToastContainer from './components/ToastContainer';
 import { databaseConnectionTester } from './utils/databaseConnectionTest';
 
+const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} };
+
 function App() {
   console.log('🚀 [App] App 组件渲染');
   
