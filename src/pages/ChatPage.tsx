@@ -169,6 +169,7 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     const sendPending = async () => {
       if (sessionId && pendingMessageRef.current && currentSession) {
+        console.warn('CHAT_PAGE_SEND_PENDING_START', { sessionId, at: new Date().toISOString() });
         const text = pendingMessageRef.current;
         pendingMessageRef.current = null;
 
@@ -190,6 +191,7 @@ const ChatPage: React.FC = () => {
         });
 
         const aiMessageId = generateId();
+        console.warn('CHAT_PAGE_AI_PLACEHOLDER', { sessionId: currentSession.id, aiMessageId, at: new Date().toISOString() });
         const supportsReasoning = currentModel?.model?.includes('deepseek-reasoner') || 
                                  currentModel?.model?.includes('o1') ||
                                  currentModel?.name?.toLowerCase().includes('reasoning');
@@ -245,6 +247,7 @@ const ChatPage: React.FC = () => {
           if (tempSession && 
               !tempSession.messages.some(m => m.role === 'user') &&
               currentActiveSessionId !== currentTempSessionId) {
+            console.warn('CHAT_PAGE_TEMP_CLEANUP', { tempSessionId: currentTempSessionId, at: new Date().toISOString() });
             console.log('🧹 清理未使用的临时会话:', currentTempSessionId);
             useAppStore.getState().deleteTempSession();
           }
@@ -479,6 +482,7 @@ const ChatPage: React.FC = () => {
       setCurrentModel(modelIdToUse);
 
       const newSessionId = createTempSession(roleIdToUse, modelIdToUse);
+      console.warn('CHAT_PAGE_TEMP_CREATE', { newSessionId, roleIdToUse, modelIdToUse, at: new Date().toISOString() });
 
       const selectedRole = aiRoles.find(r => r.id === roleIdToUse);
       const openingMessage = selectedRole?.openingMessages && selectedRole.openingMessages[0];
@@ -492,6 +496,7 @@ const ChatPage: React.FC = () => {
 
       pendingMessageRef.current = message.trim();
       setMessage('');
+      console.warn('CHAT_PAGE_PENDING_SET', { newSessionId, pendingLength: pendingMessageRef.current.length, at: new Date().toISOString() });
       navigate(`/chat/${newSessionId}`);
       return;
     }

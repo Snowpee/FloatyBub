@@ -1,12 +1,14 @@
 import React, { useEffect, useRef } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { AlertTriangle, AlertOctagon, Info, X } from 'lucide-react';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   title: string;
-  message: string;
+  message?: React.ReactNode;
+  children?: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'info';
@@ -18,6 +20,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   title,
   message,
+  children,
   confirmText = '确认',
   cancelText = '取消',
   variant = 'danger'
@@ -71,19 +74,19 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   };
 
   const variantClasses = getVariantClasses();
+  const Icon = variant === 'danger' ? AlertOctagon : (variant === 'warning' ? AlertTriangle : Info);
 
-  return (
+  const jsx = (
     <dialog 
       ref={dialogRef}
       className="modal"
       onClose={handleDialogClose}
     >
       <div className="modal-box max-w-md">
-        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-full bg-base-200">
-              <AlertTriangle className={`w-5 h-5 ${variantClasses.icon}`} />
+              <Icon className={`w-5 h-5 ${variantClasses.icon}`} />
             </div>
             <h3 className="text-lg font-semibold">
               {title}
@@ -95,15 +98,9 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             </button>
           </form>
         </div>
-
-        {/* Content */}
-        <div className="mb-6">
-          <p className="leading-relaxed">
-            {message}
-          </p>
+        <div className="mb-6 leading-relaxed">
+          {children !== undefined ? children : message}
         </div>
-
-        {/* Actions */}
         <div className="modal-action">
           <form method="dialog">
             <button className="btn btn-ghost mr-3">
@@ -125,6 +122,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       </form>
     </dialog>
   );
+  const portalTarget = typeof document !== 'undefined' ? document.body : null;
+  return portalTarget ? createPortal(jsx, portalTarget) : jsx;
 };
 
 export default ConfirmDialog;

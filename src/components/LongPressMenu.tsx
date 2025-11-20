@@ -19,6 +19,7 @@ export interface LongPressMenuProps {
   enableHaptics?: boolean
   className?: string
   startDelay?: number
+  openDelay?: number
 }
 
 export const LongPressMenu: React.FC<LongPressMenuProps> = ({
@@ -28,7 +29,8 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
   moveThreshold = 10,
   enableHaptics = true,
   className,
-  startDelay = 80
+  startDelay = 80,
+  openDelay = 200 // 🔥🔥 建议设为 150-300ms，体验比较顺滑
 }) => {
   const targetRef = useRef<HTMLDivElement | null>(null)
   const timerRef = useRef<number | null>(null)
@@ -37,19 +39,28 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
   const guardOkRef = useRef<boolean>(true)
   const docTouchMoveHandlerRef = useRef<(e: TouchEvent) => void | null>(null)
   const docTouchEndHandlerRef = useRef<(e: TouchEvent) => void | null>(null)
+  const openDelayTimerRef = useRef<number | null>(null)
+  
+  // 🔥🔥 新增：标记长按是否已经成功触发
+  const longPressTriggeredRef = useRef(false)
+
   const [open, setOpen] = useState(false)
   const [entered, setEntered] = useState(false)
   const [origin, setOrigin] = useState<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('top-right')
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
   const [floatingStyle, setFloatingStyle] = useState<React.CSSProperties>({})
+  const [floatVisible, setFloatVisible] = useState(false)
+  const [floatEntered, setFloatEntered] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const instanceIdRef = useRef<string>(Math.random().toString(36).slice(2))
+  
+  // ... (EASING 常量保持不变) ...
   const OPEN_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)'
   const CLOSE_EASING = 'cubic-bezier(0.4, 0, 0.2, 1)'
   const OPEN_SCALE_START = 0.6
   const OPEN_SCALE_PEAK = 1
 
-  const clearTimer = (reason?: string) => {
+  const clearTimer = (reason?: string, preserveOpenDelay?: boolean) => {
     if (timerRef.current) {
       window.clearTimeout(timerRef.current)
       timerRef.current = null
@@ -58,6 +69,18 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
       window.clearTimeout(guardTimerRef.current)
       guardTimerRef.current = null
     }
+    
+    // 🔥🔥 关键修改：只有在 !preserveOpenDelay 时才清除 openDelayTimer
+    if (!preserveOpenDelay && openDelayTimerRef.current) {
+      window.clearTimeout(openDelayTimerRef.current)
+      openDelayTimerRef.current = null
+      // 如果清理了 openDelay，说明长按流程被中断，重置成功标记
+      longPressTriggeredRef.current = false 
+    }
+    if (!preserveOpenDelay) {
+      setFloatVisible(false)
+    }
+
     startPosRef.current = null
     if (docTouchMoveHandlerRef.current) {
       document.removeEventListener('touchmove', docTouchMoveHandlerRef.current as EventListener)
@@ -71,6 +94,7 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
     console.warn('[LongPressMenu] clearTimer', { reason, ts: Date.now() })
   }
 
+  // ... (computePosition 保持不变) ...
   const computePosition = () => {
     const el = targetRef.current
     if (!el) return
@@ -122,19 +146,40 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
   }
 
   const openMenu = () => {
-    computePosition()
-    setOpen(true)
-    setEntered(false)
-    window.dispatchEvent(new CustomEvent('longpressmenu:open', { detail: { id: instanceIdRef.current } }))
-    if (enableHaptics && isCapacitorIOS()) {
-      try { Haptics.impact({ style: ImpactStyle.Light }) } catch {}
+    // 🔥🔥 震动移除了，移到了 Timer 触发的瞬间
+    if (openDelayTimerRef.current) {
+      window.clearTimeout(openDelayTimerRef.current)
+      openDelayTimerRef.current = null
     }
-    console.warn('[LongPressMenu] openMenu', { ts: Date.now() })
+    
+    // 开始延迟显示
+    openDelayTimerRef.current = window.setTimeout(() => {
+      computePosition()
+      setOpen(true)
+      setEntered(false)
+      window.dispatchEvent(new CustomEvent('longpressmenu:open', { detail: { id: instanceIdRef.current } }))
+      
+      // 重置 Timer 引用，避免后续 clearTimer 误删（虽然逻辑上已经不需要了）
+      openDelayTimerRef.current = null 
+      longPressTriggeredRef.current = false // 重置状态
+
+      console.warn('[LongPressMenu] openMenu executed', { ts: Date.now() })
+    }, Math.max(0, openDelay))
   }
 
+  // ... (closeMenu, useEffect 保持不变) ...
   const closeMenu = () => {
     setEntered(false)
-    window.setTimeout(() => setOpen(false), 160)
+    
+    // 🔥🔥 先触发浮层消失动画
+    setFloatEntered(false)
+    
+    // 🔥🔥 等待菜单动画完成后，再隐藏浮层元素
+    window.setTimeout(() => {
+      setOpen(false)
+      setFloatVisible(false)
+    }, 160)
+    
     console.warn('[LongPressMenu] closeMenu', { ts: Date.now() })
   }
 
@@ -152,7 +197,6 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
       }
     }
     window.addEventListener('longpressmenu:open', onGlobalOpen as EventListener)
-    // 全局选择/上下文菜单抑制，避免文本选择与放大镜
     let prevBodyUserSelect: string | undefined
     let prevBodyWebkitUserSelect: string | undefined
     let prevBodyWebkitTouchCallout: string | undefined
@@ -233,65 +277,132 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
   const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length > 1) return
     clearTimer('touchstart')
+    
+    // 🔥🔥 重置标记
+    longPressTriggeredRef.current = false
+    
     const t = e.touches[0]
     startPosRef.current = { x: t.clientX, y: t.clientY }
     guardOkRef.current = true
     guardTimerRef.current = window.setTimeout(() => {
       if (guardOkRef.current) {
-        console.warn('[LongPressMenu] guard passed, schedule longpress', { pressDuration, startDelay, ts: Date.now() })
-        timerRef.current = window.setTimeout(() => { console.warn('[LongPressMenu] longpress timer fired'); openMenu(); clearTimer('timer fired') }, Math.max(0, pressDuration - startDelay))
+        timerRef.current = window.setTimeout(() => { 
+          console.warn('[LongPressMenu] longpress timer fired'); 
+          
+          // 🔥🔥 1. 立刻震动，反馈成功
+          if (enableHaptics && isCapacitorIOS()) {
+            try { Haptics.impact({ style: ImpactStyle.Light }) } catch {}
+          }
+          
+          // 🔥🔥 2. 标记成功状态，防止 onTouchEnd 误杀
+          longPressTriggeredRef.current = true
+
+          // 🔥🔥 3. 安排延迟显示菜单
+          openMenu(); 
+          computePosition()
+          
+          // 🔥🔥 先设置初始状态并渲染 DOM
+          setFloatEntered(false)
+          setFloatVisible(true)
+          
+          // 🔥🔥 等待 DOM 渲染完成后，再触发动画
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+              setFloatEntered(true)
+            })
+          })
+          
+          // 🔥🔥 4. 清理监听器，传入 true 保护 openDelayTimer
+          clearTimer('timer fired', true) 
+
+        }, Math.max(0, pressDuration - startDelay))
       }
     }, startDelay)
-    // 全局跟踪手指滑动，避免仅在子元素触发时才收到事件
+
     docTouchMoveHandlerRef.current = (ev: TouchEvent) => {
       const first = ev.touches[0]
       if (!first || !startPosRef.current) return
       const dx = Math.abs(first.clientX - startPosRef.current.x)
       const dy = Math.abs(first.clientY - startPosRef.current.y)
       const exceed = dx > moveThreshold || dy > moveThreshold
-      console.warn('[LongPressMenu] doc touchmove', { dx, dy, moveThreshold, exceed, ts: Date.now() })
       if (exceed) {
         guardOkRef.current = false
-        clearTimer('move exceed')
+        clearTimer('move exceed') // 滑动过大，会直接清除（包括 openDelay），因为没传 true
       }
     }
     docTouchEndHandlerRef.current = () => {
-      console.warn('[LongPressMenu] doc touchend/cancel', { ts: Date.now() })
-      clearTimer('doc touchend/cancel')
+      // 这里是 document 级的 end，通常不需要特殊处理，因为组件级 onTouchEnd 会触发
+      // 但为了保险，如果长按已成功，也不要在这里 kill
+      if (!longPressTriggeredRef.current) {
+        clearTimer('doc touchend/cancel')
+      }
     }
     document.addEventListener('touchmove', docTouchMoveHandlerRef.current as EventListener, { passive: true })
     document.addEventListener('touchend', docTouchEndHandlerRef.current as EventListener)
     document.addEventListener('touchcancel', docTouchEndHandlerRef.current as EventListener)
-    console.warn('[LongPressMenu] touchstart', { startPos: startPosRef.current, startDelay, pressDuration, ts: Date.now() })
   }
+
   const onTouchMove = (e: React.TouchEvent) => {
     if (!startPosRef.current) return
     const t = e.touches[0]
     const dx = Math.abs(t.clientX - startPosRef.current.x)
     const dy = Math.abs(t.clientY - startPosRef.current.y)
     const exceed = dx > moveThreshold || dy > moveThreshold
-    console.warn('[LongPressMenu] component touchmove', { dx, dy, moveThreshold, exceed, ts: Date.now() })
     if (exceed) {
       guardOkRef.current = false
-      clearTimer('component move exceed')
+      clearTimer('component move exceed') // 滑动过大，直接 kill
     }
   }
-  const onTouchEnd = () => { clearTimer('component touchend') }
+
+  const onTouchEnd = () => { 
+    // 🔥🔥 核心修复：如果长按已经触发成功（正在等待 delay），不要清除定时器！
+    if (longPressTriggeredRef.current) {
+      console.warn('[LongPressMenu] touchEnd ignored because longpress triggered')
+      return
+    }
+    clearTimer('component touchend') 
+  }
+  
   const onTouchCancel = () => { clearTimer('component touchcancel') }
 
   const onMouseDown = (e: React.MouseEvent) => {
     startPosRef.current = { x: e.clientX, y: e.clientY }
     clearTimer('mousedown')
+    longPressTriggeredRef.current = false // 重置
     guardOkRef.current = true
     guardTimerRef.current = window.setTimeout(() => {
       if (guardOkRef.current) {
-        console.warn('[LongPressMenu] mouse guard passed, schedule longpress', { pressDuration, startDelay, ts: Date.now() })
-        timerRef.current = window.setTimeout(() => { console.warn('[LongPressMenu] mouse longpress timer fired'); openMenu(); clearTimer('mouse timer fired') }, Math.max(0, pressDuration - startDelay))
+        timerRef.current = window.setTimeout(() => { 
+            // Mouse 模式逻辑同理
+            longPressTriggeredRef.current = true
+            openMenu(); 
+            computePosition()
+            
+            // 🔥🔥 先设置初始状态并渲染 DOM
+            setFloatEntered(false)
+            setFloatVisible(true)
+            
+            // 🔥🔥 等待 DOM 渲染完成后，再触发动画
+            window.requestAnimationFrame(() => {
+              window.requestAnimationFrame(() => {
+                setFloatEntered(true)
+              })
+            })
+            clearTimer('mouse timer fired', true) 
+        }, Math.max(0, pressDuration - startDelay))
       }
     }, startDelay)
   }
-  const onMouseUp = () => { clearTimer('mouseup') }
-  const onMouseLeave = () => { clearTimer('mouseleave') }
+
+  const onMouseUp = () => { 
+    if (longPressTriggeredRef.current) return
+    clearTimer('mouseup') 
+  }
+  
+  const onMouseLeave = () => { 
+    if (longPressTriggeredRef.current) return
+    clearTimer('mouseleave') 
+  }
 
   return (
     <div
@@ -311,6 +422,19 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
       style={{ WebkitUserSelect: 'none' as any }}
     >
       {children}
+      {(floatVisible || open) && createPortal(
+        <>
+          <div style={floatingStyle} className="z-[1001]">
+            <div
+              className="transform transition-transform transition-shadow shadow-lg bg-base-100 rounded-[var(--radius-box)]"
+              style={{ pointerEvents: 'none', transform: floatEntered ? 'scale(1.05)' : 'scale(0.95)', opacity: floatEntered ? 1 : 0, transition: 'transform 400ms cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 400ms ease-in-out' }}
+            >
+              {children}
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
       {open && createPortal(
         <>
           <div
@@ -318,14 +442,6 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
             style={{ opacity: entered ? 0.3 : 0, transition: 'opacity 150ms ease' }}
             onClick={closeMenu}
           />
-          <div style={floatingStyle} className="z-[1001]">
-            <div
-              className="transform transition-transform transition-shadow shadow-lg bg-base-100 rounded-[var(--radius-box)]"
-              style={{ pointerEvents: 'none', transform: entered ? 'scale(1.03)' : 'scale(1)', opacity: entered ? 1 : 0, transition: 'transform 150ms ease, opacity 150ms ease' }}
-            >
-              {children}
-            </div>
-          </div>
           <div style={menuStyle} className="z-[1002]">
             <div
               className={cn('menu p-3 shadow bg-base-100 rounded-box w-44 transition gap-1', origin.startsWith('top') ? 'origin-top' : 'origin-bottom')}

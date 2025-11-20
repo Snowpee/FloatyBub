@@ -159,6 +159,8 @@ export interface ChatSession {
   updatedAt: Date;
   isHidden?: boolean; // 是否从侧边栏隐藏
   isPinned?: boolean; // 是否置顶
+  pendingUpload?: boolean;
+  lastSyncedAt?: Date;
 }
 
 // 语音设置接口
@@ -953,7 +955,8 @@ export const useAppStore = create<AppState>()(
           modelId,
           messages: [],
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          pendingUpload: true
         };
         
         set((state) => ({
@@ -976,9 +979,11 @@ export const useAppStore = create<AppState>()(
           modelId,
           messages: [],
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          pendingUpload: true
         };
         
+        console.warn('TEMP_SESSION_CREATED', { sessionId, roleId, modelId, at: new Date().toISOString() });
         // 将临时会话存储在单独的字段中，不添加到chatSessions数组
         set((state) => ({
           currentSessionId: sessionId,
@@ -991,6 +996,7 @@ export const useAppStore = create<AppState>()(
       saveTempSession: () => {
         const state = get();
         if (state.tempSession) {
+          console.warn('TEMP_SESSION_SAVED', { sessionId: state.tempSession.id, at: new Date().toISOString() });
           // 将临时会话正式添加到chatSessions数组中，并设置为当前会话
           set((state) => ({
             chatSessions: [state.tempSession!, ...state.chatSessions],
@@ -1264,14 +1270,8 @@ export const useAppStore = create<AppState>()(
           
           if (generatedTitle && generatedTitle.length <= 20) {
             console.log('✅ 标题验证通过，开始更新会话');
-            // 更新会话标题
-            set((state) => ({
-              chatSessions: state.chatSessions.map(s => 
-                s.id === sessionId 
-                  ? { ...s, title: generatedTitle, updatedAt: new Date() }
-                  : s
-              )
-            }));
+            // 使用统一更新入口以确保 pendingUpload 标记与 updatedAt
+            get().updateChatSession(sessionId, { title: generatedTitle });
             console.log('🎉 会话标题更新成功:', generatedTitle);
           } else {
             console.log('❌ 标题验证失败:', { title: generatedTitle, length: generatedTitle.length });
@@ -1284,6 +1284,7 @@ export const useAppStore = create<AppState>()(
       deleteTempSession: () => {
         const { tempSessionId, currentSessionId } = get();
         if (tempSessionId) {
+          console.warn('TEMP_SESSION_DELETED', { sessionId: tempSessionId, currentSessionId, at: new Date().toISOString() });
           set((state) => ({
             chatSessions: state.chatSessions.filter(s => s.id !== tempSessionId),
             // 只有当要删除的临时会话确实是当前会话时，才清空currentSessionId
@@ -1297,7 +1298,7 @@ export const useAppStore = create<AppState>()(
       updateChatSession: (id, session) => {
         set((state) => ({
           chatSessions: state.chatSessions.map(s => 
-            s.id === id ? { ...s, ...session, updatedAt: new Date() } : s
+            s.id === id ? { ...s, ...session, updatedAt: new Date(), pendingUpload: true } : s
           )
         }));
       },
@@ -1371,7 +1372,7 @@ export const useAppStore = create<AppState>()(
       hideSession: (id) => {
         set((state) => ({
           chatSessions: state.chatSessions.map(s => 
-            s.id === id ? { ...s, isHidden: true, updatedAt: new Date() } : s
+            s.id === id ? { ...s, isHidden: true, updatedAt: new Date(), pendingUpload: true } : s
           )
         }));
       },
@@ -1379,7 +1380,7 @@ export const useAppStore = create<AppState>()(
       showSession: (id) => {
         set((state) => ({
           chatSessions: state.chatSessions.map(s => 
-            s.id === id ? { ...s, isHidden: false, updatedAt: new Date() } : s
+            s.id === id ? { ...s, isHidden: false, updatedAt: new Date(), pendingUpload: true } : s
           )
         }));
       },
@@ -1387,7 +1388,7 @@ export const useAppStore = create<AppState>()(
       pinSession: (id) => {
         set((state) => ({
           chatSessions: state.chatSessions.map(s => 
-            s.id === id ? { ...s, isPinned: true, updatedAt: new Date() } : s
+            s.id === id ? { ...s, isPinned: true, updatedAt: new Date(), pendingUpload: true } : s
           )
         }));
       },
@@ -1395,7 +1396,7 @@ export const useAppStore = create<AppState>()(
       unpinSession: (id) => {
         set((state) => ({
           chatSessions: state.chatSessions.map(s => 
-            s.id === id ? { ...s, isPinned: false, updatedAt: new Date() } : s
+            s.id === id ? { ...s, isPinned: false, updatedAt: new Date(), pendingUpload: true } : s
           )
         }));
       },
@@ -1513,6 +1514,7 @@ export const useAppStore = create<AppState>()(
         const { tempSessionId } = get();
         const isFirstUserMessage = tempSessionId === sessionId && message.role === 'user';
         if (isFirstUserMessage) {
+          console.warn('TEMP_SESSION_FIRST_USER_MESSAGE', { sessionId, messageId: newMessage.id, at: new Date().toISOString() });
           get().saveTempSession();
           // 调用回调函数，通知ChatPage生成标题
           if (onTempSessionSaved) {

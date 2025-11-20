@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ConfirmDialog from './ConfirmDialog';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { toast } from '../hooks/useToast';
@@ -117,6 +118,14 @@ const Layout: React.FC = () => {
   // 重命名状态
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState('');
+  const [iosConfirmOpen, setIosConfirmOpen] = useState(false);
+  const [iosConfirmTitle, setIosConfirmTitle] = useState('');
+  const [iosConfirmMessage, setIosConfirmMessage] = useState<React.ReactNode>('');
+  const [iosConfirmConfirmText, setIosConfirmConfirmText] = useState('确认');
+  const [iosConfirmCancelText, setIosConfirmCancelText] = useState('取消');
+  const [iosConfirmVariant, setIosConfirmVariant] = useState<'danger' | 'warning' | 'info'>('warning');
+  const [iosConfirmType, setIosConfirmType] = useState<'rename' | 'trash' | null>(null);
+  const [iosConfirmSessionId, setIosConfirmSessionId] = useState<string | null>(null);
   
   // 从URL中获取当前对话ID
   const currentSessionId = location.pathname.startsWith('/chat/') 
@@ -637,32 +646,19 @@ const Layout: React.FC = () => {
     const linkRef = sessionRefs.current[session.id];
     dropdownRefs.current[session.id] = dropdownRefs.current[session.id] || React.createRef<HTMLButtonElement>();
     const isIOSCap = isCapacitorIOS();
+    const enableLongPressEverywhere = true; // 开启则非IOS平台也会触发长按事件
     
     const content = (
       <Link
         ref={linkRef}
         key={session.id}
         to={`/chat/${session.id}`}
-        onClick={(e) => {
-        if (suppressClickSessionIdRef.current === session.id) {
-          console.warn('[longpress] navigation suppressed', { sessionId: session.id, ts: Date.now() });
-          e.preventDefault();
-          e.stopPropagation();
-          suppressClickSessionIdRef.current = null;
-          return;
-        }
+        onClick={() => {
           setCurrentSession(session.id);
           closeSidebarOnNonDesktop();
         }}
-        onTouchStart={(e) => handleItemTouchStart(session.id, e)}
-        onTouchMove={(e) => handleItemTouchMove(session.id, e)}
-        onTouchEnd={(e) => handleItemTouchEnd(session.id, e)}
-        onTouchCancel={(e) => handleItemTouchCancel(session.id, e)}
-        onMouseDown={(e) => handleItemMouseDown(session.id, e)}
-        onMouseUp={(e) => handleItemMouseUp(session.id, e)}
-        onMouseLeave={(e) => handleItemMouseLeave(session.id, e)}
         className={cn(
-          "chat-list p-3 pr-2 my-1 transition-colors transition-shadow transform transition-transform group block group select-none",
+          "chat-list p-3 pr-2 my-0 transition-colors transition-shadow transform transition-transform group block group select-none",
           isActive 
             ? "bg-base-300" 
             : "hover:bg-base-200 active:bg-base-300"
@@ -849,7 +845,7 @@ const Layout: React.FC = () => {
       </Link>
     );
 
-    if (isIOSCap) {
+    if (enableLongPressEverywhere || isIOSCap) {
       const items = [
         {
           key: 'pin',
@@ -861,6 +857,18 @@ const Layout: React.FC = () => {
           key: 'rename',
           label: '重命名',
           icon: <Edit3 className="h-4 w-4" />,
+          onClick: () => {
+            setIosConfirmTitle('重命名对话');
+            setIosConfirmSessionId(session.id);
+            setRenamingSessionId(session.id);
+            setRenamingTitle(session.title || '');
+            setIosConfirmType('rename');
+            setIosConfirmMessage('');
+            setIosConfirmConfirmText('重命名');
+            setIosConfirmCancelText('取消');
+            setIosConfirmVariant('info');
+            setIosConfirmOpen(true);
+          }
         },
         {
           key: 'hide',
@@ -872,6 +880,16 @@ const Layout: React.FC = () => {
           key: 'trash',
           label: '移至回收站',
           icon: <Trash2 className="h-4 w-4" />,
+          onClick: () => {
+            setIosConfirmTitle('移至回收站');
+            setIosConfirmMessage('对话将移至回收站，不会立即永久删除。');
+            setIosConfirmConfirmText('移至回收站');
+            setIosConfirmCancelText('取消');
+            setIosConfirmVariant('warning');
+            setIosConfirmSessionId(session.id);
+            setIosConfirmType('trash');
+            setIosConfirmOpen(true);
+          }
         }
       ];
       return <LongPressMenu items={items}>{content}</LongPressMenu>;
@@ -880,41 +898,6 @@ const Layout: React.FC = () => {
   }, [currentSessionId, renamingSessionId, renamingTitle, setCurrentSession, closeSidebarOnNonDesktop, getAIRole, updateChatSession, hideSession, deleteSession, sessionRefs, ITEM_HEIGHT]);
 
   const dropdownRefs = useRef<Record<string, React.RefObject<HTMLButtonElement>>>({});
-  const longPressTimerRef = useRef<number | null>(null);
-  const longPressStartPosRef = useRef<{x:number; y:number} | null>(null);
-  const suppressClickSessionIdRef = useRef<string | null>(null);
-  const [longPressHighlightId, setLongPressHighlightId] = useState<string | null>(null);
-  const longPressDuration = 450; // ms
-  const moveThreshold = 10; // px
-
-  const clearLongPress = () => {
-    if (longPressTimerRef.current) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    longPressStartPosRef.current = null;
-  };
-
-  const animateDropdownOpen = (sessionId: string) => {
-    const btn = dropdownRefs.current[sessionId]?.current;
-    const ul = btn?.parentElement?.querySelector('.dropdown-content') as HTMLElement | null;
-    if (!ul) return;
-    ul.style.willChange = 'transform, opacity';
-    const container = btn?.parentElement;
-    const isTop = container?.classList.contains('dropdown-top');
-    const isStart = container?.classList.contains('dropdown-start');
-    if (isTop && isStart) ul.style.transformOrigin = 'bottom left';
-    else if (isTop && !isStart) ul.style.transformOrigin = 'bottom right';
-    else if (!isTop && isStart) ul.style.transformOrigin = 'top left';
-    else ul.style.transformOrigin = 'top right';
-    ul.style.transition = 'transform 150ms ease-out, opacity 150ms ease-out';
-    ul.style.opacity = '0';
-    ul.style.transform = 'scale(0.95)';
-    requestAnimationFrame(() => {
-      ul.style.opacity = '1';
-      ul.style.transform = 'scale(1)';
-    });
-  };
 
   const adjustDropdownPlacement = (sessionId: string) => {
     const btn = dropdownRefs.current[sessionId]?.current;
@@ -955,160 +938,6 @@ const Layout: React.FC = () => {
         container.classList.add('dropdown-end');
       }
     }
-  };
-
-  const animateDropdownClose = (sessionId: string) => {
-    const btn = dropdownRefs.current[sessionId]?.current;
-    const ul = btn?.parentElement?.querySelector('.dropdown-content') as HTMLElement | null;
-    if (!ul) { btn?.blur(); return; }
-    ul.style.transition = 'transform 150ms ease-in, opacity 150ms ease-in';
-    ul.style.opacity = '0';
-    ul.style.transform = 'scale(0.95)';
-    setTimeout(() => { btn?.blur(); }, 160);
-  };
-
-  const openDropdownSessionIdRef = useRef<string | null>(null);
-  const outsideHandlerRef = useRef<((e: Event) => void) | null>(null);
-
-  const attachOutsideClose = (sessionId: string) => {
-    if (!isCapacitorIOS()) return;
-    detachOutsideClose();
-    const handler = (e: Event) => {
-      const btn = dropdownRefs.current[sessionId]?.current;
-      const container = btn?.parentElement;
-      if (container && container.contains(e.target as Node)) return;
-      closeDropdown(sessionId);
-    };
-    document.addEventListener('pointerdown', handler, { capture: true });
-    document.addEventListener('click', handler, { capture: true });
-    outsideHandlerRef.current = handler;
-    openDropdownSessionIdRef.current = sessionId;
-  };
-
-  const detachOutsideClose = () => {
-    if (!isCapacitorIOS()) return;
-    const handler = outsideHandlerRef.current;
-    if (handler) {
-      document.removeEventListener('pointerdown', handler, { capture: true } as any);
-      document.removeEventListener('click', handler, { capture: true } as any);
-      outsideHandlerRef.current = null;
-    }
-    openDropdownSessionIdRef.current = null;
-  };
-
-  const openDropdown = (sessionId: string) => {
-    if (!isCapacitorIOS()) return;
-    const btn = dropdownRefs.current[sessionId]?.current;
-    const container = btn?.parentElement;
-    if (!container) return;
-    adjustDropdownPlacement(sessionId);
-    container.classList.add('dropdown-open');
-    animateDropdownOpen(sessionId);
-    setLongPressHighlightId(sessionId);
-    attachOutsideClose(sessionId);
-  };
-
-  const closeDropdown = (sessionId: string) => {
-    if (!isCapacitorIOS()) return;
-    animateDropdownClose(sessionId);
-    const btn = dropdownRefs.current[sessionId]?.current;
-    const container = btn?.parentElement;
-    setTimeout(() => {
-      container?.classList.remove('dropdown-open');
-      setLongPressHighlightId(prev => (prev === sessionId ? null : prev));
-      detachOutsideClose();
-    }, 160);
-  };
-
-  const triggerLongPressMenu = (sessionId: string) => {
-    const btn = dropdownRefs.current[sessionId]?.current;
-    if (btn) {
-      suppressClickSessionIdRef.current = sessionId;
-      btn.focus();
-      if (isCapacitorIOS()) {
-        openDropdown(sessionId);
-      }
-      console.warn('[longpress] trigger menu', { sessionId, ios: isCapacitorIOS(), ts: Date.now() });
-      if (isCapacitorIOS()) {
-        try {
-          Haptics.impact({ style: ImpactStyle.Light });
-          console.warn('[longpress] haptics impact(light) invoked');
-        } catch (e) {
-          console.warn('[longpress] haptics selection failed', e);
-        }
-      }
-      const onBlur = () => {
-        console.warn('[longpress] button blur, clear highlight', { sessionId, ts: Date.now() });
-        setLongPressHighlightId(prev => (prev === sessionId ? null : prev));
-        btn.removeEventListener('blur', onBlur as any);
-      };
-      btn.addEventListener('blur', onBlur as any);
-    }
-  };
-
-  const handleItemTouchStart = (sessionId: string, e: React.TouchEvent) => {
-    if (!isCapacitorIOS()) return;
-    if (e.touches.length > 1) return; // 多指不处理
-    const t = e.touches[0];
-    longPressStartPosRef.current = { x: t.clientX, y: t.clientY };
-    clearLongPress();
-    console.warn('[longpress] start', { sessionId, ios: isCapacitorIOS(), pos: longPressStartPosRef.current, ts: Date.now() });
-    longPressTimerRef.current = window.setTimeout(() => {
-      triggerLongPressMenu(sessionId);
-      clearLongPress();
-    }, longPressDuration);
-  };
-
-  const handleItemTouchMove = (_sessionId: string, e: React.TouchEvent) => {
-    if (!isCapacitorIOS()) return;
-    if (!longPressStartPosRef.current) return;
-    const t = e.touches[0];
-    const dx = Math.abs(t.clientX - longPressStartPosRef.current.x);
-    const dy = Math.abs(t.clientY - longPressStartPosRef.current.y);
-    if (dx > moveThreshold || dy > moveThreshold) {
-      clearLongPress();
-      console.warn('[longpress] cancel by move', { sessionId: _sessionId, dx, dy, ts: Date.now() });
-    }
-  };
-
-  const handleItemTouchEnd = (_sessionId: string, _e: React.TouchEvent) => {
-    if (!isCapacitorIOS()) return;
-    clearLongPress();
-    console.warn('[longpress] cancel by end', { sessionId: _sessionId, ts: Date.now() });
-    suppressClickSessionIdRef.current = null;
-  };
-
-  const handleItemTouchCancel = (_sessionId: string, _e: React.TouchEvent) => {
-    if (!isCapacitorIOS()) return;
-    clearLongPress();
-    console.warn('[longpress] cancel by cancel', { sessionId: _sessionId, ts: Date.now() });
-    suppressClickSessionIdRef.current = null;
-  };
-
-  const mouseDownTimeRef = useRef<number | null>(null);
-  const handleItemMouseDown = (sessionId: string, e: React.MouseEvent) => {
-    if (!isCapacitorIOS()) return;
-    // 仅在移动端或iOS环境需要长按，桌面也支持以统一体验
-    mouseDownTimeRef.current = Date.now();
-    console.warn('[longpress] mousedown', { sessionId, ts: Date.now() });
-    longPressTimerRef.current = window.setTimeout(() => {
-      triggerLongPressMenu(sessionId);
-      clearLongPress();
-    }, longPressDuration);
-  };
-
-  const handleItemMouseUp = (_sessionId: string, _e: React.MouseEvent) => {
-    if (!isCapacitorIOS()) return;
-    clearLongPress();
-    console.warn('[longpress] mouseup', { sessionId: _sessionId, ts: Date.now() });
-    suppressClickSessionIdRef.current = null;
-  };
-
-  const handleItemMouseLeave = (_sessionId: string, _e: React.MouseEvent) => {
-    if (!isCapacitorIOS()) return;
-    clearLongPress();
-    console.warn('[longpress] mouseleave', { sessionId: _sessionId, ts: Date.now() });
-    suppressClickSessionIdRef.current = null;
   };
 
   const handleNewChat = () => {
@@ -1410,6 +1239,7 @@ const Layout: React.FC = () => {
         className={cn(
         "flex flex-col flex-1 min-h-screen h-screen bg-base-100",
         // 在桌面端根据侧边栏状态调整左边距
+        "lg:transition-all lg:duration-300 lg:ease-in-out",
         sidebarOpen ? "lg:ml-64" : "lg:ml-0"
       )}
         style={isMobile() ? {
@@ -1561,7 +1391,48 @@ const Layout: React.FC = () => {
           'pb-[env(safe-area-inset-bottom)]': isMobile,
         })}>
           <Outlet />
-        </main>
+      </main>
+      <ConfirmDialog
+        key={`confirm-${iosConfirmType || 'none'}-${renamingSessionId || 'na'}`}
+        isOpen={iosConfirmOpen}
+        onClose={() => { setIosConfirmOpen(false); setRenamingSessionId(null); setRenamingTitle(''); setIosConfirmType(null); setIosConfirmSessionId(null); }}
+        onConfirm={() => {
+          if (iosConfirmType === 'rename' && iosConfirmSessionId) {
+            const trimmed = (renamingTitle || '').trim();
+            if (trimmed) {
+              updateChatSession(iosConfirmSessionId, { title: trimmed });
+              toast.success('对话已重命名');
+            }
+            setRenamingSessionId(null);
+            setRenamingTitle('');
+          } else if (iosConfirmType === 'trash' && iosConfirmSessionId) {
+            deleteSession(iosConfirmSessionId);
+          }
+          setIosConfirmOpen(false);
+          setIosConfirmType(null);
+          setIosConfirmSessionId(null);
+        }}
+        title={iosConfirmTitle}
+        confirmText={iosConfirmConfirmText}
+        cancelText={iosConfirmCancelText}
+        variant={iosConfirmVariant}
+      >
+        {iosConfirmType === 'rename' ? (
+          <div className="space-y-2">
+            <div className="text-sm text-base-content/70">输入新的对话标题</div>
+            <input
+              type="text"
+              className="input w-full p-2 text-sm"
+              value={renamingTitle}
+              onChange={(e) => setRenamingTitle(e.target.value)}
+              autoFocus
+              placeholder="输入新的对话标题..."
+            />
+          </div>
+        ) : (
+          iosConfirmMessage
+        )}
+      </ConfirmDialog>
       </div>
 
       {/* 移动端遮罩：抽屉开启时显示半透明黑色遮罩，点击可关闭，拦截底部交互 */}
