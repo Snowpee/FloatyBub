@@ -22,9 +22,10 @@ import ConfirmDialog from '../components/ConfirmDialog';
 
 interface DataPageProps {
   onCloseModal?: () => void;
+  className?: string;
 }
 
-const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
+const DataPage: React.FC<DataPageProps> = ({ onCloseModal, className }) => {
   const {
     llmConfigs,
     aiRoles,
@@ -135,7 +136,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6 md:pt-0">
+    <div className={cn("max-w-6xl mx-auto p-6 space-y-6 md:pt-0", className)}>
       {/* 页面标题 */}
       <div className="flex items-center space-x-3">
         <div>

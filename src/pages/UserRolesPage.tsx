@@ -11,9 +11,10 @@ import { toast } from '../hooks/useToast';
 
 interface userRolesPageProps {
   onCloseModal?: () => void;
+  className?: string;
 }
 
-const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal }) => {
+const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal, className }) => {
   const {
     userRoles,
     currentUserProfile,
@@ -129,7 +130,7 @@ const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal }) => {
 
 
   return (
-    <div className="max-w-6xl mx-auto p-6 md:pt-0">
+    <div className={cn("max-w-6xl mx-auto p-6 md:pt-0", className)}>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
           <p className="text-base-content/60">管理用户资料，在对话时传递给AI</p>

@@ -20,8 +20,10 @@ import { useAuth } from '../hooks/useAuth';
 import { ChatEnhancementService } from '../services/chatEnhancementService';
 import { useKnowledgeStore } from '../stores/knowledgeStore';
 import { useScrollMask } from '../hooks/useScrollMask';
+import { usePageContext } from '../hooks/usePageContext';
 
 const ChatPage: React.FC = () => {
+  const { className: pageClassName } = usePageContext();
   const { sessionId } = useParams();
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -2137,7 +2139,8 @@ const ChatPage: React.FC = () => {
   return (
     <div className={cn(
       "chat-container flex flex-col h-full bg-base-100",
-      (!currentSession || currentSession.messages.length === 0) && "justify-center hero-bg-img"
+      (!currentSession || currentSession.messages.length === 0) && "justify-center hero-bg-img h-[calc(100%+1px)]",
+      pageClassName
     ) 
     }>
       {/* 消息列表 */}
@@ -2152,6 +2155,7 @@ const ChatPage: React.FC = () => {
         <div className={cn(
           'max-w-3xl mx-auto w-full pb-12',
           (!currentSession || !currentSession.messages || currentSession.messages.length === 0) ? " h-full" : "h-fit",
+          (currentSession) && "h-[calc(100%+1px)]",
            chatStyle === 'document' && 'px-4'
            )}>
         {(!currentSession || !currentSession.messages || currentSession.messages.length === 0) ? (

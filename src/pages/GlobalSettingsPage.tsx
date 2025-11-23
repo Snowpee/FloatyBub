@@ -5,11 +5,12 @@ import { useAppStore } from '../store';
 
 interface GlobalSettingsPageProps {
   onCloseModal?: () => void;
+  className?: string;
 }
 
 type ChatStyle = 'conversation' | 'document';
 
-const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal }) => {
+const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal, className }) => {
   const {
     autoTitleConfig,
     assistantConfig,
@@ -32,7 +33,7 @@ const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal })
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6 md:pt-0">
+    <div className={cn("max-w-6xl mx-auto p-4 md:p-6 md:pt-0", className)}>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <p className="text-base-content/60">

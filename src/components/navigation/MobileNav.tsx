@@ -357,7 +357,7 @@ export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swi
   };
 
   const getForegroundStyle = () => {
-    return { transform: x.to((v) => `translateX(${v}px)`), boxShadow: x.to((v) => v > 0 ? '-4px 0 12px rgba(0,0,0,0.15)' : 'none'), willChange: 'transform', zIndex: 10 } as any;
+    return { transform: x.to((v) => `translateX(${v}px)`), boxShadow: x.to((v) => v > 0 ? '-4px 0 48px rgba(0,0,0,0.15)' : 'none'), willChange: 'transform', zIndex: 10 } as any;
   };
 
   const pushWithAnimation = (component: React.ComponentType<any>, props: Record<string, any> = {}) => {
@@ -425,12 +425,12 @@ export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swi
   return (
     <NavAnimContext.Provider value={{ popWithAnimation, pushWithAnimation, isAnimating: mode !== 'idle', isDragging, canNavigate }}>
       <div className="relative w-full h-full overflow-hidden bg-base-100" ref={containerRef}>
-        {mode === 'pop' && (
+        {/* {mode === 'pop' && (
           <div className="absolute top-2 left-2 z-50 text-xs bg-black/60 text-white px-2 py-1 rounded pointer-events-none">
             <span>mode: {mode}</span>
             <span className="ml-2">x: {Math.round(useFallback ? fallbackX : xDebug)}</span>
           </div>
-        )}
+        )} */}
         {BackgroundComponent && (
           <springAnimated.div
             className="absolute inset-0 bg-base-100"
@@ -459,6 +459,16 @@ export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swi
                   transform: `translateX(${fallbackX}px)`,
                   transition: isDragging ? 'none' : `transform ${POP_DURATION_MS}ms ease-out`,
                   willChange: 'transform',
+                  boxShadow: (() => {
+                    const w = containerRef.current?.offsetWidth || (typeof window !== 'undefined' ? window.innerWidth : 1000)
+                    const p = Math.min(1, Math.max(0, fallbackX / w))
+                    if (opRef.current === 'pop' && isAnimatingRef.current) return '-4px 0 6rem rgba(0,0,0,0.1)'
+                    if (isDragging) {
+                      const alpha = 0.08 + 0.22 * p // 越往右拖动，透明度越高
+                      return p > 0 ? `-4px 0 6rem rgba(0,0,0,${alpha})` : 'none'
+                    }
+                    return 'none'
+                  })(),
                   userSelect: isDragging ? 'none' : 'auto'
                 }
               : getForegroundStyle()),

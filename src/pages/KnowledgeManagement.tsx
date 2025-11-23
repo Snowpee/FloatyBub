@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, BookOpen, Edit, Trash2, Download, Upload } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { usePageContext } from '../hooks/usePageContext';
 import { useKnowledgeStore } from '../stores/knowledgeStore';
 import { KnowledgeBaseCard } from '../components/knowledge/KnowledgeBaseCard';
 import { KnowledgeBaseForm } from '../components/knowledge/KnowledgeBaseForm';
@@ -10,6 +12,7 @@ import { KnowledgeBulkImport } from '../components/knowledge/KnowledgeBulkImport
 import type { KnowledgeBase } from '../types/knowledge';
 
 const KnowledgeManagement: React.FC = () => {
+  const { className } = usePageContext();
   const {
     knowledgeBases,
     knowledgeBaseStats,
@@ -74,7 +77,7 @@ const KnowledgeManagement: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-base-200 p-6">
+    <div className={cn("min-h-screen bg-base-200 p-6", className)}>
       <div className="max-w-7xl mx-auto">
         {/* 页面标题 */}
         <div className="mb-8">

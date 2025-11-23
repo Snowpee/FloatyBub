@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
+import { cn } from '../lib/utils';
+import { usePageContext } from '../hooks/usePageContext';
 import {
   MessageCircle,
   Settings,
@@ -9,6 +11,7 @@ import {
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
+  const { className } = usePageContext();
   const {
     llmConfigs,
     aiRoles,
@@ -34,7 +37,7 @@ const Home: React.FC = () => {
 
   return (
     <div 
-      className="min-h-[calc(100vh-4rem)] bg-base-100"
+      className={cn("min-h-[calc(100vh-4rem)] bg-base-100", className)}
       style={{
         backgroundImage: `radial-gradient(circle at 30% 60%, var(--color-info) -200%, transparent 30%), radial-gradient(circle at 70% 50%, var(--color-warning) -200%, transparent 30%)`
       }}

@@ -1027,7 +1027,7 @@ const Layout: React.FC = () => {
               </div>
             </button>
           </div>
-          {isMobile() && isCapacitorIOS() && (
+          {/* {isMobile() && isCapacitorIOS() && (
             <div className="mt-2">
               <button
                 onClick={() => { navigate('/tests/mobile-nav-drag'); closeSidebarOnNonDesktop(); }}
@@ -1043,7 +1043,7 @@ const Layout: React.FC = () => {
                 </div>
               </button>
             </div>
-          )}
+          )} */}
           </div>
 
           {/* 导航菜单已移除，保留新建聊天按钮作为主要入口 */}
@@ -1237,7 +1237,7 @@ const Layout: React.FC = () => {
       <div
         ref={mainViewRef}
         className={cn(
-        "flex flex-col flex-1 min-h-screen h-screen bg-base-100",
+        "flex flex-col flex-1 min-h-screen h-screen bg-base-100 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
         // 在桌面端根据侧边栏状态调整左边距
         "lg:transition-all lg:duration-300 lg:ease-in-out",
         sidebarOpen ? "lg:ml-64" : "lg:ml-0"
@@ -1253,8 +1253,8 @@ const Layout: React.FC = () => {
         onTouchCancel={handleTouchCancelMain}
       >
         {/* 顶部栏 */}
-        <header className="bg-base-100 bg-opacity-90 pt-[env(safe-area-inset-top)]">
-          <div className="relative flex items-center h-16 px-3 md:px-4">
+        <header className="bg-base-100 bg-opacity-90 h-[var(--height-header)]">
+          <div className="relative flex items-center px-3 md:px-4 h-full">
             {/* 左侧按钮 */}
             <div className="flex items-center space-x-4">
               <button
@@ -1388,9 +1388,9 @@ const Layout: React.FC = () => {
 
         {/* 页面内容 */}
         <main className={cn("flex-1 overflow-y-scroll", {
-          'pb-[env(safe-area-inset-bottom)]': isMobile,
+          '': isMobile,
         })}>
-          <Outlet />
+          <Outlet context={{ className: "" }} />
       </main>
       <ConfirmDialog
         key={`confirm-${iosConfirmType || 'none'}-${renamingSessionId || 'na'}`}

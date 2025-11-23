@@ -20,9 +20,10 @@ import HeroModal from '../components/HeroModal';
 
 interface RolesPageProps {
   onCloseModal?: () => void;
+  className?: string;
 }
 
-const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
+const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal, className }) => {
   const {
     aiRoles,
     globalPrompts,
@@ -277,7 +278,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal }) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 md:pt-0">
+    <div className={cn("max-w-6xl mx-auto p-6 md:pt-0", className)}>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
           <p className="text-base-content/60">

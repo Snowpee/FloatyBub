@@ -22,9 +22,10 @@ import { getDefaultBaseUrl } from '../utils/providerUtils';
 
 interface ConfigPageProps {
   onCloseModal?: () => void;
+  className?: string;
 }
 
-const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
+const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal, className }) => {
   const {
     llmConfigs,
     addLLMConfig,
@@ -370,7 +371,7 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal }) => {
   // HeroModal 关闭逻辑通过 onClose 统一处理，无需监听原生 dialog 的 close 事件
 
   return (
-    <div className="max-w-6xl mx-auto p-6 md:pt-0">
+    <div className={cn("max-w-6xl mx-auto p-6 md:pt-0", className)}>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
           <p className="text-base-content/60">
