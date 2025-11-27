@@ -2134,6 +2134,182 @@ const ChatPage: React.FC = () => {
     }
   };
 
+  const debugTouchStartRoot = (e: React.TouchEvent) => {
+    const t = e.target as HTMLElement;
+    const css = t ? window.getComputedStyle(t) : ({} as any);
+    const touch = e.touches[0];
+    console.debug('[SwipeDebug]', {
+      loc: 'ChatRoot',
+      phase: 'start',
+      x: touch?.clientX,
+      y: touch?.clientY,
+      cancelable: e.nativeEvent.cancelable,
+      defaultPrevented: e.defaultPrevented,
+      targetTag: t?.tagName,
+      targetClasses: t?.className,
+      css_touchAction: css?.touchAction,
+      css_userSelect: css?.userSelect,
+      css_pointerEvents: css?.pointerEvents
+    });
+  };
+
+  const debugTouchMoveRoot = (e: React.TouchEvent) => {
+    const t = e.target as HTMLElement;
+    const css = t ? window.getComputedStyle(t) : ({} as any);
+    const touch = e.touches[0];
+    console.debug('[SwipeDebug]', {
+      loc: 'ChatRoot',
+      phase: 'move',
+      x: touch?.clientX,
+      y: touch?.clientY,
+      cancelable: e.nativeEvent.cancelable,
+      defaultPrevented: e.defaultPrevented,
+      targetTag: t?.tagName,
+      targetClasses: t?.className,
+      css_touchAction: css?.touchAction,
+      css_userSelect: css?.userSelect,
+      css_pointerEvents: css?.pointerEvents
+    });
+  };
+
+  const debugTouchEndRoot = (e: React.TouchEvent) => {
+    console.debug('[SwipeDebug]', { loc: 'ChatRoot', phase: 'end' });
+  };
+
+  const debugTouchStartList = (e: React.TouchEvent) => {
+    const t = e.target as HTMLElement;
+    const css = t ? window.getComputedStyle(t) : ({} as any);
+    const touch = e.touches[0];
+    console.debug('[SwipeDebug]', {
+      loc: 'ChatList',
+      phase: 'start',
+      x: touch?.clientX,
+      y: touch?.clientY,
+      cancelable: e.nativeEvent.cancelable,
+      defaultPrevented: e.defaultPrevented,
+      targetTag: t?.tagName,
+      targetClasses: t?.className,
+      css_touchAction: css?.touchAction,
+      css_userSelect: css?.userSelect,
+      css_pointerEvents: css?.pointerEvents
+    });
+  };
+
+  const debugTouchMoveList = (e: React.TouchEvent) => {
+    const t = e.target as HTMLElement;
+    const css = t ? window.getComputedStyle(t) : ({} as any);
+    const touch = e.touches[0];
+    console.debug('[SwipeDebug]', {
+      loc: 'ChatList',
+      phase: 'move',
+      x: touch?.clientX,
+      y: touch?.clientY,
+      cancelable: e.nativeEvent.cancelable,
+      defaultPrevented: e.defaultPrevented,
+      targetTag: t?.tagName,
+      targetClasses: t?.className,
+      css_touchAction: css?.touchAction,
+      css_userSelect: css?.userSelect,
+      css_pointerEvents: css?.pointerEvents
+    });
+  };
+
+  const debugTouchEndList = (e: React.TouchEvent) => {
+    console.debug('[SwipeDebug]', { loc: 'ChatList', phase: 'end' });
+  };
+
+  const debugTouchStartBubble = (e: React.TouchEvent) => {
+    const t = e.target as HTMLElement;
+    const css = t ? window.getComputedStyle(t) : ({} as any);
+    const touch = e.touches[0];
+    console.debug('[SwipeDebug]', {
+      loc: 'ChatBubble',
+      phase: 'start',
+      x: touch?.clientX,
+      y: touch?.clientY,
+      cancelable: e.nativeEvent.cancelable,
+      defaultPrevented: e.defaultPrevented,
+      targetTag: t?.tagName,
+      targetClasses: t?.className,
+      css_touchAction: css?.touchAction,
+      css_userSelect: css?.userSelect,
+      css_pointerEvents: css?.pointerEvents
+    });
+  };
+
+  const debugTouchMoveBubble = (e: React.TouchEvent) => {
+    const t = e.target as HTMLElement;
+    const css = t ? window.getComputedStyle(t) : ({} as any);
+    const touch = e.touches[0];
+    console.debug('[SwipeDebug]', {
+      loc: 'ChatBubble',
+      phase: 'move',
+      x: touch?.clientX,
+      y: touch?.clientY,
+      cancelable: e.nativeEvent.cancelable,
+      defaultPrevented: e.defaultPrevented,
+      targetTag: t?.tagName,
+      targetClasses: t?.className,
+      css_touchAction: css?.touchAction,
+      css_userSelect: css?.userSelect,
+      css_pointerEvents: css?.pointerEvents
+    });
+  };
+
+  const debugTouchEndBubble = (e: React.TouchEvent) => {
+    console.debug('[SwipeDebug]', { loc: 'ChatBubble', phase: 'end' });
+  };
+
+  useEffect(() => {
+    const start = (ev: TouchEvent) => {
+      const t = ev.target as HTMLElement;
+      const css = t ? window.getComputedStyle(t) : ({} as any);
+      const touch = ev.touches[0];
+      console.debug('[SwipeDebug]', {
+        loc: 'Document',
+        phase: 'start',
+        x: touch?.clientX,
+        y: touch?.clientY,
+        cancelable: ev.cancelable,
+        defaultPrevented: ev.defaultPrevented,
+        targetTag: t?.tagName,
+        targetClasses: t?.className,
+        css_touchAction: css?.touchAction,
+        css_userSelect: css?.userSelect,
+        css_pointerEvents: css?.pointerEvents
+      });
+    };
+    const move = (ev: TouchEvent) => {
+      const t = ev.target as HTMLElement;
+      const css = t ? window.getComputedStyle(t) : ({} as any);
+      const touch = ev.touches[0];
+      console.debug('[SwipeDebug]', {
+        loc: 'Document',
+        phase: 'move',
+        x: touch?.clientX,
+        y: touch?.clientY,
+        cancelable: ev.cancelable,
+        defaultPrevented: ev.defaultPrevented,
+        targetTag: t?.tagName,
+        targetClasses: t?.className,
+        css_touchAction: css?.touchAction,
+        css_userSelect: css?.userSelect,
+        css_pointerEvents: css?.pointerEvents
+      });
+    };
+    const end = () => {
+      console.debug('[SwipeDebug]', { loc: 'Document', phase: 'end' });
+    };
+    document.addEventListener('touchstart', start, { capture: true, passive: false });
+    document.addEventListener('touchmove', move, { capture: true, passive: false });
+    document.addEventListener('touchend', end, { capture: true, passive: false });
+    return () => {
+      document.removeEventListener('touchstart', start, { capture: true } as any);
+      document.removeEventListener('touchmove', move, { capture: true } as any);
+      document.removeEventListener('touchend', end, { capture: true } as any);
+    };
+  }, []);
+
   // 保持在 /chat 首屏，提供输入框与收藏助手选择，不再跳转角色选择器
 
   return (
@@ -2142,7 +2318,11 @@ const ChatPage: React.FC = () => {
       (!currentSession || currentSession.messages.length === 0) && "justify-center hero-bg-img h-[calc(100%+1px)]",
       pageClassName
     ) 
-    }>
+    }
+      onTouchStart={debugTouchStartRoot}
+      onTouchMove={debugTouchMoveRoot}
+      onTouchEnd={debugTouchEndRoot}
+    >
       {/* 消息列表 */}
       <div 
         ref={scrollMaskRef}
@@ -2151,6 +2331,9 @@ const ChatPage: React.FC = () => {
           scrollMaskClasses,
           "md:[--gradient-mask-padding:2rem]"
         )}
+        onTouchStart={debugTouchStartList}
+        onTouchMove={debugTouchMoveList}
+        onTouchEnd={debugTouchEndList}
       >
         <div className={cn(
           'max-w-3xl mx-auto w-full pb-12',
@@ -2215,6 +2398,7 @@ const ChatPage: React.FC = () => {
                 msg.role === 'user' ? 'chat-end' : 'chat-start',
                 chatStyle === 'document' && 'chat-box'
               )}
+              
             >
               <div className="chat-image avatar">
                 {msg.role === 'assistant' ? (
@@ -2288,17 +2472,21 @@ const ChatPage: React.FC = () => {
 
                 <div
                   className={cn(
-                    'chat-bubble cursor-pointer md:max-w-xl md:cursor-default relative group',
-                    msg.role === 'user'
-                      ? 'chat-bubble-accent'
-                      : ''
-                  )}
-                  onClick={() => {
-                    // 移动端点击切换按钮组显示
-                    if (window.innerWidth < 768) {
-                      setVisibleActionButtons(visibleActionButtons === msg.id ? null : msg.id);
-                    }
-                  }}
+                'chat-bubble cursor-pointer md:max-w-xl md:cursor-default relative group',
+                msg.role === 'user'
+                  ? 'chat-bubble-accent'
+                  : ''
+                )}
+
+              onTouchStart={debugTouchStartBubble}
+              onTouchMove={debugTouchMoveBubble}
+              onTouchEnd={debugTouchEndBubble}
+              onClick={() => {
+                // 移动端点击切换按钮组显示
+                if (window.innerWidth < 768) {
+                  setVisibleActionButtons(visibleActionButtons === msg.id ? null : msg.id);
+                }
+              }}
                 >
                   {/* 音频波纹 - 仅在AI消息播放时显示在右上角 */}
                   {msg.role === 'assistant' && voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id && (
@@ -2306,7 +2494,7 @@ const ChatPage: React.FC = () => {
                       <AudioWaveform className="bg-base-100 rounded-full p-1 shadow-sm" />
                     </div>
                   )}
-                  
+                  <div className="pointer-events-none">
                   {/* 显示思考过程 - 对AI消息且有实际思考内容时显示 */}
                    {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
                      <ThinkingProcess 
@@ -2361,10 +2549,10 @@ const ChatPage: React.FC = () => {
                   {msg.isStreaming && !isWebSearching && (
                     <Loader2 className="h-4 w-4 animate-spin mt-2" />
                   )}
-
+                </div>
                 {/* 操作按钮组 - hover时显示或移动端点击显示 */}
                 <div className={cn(
-                  'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-[var(--radius-box)] transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
+                  'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-[var(--radius-box)] transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm pointer-events-auto',
                   'opacity-0 group-hover:opacity-100', // 桌面端hover显示
                   'md:opacity-0 md:group-hover:opacity-100', // 桌面端确保hover效果
                   visibleActionButtons === msg.id ? 'opacity-100' : '', // 移动端点击显示
@@ -2599,7 +2787,7 @@ const ChatPage: React.FC = () => {
             placeholder={animatedPlaceholder}
             className="textarea textarea-ghost w-full resize-none focus:outline-none"
             rows={1}
-            style={{ minHeight: '40px', maxHeight: '120px' }}
+            style={{ minHeight: '40px', maxHeight: '120px'}}
             disabled={isGenerating}
           />
           {/* 模板替换预览 */}

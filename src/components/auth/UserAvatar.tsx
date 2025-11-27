@@ -213,7 +213,7 @@ export function UserAvatar({ onOpenSettings, onOpenProfileModal, className }: Us
               }}
               //点击后关闭本菜单
               
-              className="flex items-center gap-3"
+              className="flex items-center gap-3 h-10"
             >
               <Settings className="w-4 h-4" />
               设置
@@ -226,7 +226,7 @@ export function UserAvatar({ onOpenSettings, onOpenProfileModal, className }: Us
             >
               <button
                 onClick={handleDebug}
-                className="flex items-center gap-3 text-warning"
+                className="flex items-center gap-3 h-10 text-warning"
               >
                 <Bug className="w-4 h-4" />
                 调试连接
@@ -237,7 +237,7 @@ export function UserAvatar({ onOpenSettings, onOpenProfileModal, className }: Us
           <li>
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-3 text-error"
+              className="flex items-center gap-3 h-10 text-error"
             >
               <LogOut className="w-4 h-4" />
               退出登录
