@@ -5,6 +5,7 @@
   --safe-top: env(safe-area-inset-top);
   --safe-left: env(safe-area-inset-left);
   --safe-right: env(safe-area-inset-right);
+  --height-header: 4rem;
 
 }
 @plugin "daisyui" {
@@ -30,7 +31,7 @@
 */
 @plugin "daisyui/theme" {
   name: "floaty";
-  default: false;
+  default: true;
   prefersdark: false;
   color-scheme: "light";
   --color-base-100: oklch(100% 0 0);
@@ -113,11 +114,23 @@ code:not(pre > code)  {
     }
   }
 }
+
 /* 
 =====
 自定义类
 =====
 */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: max(100vh, 100dvh); /* 强制占满屏幕 */
+    overflow: hidden; /* 禁止 body 产生滚动条 */
+    overscroll-behavior-y: none; /* 关键：禁用系统默认的橡皮筋效果 */
+    -webkit-overflow-scrolling: touch;
+}
+
+
 .select,
 .input,
 .textarea {
@@ -191,6 +204,19 @@ dialog .modal-box {
     }
   }
 }
+/* 定义垂直方向的 join-item-box 样式 用于 box 类型的 join-item */
+.join.join-vertical .join-item-box {
+  border-width: 0 var(--border) 0 var(--border);
+  border-color: var(--color-base-300);
+}
+.join.join-vertical .join-item-box:first-child {
+  border-top-width: var(--border);
+  border-radius: var(--radius-box) var(--radius-box) 0 0;
+}
+.join.join-vertical .join-item-box:last-child {
+  border-bottom-width: var(--border);
+  border-radius: 0 0 var(--radius-box) var(--radius-box);
+}
 /* 自定义按钮样式 - 使用Tailwind CSS 4的@utility API语法 */
 @layer utilities {
   @media (max-width: 767px) {
@@ -249,11 +275,11 @@ dialog .modal-box {
 @media (hover: none), (any-hover: none) {
   .settings-modal .btn:hover,
   .settings-modal button:hover {
-    background-color: transparent;
+    /* background-color: transparent; */
   }
-  /* 明确保留按压时的视觉反馈 */
-  .settings-modal .menu li .btn:active,
-  .settings-modal .menu li button:active {
+
+  .settings-modal .btn:active,
+  .settings-modal button:active {
     background-color: var(--color-base-300);
   }
 }

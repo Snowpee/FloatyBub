@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, Play, Square, RefreshCw, Settings, Plus, Trash2, Activity, X, Database } from 'lucide-react';
 import { toast } from '../hooks/useToast';
 import { useAppStore } from '../store';
-import { getApiBaseUrl } from '../lib/utils';
+import { getApiBaseUrl, cn } from '../lib/utils';
 import { getCacheStats, clearAllCache, generateStreamingVoiceUrl } from '../utils/voiceUtils';
 
 interface VoiceModel {
@@ -27,9 +27,10 @@ interface VoiceSettings {
 
 interface VoiceSettingsPageProps {
   onCloseModal?: () => void;
+  className?: string;
 }
 
-const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) => {
+const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal, className }) => {
   const { voiceSettings, setVoiceSettings } = useAppStore();
   
   const [settings, setSettings] = useState<VoiceSettings>({
@@ -394,7 +395,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
 
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto md:pt-0">
+    <div className={cn("p-4 md:p-6 max-w-6xl mx-auto md:pt-0", className)}>
       <div className="mb-0">
         <p className="text-base-content/70">
           配置文本转语音功能的相关设置
@@ -402,7 +403,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
       </div>
 
       {/* 供应商选择 */}
-      <div className="card mt-4 mb-4">
+      <div className="card mt-4 mb-4 bg-base-100">
         <div className="card-body pt-4 md:pt-6 gap-4">
           <h3 className="font-medium text-base mb-2">供应商配置</h3>
           <div className="form-control w-full flex">
@@ -526,7 +527,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal }) =
         </div>
       {/* 自定义模型管理 */}
       {settings.provider === 'fish-audio' && (
-        <div className="card my-4">
+        <div className="card my-4 bg-base-100">
           <div className="card-body pt-4 md:pt-6">
             <h3 className="font-medium text-base mb-4">语音模型管理</h3>
             

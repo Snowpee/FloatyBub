@@ -23,6 +23,7 @@ import MobileNavStandalone from '../pages/tests/MobileNavStandalone';
 import MobileNavDragTest from '../pages/tests/MobileNavDragTest';
 import SupabaseDebugPage from '../pages/SupabaseDebugPage';
 import SyncTestPage from '../pages/SyncTestPage';
+import ActionSheetDemo from '../components/ActionSheetDemo';
 
 export const router = createBrowserRouter([
   {
@@ -117,6 +118,10 @@ export const router = createBrowserRouter([
       {
         path: 'tests/sync-test',
         element: <SyncTestPage />
+      },
+      {
+        path: 'demo/action-sheet',
+        element: <ActionSheetDemo />
       },
       {
         path: '*',

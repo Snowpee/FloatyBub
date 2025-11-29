@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Settings, Users, Database, FileText, UserCircle, Volume2, ArrowLeft, ChevronLeft, ChevronRight, Globe, BookOpen, Search } from 'lucide-react';
 import { cn, isCapacitorIOS } from '../lib/utils';
+import { NavProvider, NavContainer, NavLink, BackButton } from './navigation/MobileNav';
 import { useDragToClose } from '../hooks/useDragToClose';
 import ConfigPage from '../pages/ConfigPage';
 import RolesPage from '../pages/RolesPage';
@@ -22,18 +23,12 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultTab = 'global' }) => {
   const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
-  const [showList, setShowList] = useState(true); // 移动端是否显示列表视图
   const [isClosing, setIsClosing] = useState(false); // 控制关闭动画
   const [shouldRender, setShouldRender] = useState(isOpen); // 控制组件渲染
   const [isVisible, setIsVisible] = useState(false); // 控制弹窗可见性
   const isIOS = isCapacitorIOS();
+  const scrollLockRef = useRef<{ scrollY: number; bodyTop: string; bodyPosition: string; bodyWidth: string; htmlOverflow: string; htmlOverscrollBehavior: string; rootPointerEvents: string; rootTouchAction: string } | null>(null);
 
-  // iOS 导航动画状态
-  const [navDirection, setNavDirection] = useState<'push' | 'pop' | null>(null);
-  const [iosEnterReady, setIosEnterReady] = useState(false);
-  const [iosSwipeX, setIosSwipeX] = useState(0);
-  const iosSwipeRef = useRef<{ tracking: boolean; startX: number; startY: number }>({ tracking: false, startX: 0, startY: 0 });
-  
   // 二级页面检测状态
   const [isDetailView, setIsDetailView] = useState(false);
   const [detailTitle, setDetailTitle] = useState('');
@@ -131,8 +126,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       setIsClosing(false); // 确保关闭状态也被重置
       // 重置所有拖动相关状态为初始值
       resetDragState();
-      // 重置移动端视图状态为列表视图，避免动画闪烁
-      setShowList(true);
       
       // 延迟一帧开始入场动画，确保初始状态正确
       const timer = setTimeout(() => {
@@ -141,13 +134,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       return () => clearTimeout(timer);
     } else if (shouldRender) {
       // 开始关闭流程
-      const isMobile = window.innerWidth < 768;
-      
       setIsClosing(true);
       setIsVisible(false);
       
       // 等待动画完成后隐藏组件
-      const delay = isMobile ? 300 : 200;
+      const delay = window.innerWidth < 768 ? 300 : 200;
       const timer = setTimeout(() => {
         setShouldRender(false);
         setIsClosing(false);
@@ -155,6 +146,55 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       return () => clearTimeout(timer);
     }
   }, [isOpen]); // 只依赖isOpen，避免循环依赖
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById('root') as HTMLElement | null;
+    const isPhone = () => {
+      const w = window.innerWidth;
+      const ua = navigator.userAgent || '';
+      const isMobileUA = /Mobi|Android|iPhone|iPod/i.test(ua);
+      const isIPad = /iPad/i.test(ua);
+      return w < 768 && isMobileUA && !isIPad;
+    };
+    if (isOpen && isPhone()) {
+      const prev = {
+        scrollY: window.scrollY || 0,
+        bodyTop: body.style.top,
+        bodyPosition: body.style.position,
+        bodyWidth: body.style.width,
+        htmlOverflow: html.style.overflow,
+        htmlOverscrollBehavior: (html.style as any).overscrollBehavior || '',
+        rootPointerEvents: root?.style.pointerEvents || '',
+        rootTouchAction: (root?.style as any)?.touchAction || ''
+      };
+      scrollLockRef.current = prev;
+      html.style.overflow = 'hidden';
+      (html.style as any).overscrollBehavior = 'none';
+      body.style.position = 'fixed';
+      body.style.top = `-${prev.scrollY}px`;
+      body.style.width = '100%';
+      if (root) {
+        root.style.pointerEvents = 'none';
+        (root.style as any).touchAction = 'none';
+      }
+    } else {
+      const prev = scrollLockRef.current;
+      html.style.overflow = prev?.htmlOverflow || '';
+      (html.style as any).overscrollBehavior = prev?.htmlOverscrollBehavior || '';
+      body.style.position = prev?.bodyPosition || '';
+      body.style.top = prev?.bodyTop || '';
+      body.style.width = prev?.bodyWidth || '';
+      if (root) {
+        root.style.pointerEvents = prev?.rootPointerEvents || '';
+        (root.style as any).touchAction = prev?.rootTouchAction || '';
+      }
+      if (prev && typeof prev.scrollY === 'number') {
+        window.scrollTo(0, prev.scrollY);
+      }
+    }
+  }, [isOpen]);
 
   const tabs = [
     {
@@ -216,58 +256,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ConfigPage;
 
-  // 移动端处理函数
-  const handleMobileTabClick = (tabId: TabType) => {
-    setActiveTab(tabId);
-    if (isIOS) {
-      // iOS: 使用 push 动画进入详情页
-      setNavDirection('push');
-      setIosEnterReady(false);
-      setShowList(false);
-      // 下一帧标记准备进入，使 CSS 从 100% -> 0 过渡
-      setTimeout(() => setIosEnterReady(true), 16);
-    } else {
-      setShowList(false);
-    }
-    
-    // 强制更新状态检测，确保视图切换时状态正确
-    const forceUpdateState = () => {
-      const activeTabElement = document.querySelector(`[data-${tabId}-page]`);
-      if (activeTabElement) {
-        const isDetail = activeTabElement.getAttribute('data-is-detail-view') === 'true';
-        const title = activeTabElement.getAttribute('data-detail-title') || '';
-        setIsDetailView(isDetail);
-        setDetailTitle(title);
-      } else {
-        setIsDetailView(false);
-        setDetailTitle('');
-      }
-    };
-    
-    // 多次检测确保状态正确更新
-    setTimeout(forceUpdateState, 10);
-    setTimeout(forceUpdateState, 50);
-    setTimeout(forceUpdateState, 100);
-  };
-
-  const handleBackToList = () => {
-    if (isIOS && !showList) {
-      // iOS: 使用 pop 动画返回列表
-      setNavDirection('pop');
-      setIosEnterReady(false);
-      // 动画结束后再切换到列表视图
-      setTimeout(() => {
-        setShowList(true);
-        setNavDirection(null);
-        setIosSwipeX(0);
-      }, 250);
-      return;
-    }
-    setShowList(true);
-    // 返回列表时重置详情视图状态
-    setIsDetailView(false);
-    setDetailTitle('');
-  };
+  // 移动端：使用 MobileNav，点击列表项通过 NavLink 进入详情页
 
   // 桌面端标签切换处理函数
   const handleDesktopTabClick = (tabId: TabType) => {
@@ -299,19 +288,93 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       return;
     }
     
-    // 检测是否为移动端
-    const isMobile = window.innerWidth < 768;
-    
-    if (isMobile) {
-      // 移动端：重置到列表视图，然后调用onClose
-      setShowList(true);
-    }
-    
     // 统一调用onClose，动画由useEffect处理
     onClose();
   };
 
+  // 移动端根页面：设置入口列表
+  const SettingsRootList: React.FC = () => {
+    return (
+      <div className="flex flex-col relative overflow-hidden">
+        <div 
+          {...bind()}
+          className={cn(
+            "px-2 bg-base-200 flex h-[var(--height-header)]",
+            "cursor-move select-none",
+            "md:touch-auto touch-none",
+            isDragging && "bg-base-200/50"
+          )}
+        >
+          <div className="flex w-[var(--height-header)] h-[var(--height-header)] items-center justify-center">
+            <button onClick={handleClose} className="btn btn-circle bg-base-100">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <h2 className="text-lg font-semibold text-base-content m-auto items-center justify-center flex w-[calc(100%-2rem)]">设置</h2>
+          <div className="flex w-[var(--height-header)] h-[var(--height-header)] items-center justify-center">
+          </div>
+        </div>
+        <div className="flex-1 bg-base-200 overflow-y-scroll max-h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header))] h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header))] md:max-h-auto md:h-auto overscroll-contain">
+          <ul className="join join-vertical p-4 space-y-0 w-full min-h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header)+1px)]">
+            {tabs.map((tab, index) => {
+              const Icon = tab.icon;
+              const isLast = index === tabs.length - 1;
+              return (
+                <NavLink
+                  key={tab.id}
+                  component={PageWrapper as any}
+                  props={{ title: tab.name, Component: tab.component, tabId: tab.id }}
+                  className="flex items-center gap-4 w-full text-left p-0 pl-4 bg-base-100 join-item-box select-none"
+                >
+                  <div className="flex items-center justify-center w-10 h-10 bg-primary/10 rounded-lg">
+                    <Icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className={`flex flex-1 h-18 items-center justify-center mr-4 border-b border-base-300 ${isLast ? 'border-b-0' : ''}`}>
+                    <div className="flex-1">
+                      <div className="font-medium text-base text-base-content">{tab.name}</div>
+                    </div>
+                    <div className="text-base-content">
+                      <ChevronLeft className="h-4 w-4 rotate-180" />
+                    </div>
+                  </div>
+                </NavLink>
+              )
+            })}
+          </ul>
+        </div>
+      </div>
+    )
+  };
 
+  // 移动端详情页包装：带返回与关闭按钮
+  const PageWrapper: React.FC<{ title: string; Component: React.ComponentType<any>; tabId?: TabType }> = ({ title, Component, tabId }) => {
+    useEffect(() => { setActiveTab((tabId as TabType) || activeTab); }, [tabId]);
+    return (
+      <div className="flex flex-col overflow-hidden min-h-full bg-base-200">
+        <div 
+          {...bind()}
+          className={cn(
+            "px-2 flex items-center gap-3 h-16",
+            "cursor-move select-none",
+            "md:touch-auto touch-none",
+            isDragging && "bg-base-200/50"
+          )}
+        >
+          <div className="flex w-16 h-16 items-center justify-center">
+            <BackButton className="btn btn-circle">
+              <ChevronLeft className="h-5 w-5" />
+            </BackButton>
+          </div>
+          <h2 className="text-lg font-semibold text-base-content m-auto items-center justify-center flex w-[calc(100%-2rem)]">{title}</h2>
+          <div className="flex w-16 h-16 items-center justify-center">
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-scroll max-h-[calc(100vh-4rem)] h-[calc(100vh-4rem)] md:max-h-auto md:h-auto overscroll-contain">
+          <Component className="min-h-[calc(100vh-4rem+1px)]" onCloseModal={handleClose} />
+        </div>
+      </div>
+    )
+  };
 
   if (!shouldRender) {
     return null;
@@ -327,7 +390,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
       // 移动端：顶部预留1rem
       "pt-4 md:pt-0",
       // PWA 安全区
-      "pt-[calc(env(safe-area-inset-top)+1rem)]"
+      "pt-[env(safe-area-inset-top)]"
     )}>
       {/* 背景遮罩 */}
       <div 
@@ -410,197 +473,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
           </div>
         </div>
 
-        {/* 移动端内容 */}
+        {/* 移动端内容：使用标准 MobileNav 组件 */}
         <div className="md:hidden w-full flex flex-col relative overflow-hidden">
-          {showList ? (
-            // 移动端设置列表视图
-            <div className={cn("mobile-list flex flex-col relative overflow-hidden")}> 
-              <div 
-                {...bind()}
-                className={cn(
-                  "p-4 border-b border-base-300 flex items-center justify-between",
-                  // 拖动区域样式
-                  "cursor-move select-none",
-                  // 移动端触摸操作优化 - 防止浏览器默认滚动行为干扰拖动
-                  "md:touch-auto touch-none",
-                  // 拖动时的视觉反馈
-                  isDragging && "bg-base-200/50"
-                )}
-              >
-                <h2 className="text-lg font-semibold text-base-content">设置</h2>
-                <button
-                   onClick={handleClose}
-                   className="btn btn-ghost btn-sm btn-circle"
-                 >
-                   <X className="h-4 w-4" />
-                </button>
-              </div>
-              
-              {/* 设置项列表 */}
-              <div className="flex-1 overflow-y-auto">
-                <ul className="menu p-4 space-y-2 w-full">
-                  {tabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <li key={tab.id}>
-                        <button
-                          onClick={() => handleMobileTabClick(tab.id)}
-                          className="flex items-center gap-4 w-full text-left p-4 rounded-lg active:bg-base-200 md:hover:bg-base-200 transition-colors"
-                        >
-                          <div className="flex items-center justify-center w-10 h-10 bg-primary/10 rounded-lg">
-                            <Icon className="h-5 w-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-medium text-base text-base-content">{tab.name}</div>
-                          </div>
-                          <div className="text-base-content">
-                            <ChevronLeft className="h-4 w-4 rotate-180" />
-                          </div>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </div>
-          ) : (
-            // 移动端设置详情视图
-            <div
-              className={cn(
-                "mobile-detail flex flex-col overflow-hidden",
-                // iOS 导航动画：push 进入 / pop 离开
-                isIOS && iosEnterReady && navDirection === 'push' && 'ios-enter',
-                isIOS && navDirection === 'pop' && 'ios-leave'
-              )}
-              // iOS 侧滑返回手势（左缘起滑）
-              onTouchStart={(e) => {
-                if (!isIOS) return;
-                if (e.touches.length !== 1) return;
-                const t = e.touches[0];
-                iosSwipeRef.current.tracking = t.clientX < 24; // 左缘 24px 以内启动
-                iosSwipeRef.current.startX = t.clientX;
-                iosSwipeRef.current.startY = t.clientY;
-              }}
-              onTouchMove={(e) => {
-                if (!isIOS || !iosSwipeRef.current.tracking) return;
-                const t = e.touches[0];
-                const dx = t.clientX - iosSwipeRef.current.startX;
-                const dy = Math.abs(t.clientY - iosSwipeRef.current.startY);
-                // 垂直滑动干扰时忽略
-                if (dy > 24 && dx < 30) return;
-                const clamped = Math.max(0, Math.min(dx, window.innerWidth));
-                setIosSwipeX(clamped);
-              }}
-              onTouchEnd={() => {
-                if (!isIOS || !iosSwipeRef.current.tracking) return;
-                const threshold = 80; // 触发返回的最小位移
-                if (iosSwipeX > threshold) {
-                  setIosSwipeX(0);
-                  handleBackToList();
-                } else {
-                  // 回弹
-                  setIosSwipeX(0);
-                }
-                iosSwipeRef.current.tracking = false;
-              }}
-              style={isIOS && iosSwipeX > 0 ? { transform: `translateX(${iosSwipeX}px)` } : undefined}
-            >
-              <div 
-                {...bind()}
-                className={cn(
-                  "p-4 border-b border-base-300 flex items-center gap-3",
-                  // 拖动区域样式
-                  "cursor-move select-none",
-                  // 移动端触摸操作优化 - 防止浏览器默认滚动行为干扰拖动
-                  "md:touch-auto touch-none",
-                  // 拖动时的视觉反馈
-                  isDragging && "bg-base-200/50"
-                )}
-              >
-                {(() => {
-                  // 使用React状态而不是实时DOM查询，确保状态一致性
-                  if (isDetailView && detailTitle) {
-                    return (
-                      <>                        <button
-                          onClick={() => {
-                            // 对于二级页面，我们需要返回到上一级而不是关闭整个模态框
-                            // 查找知识库条目管理器的返回按钮并触发点击
-                            const knowledgeEntryBackButton = document.querySelector('.knowledge-entry-manager [data-back-button]') as HTMLButtonElement;
-                            if (knowledgeEntryBackButton) {
-                              knowledgeEntryBackButton.click();
-                            } else {
-                              // 如果没找到特定的返回按钮，则查找通用返回按钮
-                              const backButton = document.querySelector('[data-back-button]') as HTMLButtonElement;
-                              if (backButton) {
-                                backButton.click();
-                              }
-                            }
-                            
-                            // 强制更新状态，确保返回后状态正确
-                            const forceUpdateState = () => {
-                              const activeTabElement = document.querySelector(`[data-${activeTab}-page]`);
-                              if (activeTabElement) {
-                                const isDetail = activeTabElement.getAttribute('data-is-detail-view') === 'true';
-                                const title = activeTabElement.getAttribute('data-detail-title') || '';
-                                setIsDetailView(isDetail);
-                                setDetailTitle(title);
-                              } else {
-                                setIsDetailView(false);
-                                setDetailTitle('');
-                              }
-                            };
-                            
-                            // 多次检测确保状态正确更新
-                            setTimeout(forceUpdateState, 10);
-                            setTimeout(forceUpdateState, 50);
-                            setTimeout(forceUpdateState, 100);
-                          }}
-                          className="btn btn-ghost btn-sm btn-circle"
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <h2 className="text-lg font-semibold text-base-content flex-1">
-                          {detailTitle}
-                        </h2>
-                      </>
-                    );
-                  }
-                  
-                  // 主视图或无详情时显示默认标题
-                  return (
-                    <>
-                      <button
-                        onClick={handleBackToList}
-                        className="btn btn-ghost btn-sm btn-circle"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                      <h2 className="text-lg font-semibold text-base-content flex-1">
-                        {tabs.find(tab => tab.id === activeTab)?.name}
-                      </h2>
-                    </>
-                 );
-                })()}
-                <button
-                   onClick={handleClose}
-                   className="btn btn-ghost btn-sm btn-circle"
-                 >
-                   <X className="h-4 w-4" />
-                 </button>
-              </div>
-              
-              {/* 内容区域 */}
-              <div className="flex-1 overflow-y-auto">
-                <ActiveComponent onCloseModal={handleClose} />
-              </div>
-            </div>
-          )}
+          <NavProvider root={SettingsRootList}>
+            <NavContainer animated swipeGesture iosSwipeStartMargin={isIOS ? 0 : 30} />
+          </NavProvider>
         </div>
 
-        {/* 右侧内容区域 */}
+        {/* 右侧内容区域（仅桌面端渲染，避免移动端渲染导致 NavLink 无 Provider） */}
+        { !isMobile && (
         <div className="hidden md:flex flex-1 flex-col min-h-0">
           {/* 桌面端标题栏 */}
-          <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0">
+          <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0 bg-base-200">
             <div className="flex items-center gap-3">
               {isDetailView && detailTitle ? (
                 <div className="flex items-center gap-3">
@@ -659,10 +543,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
           </div>
           
           {/* 内容区域 */}
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <ActiveComponent onCloseModal={handleClose} />
+          <div className="flex-1 overflow-y-auto min-h-0 bg-base-200">
+            {(ActiveComponent as any) && (
+              <ActiveComponent 
+                {...({ className: 'h-fit-content' } as any)}
+                onCloseModal={handleClose} 
+              />
+            )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

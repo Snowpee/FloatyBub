@@ -35,13 +35,6 @@ const LongPressMenuPlayground: React.FC = () => {
           '初次问候',
           '阿里妈妈 AIGC 招聘',
           '旅行计划',
-          '其它',
-          '其它',
-          '其它',
-          '其它',
-          '其它',
-          '其它',
-          '其它',
           '周报生成助手'
         ].map((t, i) => (
           <LongPressMenu key={i} items={menuItems}>

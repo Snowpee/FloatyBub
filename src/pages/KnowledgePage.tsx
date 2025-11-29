@@ -1,19 +1,22 @@
 // 知识库管理页面组件
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, BookOpen, Upload, FileText, Calendar, Edit, Trash2, Download } from 'lucide-react';
+import { Plus, Search, BookOpen, Upload, FileText, Calendar, Edit, Trash2, Download, X, ArrowLeft } from 'lucide-react';
 import { useKnowledgeStore } from '../stores/knowledgeStore';
 import { KnowledgeBaseForm } from '../components/knowledge/KnowledgeBaseForm';
 import { KnowledgeEntryManager } from '../components/knowledge/KnowledgeEntryManager';
 import { KnowledgeBulkImport } from '../components/knowledge/KnowledgeBulkImport';
 import ConfirmDialog from '../components/ConfirmDialog';
 import type { KnowledgeBase } from '../types/knowledge';
+import { NavLink, BackButton } from '../components/navigation/MobileNav';
+import { cn } from '../lib/utils';
 
 interface KnowledgePageProps {
   onCloseModal?: () => void;
+  className?: string;
 }
 
-const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
+const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal, className }) => {
   const {
     knowledgeBases,
     loading,
@@ -123,11 +126,12 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
 
   return (
     <div 
-      className="p-6 md:pt-0" 
+      className={cn("p-4 md:pt-0", className)} 
       data-knowledge-page
       data-is-detail-view={showEntryManager ? 'true' : 'false'}
       data-detail-title={selectedKnowledgeBase?.name || ''}
     >
+      {(() => { return null })()}
       {/* 隐藏的返回按钮，供SettingsModal调用 */}
       <button
         data-back-button
@@ -139,7 +143,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
       {!showEntryManager && (
         <>
           {/* 页面头部 */}
-          <div className="mb-6">
+          <div className="mb-4">
             <div className="flex items-center justify-between mb-4">
               <div>
                 {/* <h1 className="text-2xl font-bold text-base-content">知识库管理</h1> */}
@@ -192,7 +196,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredKnowledgeBases.map((knowledgeBase) => {
                 const stats = knowledgeBaseStats[knowledgeBase.id];
                 return (
@@ -216,43 +220,56 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
                           </div>
                         </div>
 
-                        {/* 操作按钮 */}
-                        <div className="dropdown dropdown-end transition-opacity">
-                          <div tabIndex={0} role="button" className="btn btn-ghost btn-sm btn-circle">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                            </svg>
-                          </div>
-                          <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
-                            <li>
-                              <button onClick={() => handleViewKnowledgeBase(knowledgeBase)}>
-                                <FileText className="w-4 h-4" />
-                                查看详情
-                              </button>
-                            </li>
-                            <li>
-                              <button onClick={() => handleEditKnowledgeBase(knowledgeBase)}>
-                                <Edit className="w-4 h-4" />
-                                编辑
-                              </button>
-                            </li>
-                            <li>
-                              <button onClick={() => handleBulkImport(knowledgeBase)}>
-                                <Upload className="w-4 h-4" />
-                                批量导入
-                              </button>
-                            </li>
-                            <li>
-                              <button 
-                                onClick={() => handleDeleteKnowledgeBase(knowledgeBase)}
-                                className="text-error"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                删除
-                              </button>
-                            </li>
-                          </ul>
+                      {/* 操作按钮 */}
+                      <div className="dropdown dropdown-end transition-opacity">
+                        <div tabIndex={0} role="button" className="btn btn-ghost btn-sm btn-circle">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
                         </div>
+                        <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
+                          <li>
+                            <div className="w-full">
+                              {typeof window !== 'undefined' && window.innerWidth < 768 ? (
+                                <NavLink
+                                  component={KBEntryManagerPage as any}
+                                  props={{ kb: knowledgeBase, onCloseModal }}
+                                  className="w-full flex items-center gap-2 px-3 py-2"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                  查看详情
+                                </NavLink>
+                              ) : (
+                                <button className="flex items-center gap-2 px-3 py-2" onClick={() => handleViewKnowledgeBase(knowledgeBase)}>
+                                  <FileText className="w-4 h-4" />
+                                  查看详情
+                                </button>
+                              )}
+                          </div>
+                        </li>
+                          <li>
+                            <button onClick={() => handleEditKnowledgeBase(knowledgeBase)}>
+                              <Edit className="w-4 h-4" />
+                              编辑
+                            </button>
+                          </li>
+                          <li>
+                            <button onClick={() => handleBulkImport(knowledgeBase)}>
+                              <Upload className="w-4 h-4" />
+                              批量导入
+                            </button>
+                          </li>
+                          <li>
+                            <button 
+                              onClick={() => handleDeleteKnowledgeBase(knowledgeBase)}
+                              className="text-error"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              删除
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
                       </div>
 
                       {/* 描述 */}
@@ -278,12 +295,17 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
 
                       {/* 操作按钮 */}
                       <div className="card-actions justify-end mt-4">
-                        <button
-                          onClick={() => handleViewKnowledgeBase(knowledgeBase)}
-                          className="btn btn-sm"
-                        >
-                          查看详情
-                        </button>
+                        {typeof window !== 'undefined' && window.innerWidth < 768 ? (
+                          <NavLink
+                            component={KBEntryManagerPage as any}
+                            props={{ kb: knowledgeBase, onCloseModal }}
+                            className="btn btn-sm"
+                          >
+                            查看详情
+                          </NavLink>
+                        ) : (
+                          <button className="btn btn-sm" onClick={() => handleViewKnowledgeBase(knowledgeBase)}>查看详情</button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -340,6 +362,28 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal }) => {
         cancelText="取消"
         variant="danger"
       />
+    </div>
+  );
+};
+
+// 移动端：知识库条目详情页包装（二级页面）
+const KBEntryManagerPage: React.FC<{ kb: KnowledgeBase; onCloseModal?: () => void }> = ({ kb, onCloseModal }) => {
+  return (
+    <div className="flex flex-col overflow-hidden">
+      <div className="p-4 border-b border-base-300 flex items-center justify-between h-14">
+        <div className="flex items-center gap-3">
+          <BackButton className="btn btn-ghost btn-sm btn-circle">
+            <ArrowLeft className="h-4 w-4" />
+          </BackButton>
+          <h2 className="text-lg font-semibold text-base-content">{kb.name}</h2>
+        </div>
+        <button onClick={onCloseModal} className="btn btn-ghost btn-sm btn-circle">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-6 max-h-[calc(100vh-4.5rem)] md:max-h-auto">
+        <KnowledgeEntryManager knowledgeBase={kb} onClose={onCloseModal} />
+      </div>
     </div>
   );
 };

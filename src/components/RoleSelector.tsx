@@ -7,7 +7,11 @@ import { toast } from '../hooks/useToast';
 import Avatar from './Avatar';
 import FavoriteButton from './FavoriteButton';
 
-const RoleSelector: React.FC = () => {
+interface RoleSelectorProps {
+  className?: string;
+}
+
+const RoleSelector: React.FC<RoleSelectorProps> = ({ className }) => {
   const navigate = useNavigate();
   const {
     aiRoles,
@@ -170,7 +174,7 @@ const RoleSelector: React.FC = () => {
   }
 
   return (
-    <div className="w-full mx-auto p-6 py-12 bg-base-100">
+    <div className={cn("w-full mx-auto p-6 py-12 bg-base-100", className)}>
       <div className='max-w-6xl mx-auto'>
       <div className="text-center mb-8">
         <div className="flex items-center justify-center mb-4">

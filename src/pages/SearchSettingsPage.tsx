@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../store';
 import { toast } from '../hooks/useToast';
 import { Search, Globe, Shield, KeyRound, Activity } from 'lucide-react';
-import { getApiBaseUrl } from '../lib/utils';
+import { getApiBaseUrl, cn } from '../lib/utils';
 
 export interface SearchSettingsPageProps {
   onCloseModal?: () => void;
+  className?: string;
 }
 
-const SearchSettingsPage: React.FC<SearchSettingsPageProps> = ({ onCloseModal }) => {
+const SearchSettingsPage: React.FC<SearchSettingsPageProps> = ({ onCloseModal, className }) => {
   const { searchConfig, setSearchConfig, updateSearchConfig } = useAppStore();
 
   const [localConfig, setLocalConfig] = useState(() => ({
@@ -84,12 +85,12 @@ const SearchSettingsPage: React.FC<SearchSettingsPageProps> = ({ onCloseModal })
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto md:pt-0">
+    <div className={cn("p-4 md:p-6 max-w-6xl mx-auto md:pt-0", className)}>
       <div className="mb-0">
         <p className="text-base-content/70">配置联网搜索的相关设置</p>
       </div>
 
-      <div className="card mt-4 mb-4">
+      <div className="card mt-4 mb-4 bg-base-100">
         <div className="card-body pt-4 md:pt-6 gap-4">
           <h3 className="font-medium text-base mb-2">基础设置</h3>
           <div className="form-control w-full flex">
@@ -132,7 +133,7 @@ const SearchSettingsPage: React.FC<SearchSettingsPageProps> = ({ onCloseModal })
         </div>
       </div>
 
-      <div className="card my-4">
+      <div className="card my-4 bg-base-100">
         <div className="card-body pt-4 md:pt-6 gap-4">
           <h3 className="font-medium text-base mb-4">密钥与引擎</h3>
 

@@ -1,8 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { Home, ArrowLeft } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { usePageContext } from '../hooks/usePageContext';
 
 const NotFound = () => {
   const navigate = useNavigate();
+  const { className } = usePageContext();
 
   const handleGoHome = () => {
     navigate('/');
@@ -13,7 +16,7 @@ const NotFound = () => {
   };
 
   return (
-    <div className="h-full flex items-center justify-center bg-base-100">
+    <div className={cn("h-full flex items-center justify-center bg-base-100", className)}>
       <div className="text-center max-w-md mx-auto px-6">
         {/* 404 图标 */}
         <div className="mb-8">

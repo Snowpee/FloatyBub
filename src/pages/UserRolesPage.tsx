@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Edit, Trash2, Save, X, User, CheckCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, X, User, CheckCircle, MoreHorizontal } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore, UserProfile } from '../store';
 import { generateRandomLocalAvatar } from '../utils/avatarUtils';
@@ -11,9 +11,10 @@ import { toast } from '../hooks/useToast';
 
 interface userRolesPageProps {
   onCloseModal?: () => void;
+  className?: string;
 }
 
-const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal }) => {
+const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal, className }) => {
   const {
     userRoles,
     currentUserProfile,
@@ -129,8 +130,8 @@ const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal }) => {
 
 
   return (
-    <div className="max-w-6xl mx-auto p-6 md:pt-0">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div className={cn("max-w-6xl mx-auto p-4 md:pt-0", className)}>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
         <div>
           <p className="text-base-content/60">管理用户资料，在对话时传递给AI</p>
         </div>
@@ -145,7 +146,7 @@ const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal }) => {
 
       {/* 当前用户显示 */}
       {currentUserProfile && (
-        <div className="hero-list p-4 mb-6">
+        <div className="hero-list p-4 mb-4">
           <div className="flex items-center gap-3">
             <div className="avatar">
               <div className="w-10 h-10 rounded-full">
@@ -190,7 +191,7 @@ const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal }) => {
                   : "border-base-300 hover:border-base-400"
               )}
             >
-              <div className="flex items-start justify-between">
+              <div className="flex items-center justify-between">
                 <div className="flex items-start gap-3 flex-1">
                   <div className="avatar">
                     <div className="w-12 h-12 rounded-full">
@@ -212,30 +213,43 @@ const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal }) => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 ml-4">
-                  {currentUserProfile?.id !== profile.id && (
-                    <button
-                      onClick={() => handleSetCurrent(profile)}
-                      className="btn btn-ghost btn-sm"
-                      title="设为当前角色"
-                    >
-                      <User className="h-4 w-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleEdit(profile)}
-                    className="btn btn-ghost btn-sm"
-                    title="编辑"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(profile.id)}
-                    className="btn btn-ghost btn-sm text-error hover:bg-error/10"
-                    title="删除"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                <div className="dropdown dropdown-end">
+                  <label tabIndex={0} className="btn btn-sm">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </label>
+                  <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-44 p-2 shadow-lg">
+                    <li>
+                      {currentUserProfile?.id !== profile.id ? (
+                        <a
+                          onClick={() => handleSetCurrent(profile)}
+                          className="gap-3"
+                        >
+                          <User className="h-4 w-4" />
+                          设置为当前角色
+                        </a>
+                      ): (
+                        <a 
+                          className="gap-3"
+                          onClick={() => setCurrentUserProfile(null)}
+                        >
+                          <User className="h-4 w-4" />
+                          取消设置
+                        </a>
+                      )}
+                    </li>
+                    <li>
+                      <a onClick={() => handleEdit(profile)} className="gap-3">
+                        <Edit className="h-4 w-4" />
+                        编辑
+                      </a>
+                    </li>
+                    <li>
+                      <a onClick={() => handleDelete(profile.id)} className="gap-3 text-error hover:bg-error/10">
+                        <Trash2 className="h-4 w-4" />
+                        删除
+                      </a>
+                    </li>
+                  </ul>
                 </div>
               </div>
             </div>

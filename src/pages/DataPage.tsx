@@ -22,9 +22,10 @@ import ConfirmDialog from '../components/ConfirmDialog';
 
 interface DataPageProps {
   onCloseModal?: () => void;
+  className?: string;
 }
 
-const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
+const DataPage: React.FC<DataPageProps> = ({ onCloseModal, className }) => {
   const {
     llmConfigs,
     aiRoles,
@@ -135,7 +136,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6 md:pt-0">
+    <div className={cn("max-w-6xl mx-auto p-4 space-y-4 md:pt-0", className)}>
       {/* 页面标题 */}
       <div className="flex items-center space-x-3">
         <div>
@@ -146,7 +147,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
       </div>
 
       {/* 数据统计 */}
-      <div className="stats stats-vertical lg:stats-horizontal shadow w-full">
+      <div className="stats stats-vertical lg:stats-horizontal shadow w-full bg-base-100">
         <div className="stat">
           <div className="stat-figure text-primary">
             <Database className="h-8 w-8" />
@@ -207,7 +208,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal }) => {
       </div>
 
       {/* 数据操作 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* 导出数据 */}
         <div className="card bg-base-100 shadow-sm border border-base-300">
           <div className="card-body">
