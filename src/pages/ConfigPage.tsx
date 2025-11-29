@@ -11,7 +11,8 @@ import {
   Wifi,
   Loader2,
   Ban,
-  Check
+  Check,
+  MoreHorizontal
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
@@ -371,8 +372,8 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal, className }) => {
   // HeroModal 关闭逻辑通过 onClose 统一处理，无需监听原生 dialog 的 close 事件
 
   return (
-    <div className={cn("max-w-6xl mx-auto p-6 md:pt-0", className)}>
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div className={cn("max-w-6xl mx-auto p-4 md:p-6 md:pt-0", className)}>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
         <div>
           <p className="text-base-content/60">
             配置和管理您的AI模型连接设置
@@ -391,7 +392,7 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal, className }) => {
       {llmConfigs.length === 0 ? (
         <EmptyState message="点击上方按钮添加您的第一个模型配置" />
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
           {llmConfigs.map((config) => (
             <div
               key={config.id}
@@ -444,43 +445,38 @@ const ConfigPage: React.FC<ConfigPageProps> = ({ onCloseModal, className }) => {
 
               <div className="mt-4 pt-4 border-t border-base-300 mt-auto">
                 <div className="flex space-x-1">
-                  <div className="group">
-                    <button
-                      onClick={() => handleEdit(config)}
-                      className="btn btn-sm"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDelete(config.id);
-                      }}
-                      className="btn btn-sm btn-circle btn-soft btn-error ml-2 md:opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <div className="dropdown dropdown-top dropdown-start">
+                    <label tabIndex={0} className="btn btn-sm btn-ghost">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </label>
+                    <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-44 p-2 shadow-lg">
+                      <li>
+                        <a onClick={() => handleEdit(config)} className="gap-3">
+                          <Edit className="h-4 w-4" />
+                          编辑
+                        </a>
+                      </li>
+                      <li>
+                        <a onClick={() => testConnection(config)} className="gap-3">
+                          <Wifi className="h-4 w-4" />
+                          测试连接
+                        </a>
+                      </li>
+                      <li>
+                        <a onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDelete(config.id);
+                        }}
+                          className="gap-3 text-error"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          删除
+                        </a>
+                      </li>
+                    </ul>
                   </div>
-                  <button
-                    onClick={() => testConnection(config)}
-                    disabled={testingConfigs[config.id]}
-                    className="btn btn-sm ml-auto"
-                  >
-                    {testingConfigs[config.id] ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        正在测试
-                      </>
-                    ) : (
-                      <>
-                        <Wifi className="h-4 w-4" />
-                        测试连接
-                      </>
-                    )}
-                  </button>
                 </div>
-
               </div>
             </div>
             </div>

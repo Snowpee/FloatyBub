@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ConfirmDialog from './ConfirmDialog';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { toast } from '../hooks/useToast';
 import {
@@ -15,16 +15,13 @@ import {
   Palette,
   EyeOff,
   LogIn,
-  Edit3,
   User,
   Save,
   X,
   Search,
-  Clock,
 
 } from 'lucide-react';
 import { Sparkles } from 'lucide-react';
-import LongPressMenu from './LongPressMenu';
 import { cn, isCapacitorIOS } from '../lib/utils';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import Popconfirm from './Popconfirm';
@@ -33,7 +30,7 @@ import { useAuth } from '../hooks/useAuth';
 import { UserAvatar } from './auth/UserAvatar';
 import { AuthModal } from './auth/AuthModal';
 import HistoryModal from './HistoryModalNew';
-import Avatar from './Avatar';
+import SessionItem from './SessionItem';
 import VirtualScrollContainer from './VirtualScrollContainer';
 import AvatarUpload from './AvatarUpload';
 import { useUserData } from '../hooks/useUserData';
@@ -60,14 +57,13 @@ const Layout: React.FC = () => {
   const currentXRef = useRef<number>(0);
   const currentYRef = useRef<number>(0);
   const drawerWidthRef = useRef<number>(280);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const dropdownRefs = useRef<Record<string, React.RefObject<HTMLButtonElement>>>({});
 
   // 虚拟滚动配置
   const ITEM_HEIGHT = 44; // 每个聊天项目的固定高度（px）
   const {
     sidebarOpen,
     toggleSidebar,
-    createChatSession,
     chatSessions,
     setCurrentSession,
     deleteChatSession,
@@ -79,8 +75,7 @@ const Layout: React.FC = () => {
     aiRoles,
     currentModelId,
     tempSessionId,
-    tempSession,
-    deleteTempSession
+    tempSession
   } = useAppStore();
 
   // 使用智能滚动遮罩 Hook
@@ -307,7 +302,6 @@ const Layout: React.FC = () => {
   useEffect(() => {
     const handleResize = () => {
       const isDesktop = window.innerWidth >= 1024;
-      const isMobile = window.innerWidth < 768;
 
       // 如果从桌面端切换到平板/移动端，自动关闭侧边栏
       if (!isDesktop && sidebarOpen) {
@@ -381,48 +375,11 @@ const Layout: React.FC = () => {
 
   // 所有会话数据，用于虚拟滚动
   const allSessions = filteredSessions;
-  const totalSessions = filteredSessions.length;
-
-
-
-  // 为每个对话创建ref的映射
-  const sessionRefs = useRef<Record<string, React.RefObject<HTMLAnchorElement>>>({});
-
-  // 确保每个对话都有对应的ref
-  allSessions.forEach(session => {
-    if (!sessionRefs.current[session.id]) {
-      sessionRefs.current[session.id] = React.createRef<HTMLAnchorElement>();
-    }
-  });
-
-  // 清理不存在的对话的ref
-  const existingSessionIds = new Set(allSessions.map(s => s.id));
-  Object.keys(sessionRefs.current).forEach(sessionId => {
-    if (!existingSessionIds.has(sessionId)) {
-      delete sessionRefs.current[sessionId];
-    }
-  });
-
-
-
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('zh-CN', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(date));
-  };
-
-  const getMessagePreview = (messages: any[]) => {
-    const lastUserMessage = messages.filter(m => m.role === 'user').pop();
-    return lastUserMessage?.content || '暂无消息';
-  };
 
   // 根据roleId获取AI角色信息
-  const getAIRole = (roleId: string) => {
+  const getAIRole = useCallback((roleId: string) => {
     return aiRoles.find(role => role.id === roleId) || aiRoles[0];
-  };
+  }, [aiRoles]);
 
   const deleteSession = async (sessionId: string) => {
     try {
@@ -441,16 +398,16 @@ const Layout: React.FC = () => {
   };
 
   // 检测是否为移动设备
-  const isMobile = () => {
+  const isMobile = useCallback(() => {
     return window.innerWidth < 1024; // lg breakpoint
-  };
+  }, []);
 
   // 在非桌面端（移动端和平板端）自动关闭侧边栏
-  const closeSidebarOnNonDesktop = () => {
+  const closeSidebarOnNonDesktop = useCallback(() => {
     if (isMobile() && sidebarOpen) {
       toggleSidebar();
     }
-  };
+  }, [isMobile, sidebarOpen, toggleSidebar]);
 
   useEffect(() => {
     if (isMobile()) {
@@ -728,244 +685,70 @@ const Layout: React.FC = () => {
 
 
 
-  // 渲染单个聊天项目的函数
-  const renderChatItem = useCallback((session: any, index: number, isVisible: boolean) => {
-    const isActive = session.id === currentSessionId;
-    const linkRef = sessionRefs.current[session.id];
-    dropdownRefs.current[`sidebar-${session.id}`] = dropdownRefs.current[`sidebar-${session.id}`] || React.createRef<HTMLButtonElement>();
-    const isIOSCap = isCapacitorIOS();
-    const enableLongPressEverywhere = true; // 开启则非IOS平台也会触发长按事件
+  const handleSessionSelect = useCallback((id: string) => {
+    setCurrentSession(id);
+    closeSidebarOnNonDesktop();
+  }, [setCurrentSession, closeSidebarOnNonDesktop]);
 
-    const closeDropdown = () => {
-      dropdownRefs.current[`sidebar-${session.id}`]?.current?.blur();
-      (document.activeElement as HTMLElement)?.blur();
-    };
+  const handleSessionHide = useCallback((id: string) => {
+    hideSession(id);
+    toast.success('对话已从列表中隐藏');
+  }, [hideSession]);
 
-    const content = (
-      <Link
-        ref={linkRef}
-        key={session.id}
-        to={`/chat/${session.id}`}
-        onClick={() => {
-          setCurrentSession(session.id);
-          closeSidebarOnNonDesktop();
-        }}
-        className={cn(
-          "chat-list p-3 pr-2 my-0 transition-colors transition-shadow transform transition-transform group block group select-none",
-          isActive
-            ? "bg-base-300"
-            : "hover:bg-base-200 active:bg-base-300"
-        )}
-        style={{ height: ITEM_HEIGHT, WebkitTouchCallout: 'none' as any, WebkitUserSelect: 'none' as any }}
-        draggable={false}
-        onDragStart={(e) => { e.preventDefault(); }}
-        onDragOver={(e) => { e.preventDefault(); }}
-        onDrop={(e) => { e.preventDefault(); }}
-        onContextMenu={(e) => { e.preventDefault(); }}
-      >
-        <div className="flex items-center justify-between h-full">
-          <div className="flex items-center flex-1 min-w-0 gap-2">
-            <Avatar
-              name={getAIRole(session.roleId)?.name || '未知角色'}
-              avatar={getAIRole(session.roleId)?.avatar}
-              size="sm"
-            />
-            <h4 className="text-sm font-normal text-base-content truncate">
-              {session.title}
-            </h4>
-            {session.isPinned && (
-              <Pin className="h-3 w-3 text-base-content/50 flex-shrink-0 mr-1" />
-            )}
-          </div>
-          <div
-            className={cn("dropdown dropdown-end md:hidden group-hover:block", isIOSCap ? "hidden" : "")}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onMouseEnter={() => {
-              adjustDropdownPlacement(`sidebar-${session.id}`);
-            }}
-          >
-            <button
-              tabIndex={0}
-              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 btn btn-ghost btn-sm btn-circle"
-              title="更多操作"
-              ref={(el) => {
-                if (el) {
-                  if (!dropdownRefs.current[`sidebar-${session.id}`]) {
-                    dropdownRefs.current[`sidebar-${session.id}`] = { current: el };
-                  } else {
-                    (dropdownRefs.current[`sidebar-${session.id}`] as any).current = el;
-                  }
-                }
-              }}
-              onFocus={() => {
-                adjustDropdownPlacement(`sidebar-${session.id}`);
-              }}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-            <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box min-w-44">
-              <li>
-                <button
-                  onClick={() => {
-                    if (session.isPinned) {
-                      unpinSession(session.id);
-                    } else {
-                      pinSession(session.id);
-                    }
-                    closeDropdown();
-                  }}
-                  className="text-base gap-3"
-                >
-                  {session.isPinned ? (
-                    <PinOff className="h-4 w-4" />
-                  ) : (
-                    <Pin className="h-4 w-4" />
-                  )}
-                  {session.isPinned ? '取消置顶' : '置顶'}
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    setRenamingSessionId(session.id);
-                    setRenamingTitle(session.title);
-                    setPopconfirmAnchorEl(dropdownRefs.current[`sidebar-${session.id}`]?.current);
-                    closeDropdown();
-                  }}
-                  className="text-base gap-3"
-                >
-                  <Edit3 className="h-4 w-4" />
-                  重命名
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    hideSession(session.id);
-                    toast.success('对话已从列表中隐藏');
-                    closeDropdown();
-                  }}
-                  className="text-base gap-3"
-                >
-                  <EyeOff className="h-4 w-4" />
-                  隐藏对话
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    setDeletingSessionId(session.id);
-                    setPopconfirmAnchorEl(dropdownRefs.current[`sidebar-${session.id}`]?.current);
-                    closeDropdown();
-                  }}
-                  className="text-base text-error gap-3"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  移至回收站
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </Link>
+  const handleSessionRename = useCallback((id: string, title: string, anchorEl: HTMLElement | null) => {
+    setRenamingSessionId(id);
+    setRenamingTitle(title);
+    setPopconfirmAnchorEl(anchorEl);
+  }, []);
+
+  const handleSessionDelete = useCallback((id: string, anchorEl: HTMLElement | null) => {
+    setDeletingSessionId(id);
+    setPopconfirmAnchorEl(anchorEl);
+  }, []);
+
+  const handleIOSRename = useCallback((id: string, title: string) => {
+    setIosConfirmTitle('重命名对话');
+    setIosConfirmSessionId(id);
+    setRenamingTitle(title || '');
+    setIosConfirmType('rename');
+    setIosConfirmMessage('');
+    setIosConfirmConfirmText('重命名');
+    setIosConfirmCancelText('取消');
+    setIosConfirmVariant('info');
+    setIosConfirmOpen(true);
+  }, []);
+
+  const handleIOSTrash = useCallback((id: string) => {
+    setIosConfirmTitle('移至回收站');
+    setIosConfirmMessage('对话将移至回收站，不会立即永久删除。');
+    setIosConfirmConfirmText('移至回收站');
+    setIosConfirmCancelText('取消');
+    setIosConfirmVariant('warning');
+    setIosConfirmSessionId(id);
+    setIosConfirmType('trash');
+    setIosConfirmOpen(true);
+  }, []);
+
+  const renderSessionItem = useCallback((session: any) => {
+    return (
+      <SessionItem
+        session={session}
+        isActive={session.id === currentSessionId}
+        role={getAIRole(session.roleId)}
+        isIOSCap={isCapacitorIOS()}
+        itemHeight={ITEM_HEIGHT}
+        onSelect={handleSessionSelect}
+        onPin={pinSession}
+        onUnpin={unpinSession}
+        onHide={handleSessionHide}
+        onRename={handleSessionRename}
+        onDelete={handleSessionDelete}
+        isActionOpen={renamingSessionId === session.id || deletingSessionId === session.id}
+        onIOSRename={handleIOSRename}
+        onIOSTrash={handleIOSTrash}
+      />
     );
-
-    if (enableLongPressEverywhere || isIOSCap) {
-      const items = [
-        {
-          key: 'pin',
-          label: session.isPinned ? '取消置顶' : '置顶',
-          icon: session.isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />,
-          onClick: () => { session.isPinned ? unpinSession(session.id) : pinSession(session.id); }
-        },
-        {
-          key: 'rename',
-          label: '重命名',
-          icon: <Edit3 className="h-4 w-4" />,
-          onClick: () => {
-            setIosConfirmTitle('重命名对话');
-            setIosConfirmSessionId(session.id);
-            setRenamingTitle(session.title || '');
-            setIosConfirmType('rename');
-            setIosConfirmMessage('');
-            setIosConfirmConfirmText('重命名');
-            setIosConfirmCancelText('取消');
-            setIosConfirmVariant('info');
-            setIosConfirmOpen(true);
-          }
-        },
-        {
-          key: 'hide',
-          label: '隐藏对话',
-          icon: <EyeOff className="h-4 w-4" />,
-          onClick: () => { hideSession(session.id); toast.success('对话已从列表中隐藏'); }
-        },
-        {
-          key: 'trash',
-          label: '移至回收站',
-          icon: <Trash2 className="h-4 w-4" />,
-          onClick: () => {
-            setIosConfirmTitle('移至回收站');
-            setIosConfirmMessage('对话将移至回收站，不会立即永久删除。');
-            setIosConfirmConfirmText('移至回收站');
-            setIosConfirmCancelText('取消');
-            setIosConfirmVariant('warning');
-            setIosConfirmSessionId(session.id);
-            setIosConfirmType('trash');
-            setIosConfirmOpen(true);
-          }
-        }
-      ];
-      return <LongPressMenu items={items}>{content}</LongPressMenu>;
-    }
-    return content;
-  }, [currentSessionId, renamingSessionId, renamingTitle, setCurrentSession, closeSidebarOnNonDesktop, getAIRole, updateChatSession, hideSession, deleteSession, sessionRefs, ITEM_HEIGHT]);
-
-  const dropdownRefs = useRef<Record<string, React.RefObject<HTMLButtonElement>>>({});
-
-  const adjustDropdownPlacement = (key: string) => {
-    const btn = dropdownRefs.current[key]?.current;
-    const container = btn?.parentElement as HTMLElement | null;
-    const ul = container?.querySelector('.dropdown-content') as HTMLElement | null;
-    if (!btn || !container || !ul) return;
-    const prevDisplay = ul.style.display;
-    const prevVisibility = ul.style.visibility;
-    ul.style.visibility = 'hidden';
-    ul.style.display = 'block';
-    const ulRect = ul.getBoundingClientRect();
-    ul.style.display = prevDisplay;
-    ul.style.visibility = prevVisibility;
-    const btnRect = btn.getBoundingClientRect();
-    const scrollEl = btn.closest('.virtual-scroll-container') as HTMLElement | null;
-    const bounds = (scrollEl ? scrollEl.getBoundingClientRect() : { top: 0, bottom: window.innerHeight, left: 0, right: window.innerWidth });
-    const overflowBottom = btnRect.bottom + ulRect.height > bounds.bottom;
-    const canOpenTop = btnRect.top - ulRect.height >= bounds.top;
-    if (overflowBottom && canOpenTop) {
-      container.classList.add('dropdown-top');
-    } else {
-      container.classList.remove('dropdown-top');
-    }
-    const leftEnd = btnRect.right - ulRect.width;
-    const leftStart = btnRect.left;
-    const endOverflowLeft = leftEnd < bounds.left;
-    const startOverflowRight = leftStart + ulRect.width > bounds.right;
-    container.classList.remove('dropdown-start');
-    container.classList.remove('dropdown-center');
-    if (endOverflowLeft && !startOverflowRight) {
-      container.classList.remove('dropdown-end');
-      container.classList.add('dropdown-start');
-    } else if (endOverflowLeft && startOverflowRight) {
-      container.classList.remove('dropdown-end');
-      container.classList.add('dropdown-center');
-    } else {
-      if (!container.classList.contains('dropdown-end')) {
-        container.classList.add('dropdown-end');
-      }
-    }
-  };
+  }, [currentSessionId, getAIRole, ITEM_HEIGHT, handleSessionSelect, pinSession, unpinSession, handleSessionHide, handleSessionRename, handleSessionDelete, renamingSessionId, deletingSessionId, handleIOSRename, handleIOSTrash]);
 
   const handleNewChat = () => {
     // 导航到聊天页面，让用户选择角色
@@ -1089,7 +872,7 @@ const Layout: React.FC = () => {
               <VirtualScrollContainer
                 items={allSessions.map(session => ({ ...session, id: session.id }))}
                 itemHeight={ITEM_HEIGHT}
-                renderItem={renderChatItem}
+                renderItem={renderSessionItem}
                 overscan={5}
                 scrollMaskRef={scrollMaskRef}
                 className={cn(
@@ -1581,6 +1364,13 @@ const Layout: React.FC = () => {
             />
           </div>
         }
+        onOpenChange={(next) => {
+          if (!next) {
+            setRenamingSessionId(null);
+            setRenamingTitle('');
+            setPopconfirmAnchorEl(null);
+          }
+        }}
         onConfirm={() => {
           if (renamingTitle.trim() && renamingSessionId) {
             updateChatSession(renamingSessionId, { title: renamingTitle.trim() });
@@ -1606,6 +1396,12 @@ const Layout: React.FC = () => {
         placement="bottom"
         title="移至回收站？"
         description="对话将移至回收站，不会立即永久删除"
+        onOpenChange={(next) => {
+          if (!next) {
+            setDeletingSessionId(null);
+            setPopconfirmAnchorEl(null);
+          }
+        }}
         onConfirm={() => {
           if (deletingSessionId) {
             deleteSession(deletingSessionId);

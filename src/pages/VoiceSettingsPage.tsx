@@ -403,7 +403,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal, cla
       </div>
 
       {/* 供应商选择 */}
-      <div className="card mt-4 mb-4">
+      <div className="card mt-4 mb-4 bg-base-100">
         <div className="card-body pt-4 md:pt-6 gap-4">
           <h3 className="font-medium text-base mb-2">供应商配置</h3>
           <div className="form-control w-full flex">
@@ -527,7 +527,7 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal, cla
         </div>
       {/* 自定义模型管理 */}
       {settings.provider === 'fish-audio' && (
-        <div className="card my-4">
+        <div className="card my-4 bg-base-100">
           <div className="card-body pt-4 md:pt-6">
             <h3 className="font-medium text-base mb-4">语音模型管理</h3>
             

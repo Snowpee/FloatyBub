@@ -90,7 +90,7 @@ const SearchSettingsPage: React.FC<SearchSettingsPageProps> = ({ onCloseModal, c
         <p className="text-base-content/70">配置联网搜索的相关设置</p>
       </div>
 
-      <div className="card mt-4 mb-4">
+      <div className="card mt-4 mb-4 bg-base-100">
         <div className="card-body pt-4 md:pt-6 gap-4">
           <h3 className="font-medium text-base mb-2">基础设置</h3>
           <div className="form-control w-full flex">
@@ -133,7 +133,7 @@ const SearchSettingsPage: React.FC<SearchSettingsPageProps> = ({ onCloseModal, c
         </div>
       </div>
 
-      <div className="card my-4">
+      <div className="card my-4 bg-base-100">
         <div className="card-body pt-4 md:pt-6 gap-4">
           <h3 className="font-medium text-base mb-4">密钥与引擎</h3>
 

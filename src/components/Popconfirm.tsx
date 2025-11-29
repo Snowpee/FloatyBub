@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { cn } from '../lib/utils';
+ 
 
 interface PopconfirmProps {
   title?: string;
@@ -22,6 +22,8 @@ interface PopconfirmProps {
   anchorEl?: HTMLElement | null;
   arrow?: boolean;
   arrowSize?: number;
+  /** anchor滚出可视区域时自动关闭 */
+  autoCloseOnOutOfView?: boolean;
 }
 
 export const Popconfirm: React.FC<PopconfirmProps> = ({
@@ -40,29 +42,66 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
   onOpenChange,
   anchorEl,
   arrow = true,
-  arrowSize = 8
+  arrowSize = 8,
+  autoCloseOnOutOfView = true
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = typeof open === 'boolean';
   const isOpen = isControlled ? !!open : internalOpen;
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [isPositioned, setIsPositioned] = useState(false);
-  const [resolvedPlacement, setResolvedPlacement] = useState<'top' | 'bottom' | 'left' | 'right'>('top');
   const [arrowStyle, setArrowStyle] = useState<React.CSSProperties>({});
-  const [arrowColor, setArrowColor] = useState<string>('transparent');
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
-  const [popoverSize, setPopoverSize] = useState<{ w: number; h: number }>({ w: 256, h: 120 });
+ 
+  const getBaseElement = (): HTMLElement | null => {
+    const el = anchorEl ?? (getPopupContainer ? getPopupContainer() : triggerRef.current);
+    return el ?? null;
+  };
+
+  const getScrollRoot = (el: HTMLElement | null): Element | null => {
+    let node: HTMLElement | null = el ? el.parentElement : null;
+    while (node) {
+      const style = window.getComputedStyle(node);
+      const overflowY = style.overflowY;
+      const overflowX = style.overflowX;
+      if ((overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') ||
+          (overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden')) {
+        return node;
+      }
+      node = node.parentElement;
+    }
+    return null;
+  };
+
+  const isVisibleInRoot = (el: HTMLElement, root: Element | null): boolean => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return false;
+    const rootRect = root instanceof Element
+      ? (root as Element).getBoundingClientRect()
+      : { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
+    const outOfView =
+      rect.bottom <= rootRect.top ||
+      rect.top >= rootRect.bottom ||
+      rect.right <= rootRect.left ||
+      rect.left >= rootRect.right;
+    return !outOfView;
+  };
+
+  const close = () => {
+    if (isControlled) {
+      onOpenChange?.(false);
+    } else {
+      setInternalOpen(false);
+    }
+    onClose?.();
+  };
 
   // 点击外部关闭
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(event.target as Node) &&
-        (!triggerRef.current || !triggerRef.current.contains(event.target as Node)) &&
-        (!anchorEl || !anchorEl.contains(event.target as Node))
-      ) {
+      const target = event.target as Node;
+      if (popoverRef.current && !popoverRef.current.contains(target)) {
         if (isControlled) {
           onOpenChange?.(false);
         } else {
@@ -79,7 +118,7 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen]);
+  }, [isOpen, isControlled, onClose, onOpenChange]);
 
   // ESC 键关闭
   useEffect(() => {
@@ -101,7 +140,7 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
     return () => {
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen]);
+  }, [isOpen, isControlled, onClose, onOpenChange]);
 
   const handleConfirm = () => {
     onConfirm();
@@ -124,7 +163,7 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
   };
 
   // 计算弹出框位置
-  const calculatePosition = () => {
+  const calculatePosition = React.useCallback(() => {
     // 获取基准元素，优先使用自定义容器，否则使用触发元素
     const baseElement = anchorEl ?? (getPopupContainer ? getPopupContainer() : triggerRef.current);
     if (!baseElement) return;
@@ -135,7 +174,6 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
     const measuredH = popoverRef.current?.offsetHeight || 120;
     const popoverWidth = measuredW;
     const popoverHeight = measuredH;
-    setPopoverSize({ w: popoverWidth, h: popoverHeight });
     const offset = 8 + (arrow ? arrowSize : 0);
     let top = 0;
     let left = 0;
@@ -180,7 +218,6 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
       return 'top';
     };
     const finalPlacement = choose();
-    setResolvedPlacement(finalPlacement);
     if (finalPlacement === 'top') {
       top = triggerRect.top - popoverHeight - offset;
       left = triggerRect.left + triggerRect.width / 2 - popoverWidth / 2;
@@ -201,26 +238,25 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
     setPosition({ top, left });
     setIsPositioned(true);
     const bg = popoverRef.current ? getComputedStyle(popoverRef.current).backgroundColor : 'rgba(255,255,255,1)';
-    setArrowColor(bg);
     const anchorCenterX = triggerRect.left + triggerRect.width / 2;
     const anchorCenterY = triggerRect.top + triggerRect.height / 2;
     const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
-    let style: React.CSSProperties = { position: 'absolute', width: 0, height: 0, filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.08))' };
+    let style: React.CSSProperties = { position: 'absolute', width: 0, height: 0};
     if (finalPlacement === 'top') {
       const x = clamp(anchorCenterX - left - arrowSize, arrowSize, popoverWidth - arrowSize);
-      style = { ...style, bottom: -arrowSize, left: x, borderLeft: `${arrowSize}px solid transparent`, borderRight: `${arrowSize}px solid transparent`, borderTop: `${arrowSize}px solid ${bg}` } as any;
+      style = { ...style, bottom: -arrowSize, left: x, borderLeft: `${arrowSize}px solid transparent`, borderRight: `${arrowSize}px solid transparent`, borderTop: `${arrowSize}px solid ${bg}`, filter: 'drop-shadow(0 2px 0 rgba(0,0,0,0.08))' };
     } else if (finalPlacement === 'bottom') {
       const x = clamp(anchorCenterX - left - arrowSize, arrowSize, popoverWidth - arrowSize);
-      style = { ...style, top: -arrowSize, left: x, borderLeft: `${arrowSize}px solid transparent`, borderRight: `${arrowSize}px solid transparent`, borderBottom: `${arrowSize}px solid ${bg}` } as any;
+      style = { ...style, top: -arrowSize, left: x, borderLeft: `${arrowSize}px solid transparent`, borderRight: `${arrowSize}px solid transparent`, borderBottom: `${arrowSize}px solid ${bg}`, filter: 'drop-shadow(0 -2px 0 rgba(0,0,0,0.08))' };
     } else if (finalPlacement === 'left') {
       const y = clamp(anchorCenterY - top - arrowSize, arrowSize, popoverHeight - arrowSize);
-      style = { ...style, right: -arrowSize, top: y, borderTop: `${arrowSize}px solid transparent`, borderBottom: `${arrowSize}px solid transparent`, borderLeft: `${arrowSize}px solid ${bg}` } as any;
+      style = { ...style, right: -arrowSize, top: y, borderTop: `${arrowSize}px solid transparent`, borderBottom: `${arrowSize}px solid transparent`, borderLeft: `${arrowSize}px solid ${bg}`, filter: 'drop-shadow(-2px 0 0 rgba(0,0,0,0.08))' };
     } else {
       const y = clamp(anchorCenterY - top - arrowSize, arrowSize, popoverHeight - arrowSize);
-      style = { ...style, left: -arrowSize, top: y, borderTop: `${arrowSize}px solid transparent`, borderBottom: `${arrowSize}px solid transparent`, borderRight: `${arrowSize}px solid ${bg}` } as any;
+      style = { ...style, left: -arrowSize, top: y, borderTop: `${arrowSize}px solid transparent`, borderBottom: `${arrowSize}px solid transparent`, borderRight: `${arrowSize}px solid ${bg}`, filter: 'drop-shadow(2px 0 0 rgba(0,0,0,0.08))' };
     }
     setArrowStyle(style);
-  };
+  }, [placement, anchorEl, arrow, arrowSize, getPopupContainer]);
 
   // 更新位置
   useEffect(() => {
@@ -228,16 +264,34 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
       setIsPositioned(false);
       // 使用 requestAnimationFrame 确保在下一帧计算位置
       requestAnimationFrame(() => {
+        const baseEl = getBaseElement();
+        const root = getScrollRoot(baseEl);
+        if (autoCloseOnOutOfView && baseEl && !isVisibleInRoot(baseEl, root)) {
+          close();
+          return;
+        }
         calculatePosition();
       });
       
       const handleResize = () => {
         setIsPositioned(false);
         requestAnimationFrame(() => {
+          const baseEl = getBaseElement();
+          const root = getScrollRoot(baseEl);
+          if (autoCloseOnOutOfView && baseEl && !isVisibleInRoot(baseEl, root)) {
+            close();
+            return;
+          }
           calculatePosition();
         });
       };
       const handleScroll = () => {
+        const baseEl = getBaseElement();
+        const root = getScrollRoot(baseEl);
+        if (autoCloseOnOutOfView && baseEl && !isVisibleInRoot(baseEl, root)) {
+          close();
+          return;
+        }
         setIsPositioned(false);
         requestAnimationFrame(() => {
           calculatePosition();
@@ -254,7 +308,7 @@ export const Popconfirm: React.FC<PopconfirmProps> = ({
     } else {
       setIsPositioned(false);
     }
-  }, [isOpen, placement, anchorEl, arrow, arrowSize]);
+  }, [isOpen, calculatePosition, autoCloseOnOutOfView, anchorEl, getPopupContainer, onOpenChange, onClose, isControlled]);
 
   return (
     <>

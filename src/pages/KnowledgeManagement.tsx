@@ -77,7 +77,7 @@ const KnowledgeManagement: React.FC = () => {
   }
 
   return (
-    <div className={cn("min-h-screen bg-base-200 p-6", className)}>
+    <div className={cn("min-h-screen p-6", className)}>
       <div className="max-w-7xl mx-auto">
         {/* 页面标题 */}
         <div className="mb-8">

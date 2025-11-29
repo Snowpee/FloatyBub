@@ -126,7 +126,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal, className }
 
   return (
     <div 
-      className={cn("p-6 md:pt-0", className)} 
+      className={cn("p-4 md:pt-0", className)} 
       data-knowledge-page
       data-is-detail-view={showEntryManager ? 'true' : 'false'}
       data-detail-title={selectedKnowledgeBase?.name || ''}
@@ -143,7 +143,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal, className }
       {!showEntryManager && (
         <>
           {/* 页面头部 */}
-          <div className="mb-6">
+          <div className="mb-4">
             <div className="flex items-center justify-between mb-4">
               <div>
                 {/* <h1 className="text-2xl font-bold text-base-content">知识库管理</h1> */}
@@ -196,7 +196,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal, className }
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredKnowledgeBases.map((knowledgeBase) => {
                 const stats = knowledgeBaseStats[knowledgeBase.id];
                 return (

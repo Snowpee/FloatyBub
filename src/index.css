@@ -31,7 +31,7 @@
 */
 @plugin "daisyui/theme" {
   name: "floaty";
-  default: false;
+  default: true;
   prefersdark: false;
   color-scheme: "light";
   --color-base-100: oklch(100% 0 0);
@@ -114,6 +114,7 @@ code:not(pre > code)  {
     }
   }
 }
+
 /* 
 =====
 自定义类
@@ -274,11 +275,11 @@ dialog .modal-box {
 @media (hover: none), (any-hover: none) {
   .settings-modal .btn:hover,
   .settings-modal button:hover {
-    background-color: transparent;
+    /* background-color: transparent; */
   }
-  /* 明确保留按压时的视觉反馈 */
-  .settings-modal .menu li .btn:active,
-  .settings-modal .menu li button:active {
+
+  .settings-modal .btn:active,
+  .settings-modal button:active {
     background-color: var(--color-base-300);
   }
 }

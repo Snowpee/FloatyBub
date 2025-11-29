@@ -299,14 +299,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
         <div 
           {...bind()}
           className={cn(
-            "px-2 border-b border-base-300 flex h-[var(--height-header)]",
+            "px-2 bg-base-200 flex h-[var(--height-header)]",
             "cursor-move select-none",
             "md:touch-auto touch-none",
             isDragging && "bg-base-200/50"
           )}
         >
           <div className="flex w-[var(--height-header)] h-[var(--height-header)] items-center justify-center">
-            <button onClick={handleClose} className="btn btn-circle">
+            <button onClick={handleClose} className="btn btn-circle bg-base-100">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -314,32 +314,30 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
           <div className="flex w-[var(--height-header)] h-[var(--height-header)] items-center justify-center">
           </div>
         </div>
-        <div className="flex-1 overflow-y-scroll max-h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header))] h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header))] md:max-h-auto md:h-auto overscroll-contain">
+        <div className="flex-1 bg-base-200 overflow-y-scroll max-h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header))] h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header))] md:max-h-auto md:h-auto overscroll-contain">
           <ul className="join join-vertical p-4 space-y-0 w-full min-h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header)+1px)]">
             {tabs.map((tab, index) => {
               const Icon = tab.icon;
               const isLast = index === tabs.length - 1;
               return (
-                // <li key={tab.id} className="join-item-hero border-x border-base-300 first:border-t last:border-b">
-                  <NavLink
-                    key={tab.id}
-                    component={PageWrapper as any}
-                    props={{ title: tab.name, Component: tab.component, tabId: tab.id }}
-                    className="flex items-center gap-4 w-full text-left p-0 pl-4 active:bg-base-200 md:hover:bg-base-200 transition-colors join-item-box"
-                  >
-                    <div className="flex items-center justify-center w-10 h-10 bg-primary/10 rounded-lg">
-                      <Icon className="h-5 w-5 text-primary" />
+                <NavLink
+                  key={tab.id}
+                  component={PageWrapper as any}
+                  props={{ title: tab.name, Component: tab.component, tabId: tab.id }}
+                  className="flex items-center gap-4 w-full text-left p-0 pl-4 bg-base-100 join-item-box select-none"
+                >
+                  <div className="flex items-center justify-center w-10 h-10 bg-primary/10 rounded-lg">
+                    <Icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className={`flex flex-1 h-18 items-center justify-center mr-4 border-b border-base-300 ${isLast ? 'border-b-0' : ''}`}>
+                    <div className="flex-1">
+                      <div className="font-medium text-base text-base-content">{tab.name}</div>
                     </div>
-                    <div className={`flex flex-1 h-18 items-center justify-center mr-4 border-b border-base-300 ${isLast ? 'border-b-0' : ''}`}>
-                      <div className="flex-1">
-                        <div className="font-medium text-base text-base-content">{tab.name}</div>
-                      </div>
-                      <div className="text-base-content">
-                        <ChevronLeft className="h-4 w-4 rotate-180" />
-                      </div>
+                    <div className="text-base-content">
+                      <ChevronLeft className="h-4 w-4 rotate-180" />
                     </div>
-                  </NavLink>
-                // </li>
+                  </div>
+                </NavLink>
               )
             })}
           </ul>
@@ -352,11 +350,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
   const PageWrapper: React.FC<{ title: string; Component: React.ComponentType<any>; tabId?: TabType }> = ({ title, Component, tabId }) => {
     useEffect(() => { setActiveTab((tabId as TabType) || activeTab); }, [tabId]);
     return (
-      <div className="flex flex-col overflow-hidden min-h-full">
+      <div className="flex flex-col overflow-hidden min-h-full bg-base-200">
         <div 
           {...bind()}
           className={cn(
-            "px-2 border-b border-base-300 flex items-center gap-3 h-16",
+            "px-2 flex items-center gap-3 h-16",
             "cursor-move select-none",
             "md:touch-auto touch-none",
             isDragging && "bg-base-200/50"
@@ -486,7 +484,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
         { !isMobile && (
         <div className="hidden md:flex flex-1 flex-col min-h-0">
           {/* 桌面端标题栏 */}
-          <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0">
+          <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0 bg-base-200">
             <div className="flex items-center gap-3">
               {isDetailView && detailTitle ? (
                 <div className="flex items-center gap-3">
@@ -545,10 +543,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
           </div>
           
           {/* 内容区域 */}
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 overflow-y-auto min-h-0 bg-base-200">
             {(ActiveComponent as any) && (
               <ActiveComponent 
-                {...({ className: 'h-full' } as any)}
+                {...({ className: 'h-fit-content' } as any)}
                 onCloseModal={handleClose} 
               />
             )}

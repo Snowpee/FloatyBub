@@ -6,7 +6,8 @@ import {
   Trash2,
   X,
   GripVertical,
-  Check
+  Check,
+  MoreHorizontal
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toast } from '../hooks/useToast';
@@ -278,8 +279,8 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal, className }) => {
   };
 
   return (
-    <div className={cn("max-w-6xl mx-auto p-6 md:pt-0", className)}>
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+    <div className={cn("max-w-6xl mx-auto p-4 md:pt-0", className)}>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
         <div>
           <p className="text-base-content/60">
             创建和管理AI角色，定义不同的对话风格和专业领域
@@ -295,7 +296,7 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal, className }) => {
       </div>
 
       {/* 角色网格 */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         {aiRoles.map((role) => {
           const isDefault = defaultRoles.includes(role.id);
 
@@ -327,39 +328,44 @@ const RolesPage: React.FC<RolesPageProps> = ({ onCloseModal, className }) => {
                     </span>
                   </div>
                 </div>
-                
+                <div className="dropdown dropdown-end">
+                  <label tabIndex={0} className="btn btn-sm">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </label>
+                  <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-44 p-2 shadow-lg">
+                    <li>
+                      <a onClick={() => handleEdit(role)} className="gap-3">
+                        <Edit className="h-4 w-4" />
+                        编辑
+                      </a>
+                    </li>
+                    <li>
+                      <a onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDelete(role.id);
+                      }}
+                        className="gap-3 text-error"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        删除
+                      </a>
+                    </li>
+                  </ul>
+                </div>                
 
               </div>
 
               {/* 角色描述 */}
-              <div className="mb-4">
-                <p className="text-sm text-base-content/60 line-clamp-2 overflow-hidden text-ellipsis">
-                  {role.description}
+              <div className="border-t border-base-300">
+                <p className="text-sm text-base-content/60 line-clamp-2 overflow-hidden text-ellipsis pt-4">
+                      {role.description || '暂无描述'}
                 </p>
               </div>
-              <div className="text-xs text-base-content/50 mt-auto">
+              <div className="text-xs text-base-content/30 mt-auto">
                 创建于 {new Date(role.createdAt).toLocaleDateString()}
               </div>
               {/* 创建时间和当前角色toggle */}
-              <div className="mt-auto pt-3 border-t border-base-300 flex items-center justify-between">
-                <div className="flex space-x-1">
-                  <button
-                    onClick={() => handleEdit(role)}
-                    className="btn btn-sm"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                  {!isDefault && (
-                    <button
-                      onClick={() => handleDelete(role.id)}
-                      className="btn btn-circle btn-sm text-error ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-              </div>
               </div>
             </div>
           );

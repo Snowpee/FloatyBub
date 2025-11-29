@@ -32,14 +32,24 @@ const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal, c
     setChatStyle(style);
   };
 
+  const pageTitle = '全局设置';
+  const pageDescription = '配置全局应用设置和偏好';
+  
   return (
     <div className={cn("max-w-6xl mx-auto p-4 md:p-6 md:pt-0", className)}>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <p className="text-base-content/60">
-            配置全局应用设置和偏好
-          </p>
-        </div>
+        {/* 常规情况下，头部就使用卡片，md及以上就使用普通的div，需要先定义什么是 isMobile */}
+        {/* 定义 isMobile 为 md 及以上 */}
+        <div className="block md:hidden w-full card bg-base-100">
+          <div className="card-body py-4">
+            <h3 className="font-bold text-xl text-base-content">
+              {pageTitle}
+            </h3>
+            <p className="text-base-content/60">
+              {pageDescription}
+            </p>
+            </div>
+          </div>
       </div>
 
 
@@ -157,7 +167,7 @@ const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal, c
       </div>
 
       {/* 其他全局设置可以在这里添加 */}
-      <h3 className="font-medium text-base mb-2 px-6 text-base-content/50">
+      <h3 className="font-medium text-base mb-2 px-[calc(1.5rem+var(--border))] text-base-content/50">
         其他设置
       </h3>
       <div className="card bg-base-100 shadow-sm">
