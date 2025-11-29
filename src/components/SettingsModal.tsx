@@ -314,8 +314,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
           <div className="flex w-[var(--height-header)] h-[var(--height-header)] items-center justify-center">
           </div>
         </div>
-        <div className="flex-1 bg-base-200 overflow-y-scroll max-h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header))] h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header))] md:max-h-auto md:h-auto overscroll-contain">
-          <ul className="join join-vertical p-4 space-y-0 w-full min-h-[calc(100vh-env(safe-area-inset-bottom)-var(--height-header)+1px)]">
+        <div className="flex-1 bg-base-200 overflow-y-scroll max-h-[calc(100dvh-env(safe-area-inset-bottom)-var(--height-header))] h-[calc(100dvh-env(safe-area-inset-bottom)-var(--height-header))] md:max-h-auto md:h-auto overscroll-contain">
+          <ul className="join join-vertical p-4 space-y-0 w-full min-h-[calc(100dvh-env(safe-area-inset-bottom)-var(--height-header)+1px)]">
             {tabs.map((tab, index) => {
               const Icon = tab.icon;
               const isLast = index === tabs.length - 1;
@@ -361,7 +361,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
           )}
         >
           <div className="flex w-16 h-16 items-center justify-center">
-            <BackButton className="btn btn-circle">
+            <BackButton className="btn btn-circle bg-base-100">
               <ChevronLeft className="h-5 w-5" />
             </BackButton>
           </div>
@@ -369,8 +369,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
           <div className="flex w-16 h-16 items-center justify-center">
           </div>
         </div>
-        <div className="flex-1 overflow-y-scroll max-h-[calc(100vh-4rem)] h-[calc(100vh-4rem)] md:max-h-auto md:h-auto overscroll-contain">
-          <Component className="min-h-[calc(100vh-4rem+1px)]" onCloseModal={handleClose} />
+        <div className="flex-1 overflow-y-scroll max-h-[calc(100dvh-4rem)] h-[calc(100dvh-4rem)] md:max-h-auto md:h-auto overscroll-contain">
+          <Component className="min-h-[calc(100dvh-4rem+1px)]" onCloseModal={handleClose} />
         </div>
       </div>
     )
@@ -438,6 +438,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultT
           transform: (isDragging || isRebounding || dragY > 0) 
             ? `translateY(${dragY}px)` 
             : undefined,
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden'
         }}
       >
         {/* 左侧导航栏 */}

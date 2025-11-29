@@ -31,7 +31,7 @@ const HistoryModalNew = memo<HistoryModalProps>(({ isOpen, onClose }) => {
         onClose();
       }}
       dismissible={true}
-      dragEnabled={isCapacitorIOS}
+      dragEnabled={true}
       distanceThreshold={120}
       velocityThreshold={0.5}
       rubberband={true}
