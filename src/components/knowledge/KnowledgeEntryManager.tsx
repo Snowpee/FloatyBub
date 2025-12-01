@@ -2,13 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Search, Edit, Trash2, Tag, FileText } from 'lucide-react';
-import { useKnowledgeStore } from '../../stores/knowledgeStore';
+import { useKnowledgeStore } from '../../store/knowledgeStore';
 import { KnowledgeEntryForm } from './KnowledgeEntryForm';
 import { KnowledgeEntryCard } from './KnowledgeEntryCard';
 import ConfirmDialog from '../ConfirmDialog';
 import type { KnowledgeBase, KnowledgeEntry } from '../../types/knowledge';
 import { toast } from '../../hooks/useToast';
-import { KnowledgeService } from '../../services/knowledgeService';
+import { KnowledgeService } from '../../services/KnowledgeService';
 
 interface KnowledgeEntryManagerProps {
   knowledgeBase: KnowledgeBase;

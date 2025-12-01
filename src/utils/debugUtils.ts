@@ -496,7 +496,7 @@ export const reloadWasm = async () => {
       // 清除现有的 WASM 模块
       delete (window as any).wasmJieba;
       
-      const { ChatEnhancementService } = await import('../services/chatEnhancementService');
+      const { ChatEnhancementService } = await import('../services/ChatEnhancementService');
       
       // 重新初始化（如果方法存在）
       if (typeof ChatEnhancementService.reloadWasmJieba === 'function') {

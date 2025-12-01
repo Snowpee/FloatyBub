@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, Loader2, Plus, Minus, Tag } from 'lucide-react';
-import { useKnowledgeStore } from '../../stores/knowledgeStore';
+import { useKnowledgeStore } from '../../store/knowledgeStore';
 import type { KnowledgeBase, KnowledgeEntry, CreateKnowledgeEntryRequest, UpdateKnowledgeEntryRequest } from '../../types/knowledge';
 
 interface KnowledgeEntryFormProps {

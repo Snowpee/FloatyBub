@@ -1,29 +1,28 @@
 import { createBrowserRouter } from 'react-router-dom';
 import App from '../App';
-import ChatPage from '../pages/ChatPage';
-import RoleListPage from '../pages/RoleListPage';
-import Home from '../pages/Home';
-import NotFound from '../pages/NotFound';
-import GlobalSettingsPage from '../pages/GlobalSettingsPage';
-import ConfigPage from '../pages/ConfigPage';
-import RolesPage from '../pages/RolesPage';
-import UserRolesPage from '../pages/UserRolesPage';
-import GlobalPromptsPage from '../pages/GlobalPromptsPage';
-import VoiceSettingsPage from '../pages/VoiceSettingsPage';
-import DataPage from '../pages/DataPage';
-import KnowledgeManagement from '../pages/KnowledgeManagement';
-import SearchSettingsPage from '../pages/SearchSettingsPage';
-import VoiceTest from '../pages/tests/VoiceTest';
-import ToastTestPage from '../pages/tests/ToastTestPage';
-import DatabaseConnectionTestPage from '../pages/tests/DatabaseConnectionTestPage';
-import S3StorageTestPage from '../pages/tests/S3StorageTestPage';
-import LongPressMenuPlayground from '../pages/tests/LongPressMenuPlayground';
-import MobileNavPlayground from '../pages/tests/MobileNavPlayground';
-import MobileNavStandalone from '../pages/tests/MobileNavStandalone';
-import MobileNavDragTest from '../pages/tests/MobileNavDragTest';
-import SupabaseDebugPage from '../pages/SupabaseDebugPage';
-import SyncTestPage from '../pages/SyncTestPage';
-import ActionSheetDemo from '../components/ActionSheetDemo';
+import ChatPage from '../screens/chats/Chats';
+import RoleListPage from '../screens/RoleListPage';
+import Home from '../screens/Home';
+import NotFound from '../screens/NotFound';
+import GlobalSettingsPage from '../screens/settings/sections/GlobalSettingsPage';
+import ConfigPage from '../screens/settings/sections/ConfigPage';
+import RolesPage from '../screens/settings/sections/RolesPage';
+import UserRolesPage from '../screens/settings/sections/UserRolesPage';
+import GlobalPromptsPage from '../screens/settings/sections/GlobalPromptsPage';
+import VoiceSettingsPage from '../screens/settings/sections/VoiceSettingsPage';
+import DataPage from '../screens/settings/sections/DataPage';
+import KnowledgeManagement from '../screens/settings/sections/KnowledgeManagement';
+import SearchSettingsPage from '../screens/settings/sections/SearchSettingsPage';
+import VoiceTest from '../screens/_debug/VoiceTest';
+import ToastTestPage from '../screens/_debug/ToastTestPage';
+import DatabaseConnectionTestPage from '../screens/_debug/DatabaseConnectionTestPage';
+import S3StorageTestPage from '../screens/_debug/S3StorageTestPage';
+import LongPressMenuPlayground from '../screens/_debug/LongPressMenuPlayground';
+import MobileNavPlayground from '../screens/_debug/MobileNavPlayground';
+import MobileNavStandalone from '../screens/_debug/MobileNavStandalone';
+import MobileNavDragTest from '../screens/_debug/MobileNavDragTest';
+import SupabaseDebugPage from '../screens/_debug/SupabaseDebugPage';
+import SyncTestPage from '../screens/_debug/SyncTestPage';
 
 export const router = createBrowserRouter([
   {
@@ -88,40 +87,36 @@ export const router = createBrowserRouter([
       },
 
       {
-        path: 'tests/voice',
+        path: 'debug/voice',
         element: <VoiceTest />
       },
       {
-        path: 'tests/database',
+        path: 'debug/database',
         element: <DatabaseConnectionTestPage />
       },
       {
-        path: 'tests/s3-storage',
+        path: 'debug/s3-storage',
         element: <S3StorageTestPage />
       },
       {
-        path: 'tests/longpress-menu',
+        path: 'debug/longpress-menu',
         element: <LongPressMenuPlayground />
       },
       {
-        path: 'tests/mobile-nav',
+        path: 'debug/mobile-nav',
         element: <MobileNavPlayground />
       },
       {
-        path: 'tests/toast-test',
+        path: 'debug/toast-test',
         element: <ToastTestPage />
       },
       {
-        path: 'tests/debug',
+        path: 'debug/debug',
         element: <SupabaseDebugPage />
       },
       {
-        path: 'tests/sync-test',
+        path: 'debug/sync-test',
         element: <SyncTestPage />
-      },
-      {
-        path: 'demo/action-sheet',
-        element: <ActionSheetDemo />
       },
       {
         path: '*',
@@ -130,11 +125,11 @@ export const router = createBrowserRouter([
     ]
   },
   {
-    path: '/tests/mobile-nav-standalone',
+    path: '/debug/mobile-nav-standalone',
     element: <MobileNavStandalone />
   },
   {
-    path: '/tests/mobile-nav-drag',
+    path: '/debug/mobile-nav-drag',
     element: <MobileNavDragTest />
   }
 ]);
