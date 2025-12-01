@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { BookOpen, Edit, Trash2, Calendar, FileText } from 'lucide-react';
-import { useKnowledgeStore } from '../../stores/knowledgeStore';
+import { useKnowledgeStore } from '../../store/knowledgeStore';
 import ConfirmDialog from '../ConfirmDialog';
 import type { KnowledgeBase, KnowledgeBaseStats } from '../../types/knowledge';
 

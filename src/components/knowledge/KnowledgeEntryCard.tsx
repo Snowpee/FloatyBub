@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Edit, Trash2, Tag, Calendar } from 'lucide-react';
-import { useKnowledgeStore } from '../../stores/knowledgeStore';
+import { useKnowledgeStore } from '../../store/knowledgeStore';
 import type { KnowledgeEntry } from '../../types/knowledge';
 
 interface KnowledgeEntryCardProps {

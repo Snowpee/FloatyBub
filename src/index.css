@@ -271,6 +271,11 @@ dialog .modal-box {
   }
 }
 
+.settings-modal {
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
 /* 设置模态：触摸设备禁用 hover，保留 active 反馈 */
 @media (hover: none), (any-hover: none) {
   .settings-modal .btn:hover,

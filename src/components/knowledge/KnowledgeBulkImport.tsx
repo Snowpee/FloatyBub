@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileText, AlertCircle, CheckCircle, Loader2, Download } from 'lucide-react';
-import { useKnowledgeStore } from '../../stores/knowledgeStore';
+import { useKnowledgeStore } from '../../store/knowledgeStore';
 import type { KnowledgeBase, ImportKnowledgeEntry } from '../../types/knowledge';
 
 interface KnowledgeBulkImportProps {

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import Layout from './components/Layout';
+import Layout from './Layout';
 import ToastContainer from './components/ToastContainer';
 import { databaseConnectionTester } from './utils/databaseConnectionTest';
 

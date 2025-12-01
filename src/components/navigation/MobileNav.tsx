@@ -164,9 +164,6 @@ export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swi
     previousHiddenIdRef.current = null;
     navLog('finalize setting suppressLeaving=true');
     setSuppressLeaving(true);
-    navLog('finalize clearing temp components only');
-    setTempForeground(null);
-    setTempBackground(null);
     api.stop();
     if (opRef.current === 'pop') {
       navLog('finalize executing pop', { stackBefore: stack.length });
@@ -181,6 +178,8 @@ export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swi
       setMode('idle');
       api.stop();
       api.set({ x: 0 });
+      setTempForeground(null);
+      setTempBackground(null);
       clearTemp();
       isAnimatingRef.current = false;
       dragStartedOnButtonRef.current = false;
