@@ -4,15 +4,15 @@ import ChatPage from '../screens/chats/Chats';
 import RoleListPage from '../screens/RoleListPage';
 import Home from '../screens/Home';
 import NotFound from '../screens/NotFound';
-import GlobalSettingsPage from '../screens/settings/sections/GlobalSettingsPage';
-import ConfigPage from '../screens/settings/sections/ConfigPage';
-import RolesPage from '../screens/settings/sections/RolesPage';
-import UserRolesPage from '../screens/settings/sections/UserRolesPage';
-import GlobalPromptsPage from '../screens/settings/sections/GlobalPromptsPage';
-import VoiceSettingsPage from '../screens/settings/sections/VoiceSettingsPage';
-import DataPage from '../screens/settings/sections/DataPage';
-import KnowledgeManagement from '../screens/settings/sections/KnowledgeManagement';
-import SearchSettingsPage from '../screens/settings/sections/SearchSettingsPage';
+import GlobalSettings from '../screens/settings/sections/GlobalSettings';
+import ConfigSettings from '../screens/settings/sections/ConfigSettings';
+import RolesSettings from '../screens/settings/sections/RolesSettings';
+import UserRolesSettings from '../screens/settings/sections/UserRolesSettings';
+import GlobalPromptsSettings from '../screens/settings/sections/GlobalPromptsSettings';
+import VoiceSettings from '../screens/settings/sections/VoiceSettings';
+import DataSettings from '../screens/settings/sections/DataSettings';
+import KnowledgeSettings from '../screens/settings/sections/KnowledgeSettings';
+import SearchSettings from '../screens/settings/sections/SearchSettings';
 import VoiceTest from '../screens/_debug/VoiceTest';
 import ToastTestPage from '../screens/_debug/ToastTestPage';
 import DatabaseConnectionTestPage from '../screens/_debug/DatabaseConnectionTestPage';
@@ -47,43 +47,43 @@ export const router = createBrowserRouter([
       },
       {
         path: 'settings',
-        element: <GlobalSettingsPage />
+        element: <GlobalSettings />
       },
       {
         path: 'settings/global',
-        element: <GlobalSettingsPage />
+        element: <GlobalSettings />
       },
       {
         path: 'settings/config',
-        element: <ConfigPage />
+        element: <ConfigSettings />
       },
       {
         path: 'settings/roles',
-        element: <RolesPage />
+        element: <RolesSettings />
       },
       {
         path: 'settings/userRoles',
-        element: <UserRolesPage />
+        element: <UserRolesSettings />
       },
       {
         path: 'settings/globalPrompts',
-        element: <GlobalPromptsPage />
+        element: <GlobalPromptsSettings />
       },
       {
         path: 'settings/voice',
-        element: <VoiceSettingsPage />
+        element: <VoiceSettings />
       },
       {
         path: 'settings/search',
-        element: <SearchSettingsPage />
+        element: <SearchSettings />
       },
       {
         path: 'settings/data',
-        element: <DataPage />
+        element: <DataSettings />
       },
       {
         path: 'settings/knowledge',
-        element: <KnowledgeManagement />
+        element: <KnowledgeSettings />
       },
 
       {

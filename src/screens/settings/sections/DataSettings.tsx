@@ -20,12 +20,12 @@ import { toast } from '../../../hooks/useToast';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 
 
-interface DataPageProps {
+interface DataSettingsProps {
   onCloseModal?: () => void;
   className?: string;
 }
 
-const DataPage: React.FC<DataPageProps> = ({ onCloseModal, className }) => {
+const DataSettings: React.FC<DataSettingsProps> = ({ onCloseModal, className }) => {
   const {
     llmConfigs,
     aiRoles,
@@ -136,7 +136,7 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal, className }) => {
   };
 
   return (
-    <div className={cn("max-w-6xl mx-auto p-4 space-y-4 md:pt-0", className)}>
+    <div className={cn("max-w-6xl mx-auto p-4 md:p-6 md:pt-0 space-y-4", className)}>
       {/* 页面标题 */}
       <div className="flex items-center space-x-3">
         <div>
@@ -308,4 +308,4 @@ const DataPage: React.FC<DataPageProps> = ({ onCloseModal, className }) => {
   );
 };
 
-export default DataPage;
+export default DataSettings;

@@ -25,12 +25,12 @@ interface VoiceSettings {
   modelVersion: string;
 }
 
-interface VoiceSettingsPageProps {
+interface VoiceSettingsProps {
   onCloseModal?: () => void;
   className?: string;
 }
 
-const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal, className }) => {
+const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }) => {
   const { voiceSettings, setVoiceSettings } = useAppStore();
   
   const [settings, setSettings] = useState<VoiceSettings>({
@@ -799,4 +799,4 @@ const VoiceSettingsPage: React.FC<VoiceSettingsPageProps> = ({ onCloseModal, cla
   );
 };
 
-export default VoiceSettingsPage;
+export default VoiceSettings;

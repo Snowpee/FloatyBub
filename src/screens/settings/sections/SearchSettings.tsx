@@ -4,12 +4,12 @@ import { toast } from '../../../hooks/useToast';
 import { Search, Globe, Shield, KeyRound, Activity } from 'lucide-react';
 import { getApiBaseUrl, cn } from '../../../lib/utils';
 
-export interface SearchSettingsPageProps {
+export interface SearchSettingsProps {
   onCloseModal?: () => void;
   className?: string;
 }
 
-const SearchSettingsPage: React.FC<SearchSettingsPageProps> = ({ onCloseModal, className }) => {
+const SearchSettings: React.FC<SearchSettingsProps> = ({ onCloseModal, className }) => {
   const { searchConfig, setSearchConfig, updateSearchConfig } = useAppStore();
 
   const [localConfig, setLocalConfig] = useState(() => ({
@@ -242,4 +242,4 @@ const SearchSettingsPage: React.FC<SearchSettingsPageProps> = ({ onCloseModal, c
   );
 };
 
-export default SearchSettingsPage;
+export default SearchSettings;

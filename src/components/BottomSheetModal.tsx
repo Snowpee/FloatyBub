@@ -8,6 +8,7 @@ type HeaderAction = {
   onClick?: () => void;
   className?: string;
   role?: 'close' | 'default';
+  disabled?: boolean;
 };
 
 interface BottomSheetModalProps {
@@ -32,7 +33,7 @@ interface BottomSheetModalProps {
   lockScroll?: boolean;
 }
 
-const BottomSheetModal = memo<BottomSheetModalProps>(({
+const BottomSheetModal = memo<BottomSheetModalProps>(({ 
   isOpen,
   onOpenChange,
   onClose,
@@ -53,6 +54,8 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
   hideHeader = false,
   lockScroll = true,
 }) => {
+  const instanceIdRef = useRef(Math.random().toString(36).slice(2));
+  const instanceId = instanceIdRef.current;
   // 滚动锁定
   useEffect(() => {
     if (isOpen && lockScroll) {
@@ -63,6 +66,17 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
       };
     }
   }, [isOpen, lockScroll]);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.setAttribute('data-modal-open', 'true');
+    } else {
+      document.body.removeAttribute('data-modal-open');
+    }
+    return () => {
+      document.body.removeAttribute('data-modal-open');
+    };
+  }, [isOpen]);
 
   console.log('[BottomSheetModal] ====== component render ======', {
     isOpen,
@@ -166,7 +180,7 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
     return (v * k) / (Math.abs(v) + c) * (closedYRef.current + c);
   };
 
-  const bind = useDrag(({ down, movement: [, my], velocity: [vx, vy], direction: [, dy], last, event }) => {
+  const bind = useDrag(({ down, movement: [mx, my], velocity: [vx, vy], direction: [dx, dy], last, event }) => {
     if (!dragEnabled) {
       return;
     }
@@ -176,13 +190,14 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
     if (down) {
       (event as Event).preventDefault?.();
       api.start({ y: clamp(next, 0, closedYRef.current), backdrop: clamp(1 - next / closedYRef.current, 0, 1), immediate: true });
-      if (debug) console.log('[BottomSheetModal] drag', { y: next });
+      if (debug) console.log('[BottomSheetModal] drag', { y: next, mx, my, vx, vy, dx, dy });
     } else if (last) {
       const shouldClose = next > distanceThreshold || (vy > velocityThreshold && dy > 0);
       if (shouldClose) {
         api.start({ y: closedYRef.current, backdrop: 0, config: { tension: 260, friction: 30 } });
         if (debug) console.log('[BottomSheetModal] release -> close', { y: next, vy, dy });
         setTimeout(() => {
+          if (debug) console.log('[BottomSheetModal] invoking onOpenChange(false) + onClose()', { reason: 'drag-close' });
           onOpenChange?.(false);
           onClose?.();
         }, 220);
@@ -198,6 +213,7 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
     isClosingRef.current = true;
     api.start({ y: closedYRef.current, backdrop: 0, config: { tension: 260, friction: 30 } });
     setTimeout(() => {
+      if (debug) console.log('[BottomSheetModal] invoking onOpenChange(false) + onClose()', { reason: 'backdrop' });
       onOpenChange?.(false);
       onClose?.();
     }, closeAnimationDuration);
@@ -207,6 +223,7 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
     api.start({ y: closedYRef.current, backdrop: 0, config: { tension: 260, friction: 30 } });
     isClosingRef.current = true;
     setTimeout(() => {
+      if (debug) console.log('[BottomSheetModal] invoking onOpenChange(false) + onClose()', { reason: reason || 'programmatic', meta });
       onOpenChange?.(false);
       onClose?.();
     }, closeAnimationDuration);
@@ -222,7 +239,7 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
       <animated.div
         style={{ transform: y.to((v) => `translateY(${v}px)`) }}
         className={[
-          'bg-base-100 shadow-xl flex flex-col',
+          'bg-base-200 shadow-xl flex flex-col',
           safeArea ? 'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : '',
           'w-full h-full',
           className || ''
@@ -241,6 +258,7 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
                   className={a.className || 'btn btn-ghost btn-sm'}
                   onClick={() => { if (a.role === 'close') requestClose('header-left-action', { index: i, role: a.role }); a.onClick?.(); }}
                   onPointerDown={(e) => e.stopPropagation()}
+                  disabled={!!a.disabled}
                 >
                   {a.icon}
                   {a.label}
@@ -259,6 +277,7 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
                   className={a.className || 'btn btn-ghost btn-sm'}
                   onClick={() => { if (a.role === 'close') requestClose('header-right-action', { index: i, role: a.role }); a.onClick?.(); }}
                   onPointerDown={(e) => e.stopPropagation()}
+                  disabled={!!a.disabled}
                 >
                   {a.icon}
                   {a.label}

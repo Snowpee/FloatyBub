@@ -3,14 +3,14 @@ import { cn } from '../../../lib/utils';
 import { toast } from '../../../hooks/useToast';
 import { useAppStore } from '../../../store';
 
-interface GlobalSettingsPageProps {
+interface GlobalSettingsProps {
   onCloseModal?: () => void;
   className?: string;
 }
 
 type ChatStyle = 'conversation' | 'document';
 
-const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal, className }) => {
+const GlobalSettings: React.FC<GlobalSettingsProps> = ({ onCloseModal, className }) => {
   const {
     autoTitleConfig,
     assistantConfig,
@@ -181,4 +181,4 @@ const GlobalSettingsPage: React.FC<GlobalSettingsPageProps> = ({ onCloseModal, c
   );
 };
 
-export default GlobalSettingsPage;
+export default GlobalSettings;

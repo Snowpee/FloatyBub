@@ -11,12 +11,12 @@ import type { KnowledgeBase } from '../../../types/knowledge';
 import { NavLink, BackButton } from '../../../components/navigation/MobileNav';
 import { cn } from '../../../lib/utils';
 
-interface KnowledgePageProps {
+interface KnowledgeSettingsProps {
   onCloseModal?: () => void;
   className?: string;
 }
 
-const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal, className }) => {
+const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, className }) => {
   const {
     knowledgeBases,
     loading,
@@ -126,7 +126,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal, className }
 
   return (
     <div 
-      className={cn("p-4 md:pt-0", className)} 
+      className={cn("p-4 md:p-6 md:pt-0", className)} 
       data-knowledge-page
       data-is-detail-view={showEntryManager ? 'true' : 'false'}
       data-detail-title={selectedKnowledgeBase?.name || ''}
@@ -213,9 +213,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ onCloseModal, className }
                           </div>
                           <div>
                             <h3 className="card-title text-base">{knowledgeBase.name}</h3>
-                            <div className="flex items-center gap-2 text-sm text-base-content/60 mt-1">
-                              <Calendar className="w-3 h-3" />
-                              <span>{formatDate(knowledgeBase.created_at)}</span>
+                            <div className="flex items-center gap-2 text-sm text-base-content/30 mt-1">
+                              <span>创建于 {formatDate(knowledgeBase.created_at)}</span>
                             </div>
                           </div>
                         </div>
@@ -388,4 +387,4 @@ const KBEntryManagerPage: React.FC<{ kb: KnowledgeBase; onCloseModal?: () => voi
   );
 };
 
-export default KnowledgePage;
+export default KnowledgeSettings;

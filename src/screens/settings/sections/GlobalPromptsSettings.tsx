@@ -15,12 +15,12 @@ import EmptyState from '../../../components/EmptyState';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 
 
-interface GlobalPromptsPageProps {
+interface GlobalPromptsSettingsProps {
   onCloseModal?: () => void;
   className?: string;
 }
 
-const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal, className }) => {
+const GlobalPromptsSettings: React.FC<GlobalPromptsSettingsProps> = ({ onCloseModal, className }) => {
   const {
     globalPrompts,
     addGlobalPrompt,
@@ -133,7 +133,7 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal, cla
   };
 
   return (
-    <div className={cn("p-4 max-w-6xl mx-auto md:pt-0", className)}>
+    <div className={cn("p-4 md:p-6 md:pt-0 max-w-6xl mx-auto", className)}>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
         <div>
           <p className="text-base-content/70">
@@ -305,4 +305,4 @@ const GlobalPromptsPage: React.FC<GlobalPromptsPageProps> = ({ onCloseModal, cla
   );
 };
 
-export default GlobalPromptsPage;
+export default GlobalPromptsSettings;

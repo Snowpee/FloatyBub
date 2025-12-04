@@ -1,4 +1,5 @@
 import React, { memo, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import HistoryContent from './HistoryContent';
 import BottomSheetModal from '../../components/BottomSheetModal';
@@ -28,7 +29,7 @@ const HistoryModal = memo<HistoryModalProps>(({ isOpen, onClose }) => {
 
   // 桌面端：使用 DaisyUI Modal (Method 1: <dialog> element)
   if (isDesktop) {
-    return (
+    return createPortal(
       <dialog className="modal modal-open modal-middle" open>
         <div className="modal-box w-11/12 max-w-4xl h-[80vh] p-0 flex flex-col bg-base-100 shadow-2xl">
             {/* Header */}
@@ -52,15 +53,17 @@ const HistoryModal = memo<HistoryModalProps>(({ isOpen, onClose }) => {
         <form method="dialog" className="modal-backdrop">
             <button onClick={onClose}>close</button>
         </form>
-      </dialog>
+      </dialog>,
+      document.body
     );
   }
 
   // 移动端：使用 BottomSheetModal
-  return (
+  return createPortal(
     <BottomSheetModal
       isOpen={isOpen}
       onOpenChange={(open) => {
+        console.log('[HistoryModal] onOpenChange', { open });
         if (!open) {
           onClose();
         }
@@ -72,6 +75,7 @@ const HistoryModal = memo<HistoryModalProps>(({ isOpen, onClose }) => {
       velocityThreshold={0.5}
       rubberband={true}
       safeArea={true}
+      debug={true}
       headerTitle={<div className="text-center text-lg font-semibold text-base-content">历史记录</div>}
       rightActions={[{ icon: <X className="h-4 w-4" />, className: 'btn btn-ghost btn-sm btn-square', role: 'close' }]}
     >
@@ -80,7 +84,8 @@ const HistoryModal = memo<HistoryModalProps>(({ isOpen, onClose }) => {
           <HistoryContent onCloseModal={onClose} />
         </div>
       </div>
-    </BottomSheetModal>
+    </BottomSheetModal>,
+    document.body
   );
 });
 

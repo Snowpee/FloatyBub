@@ -194,6 +194,10 @@ export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swi
   const bind = useDrag(({ down, movement: [mx], velocity: [vx], last, active, event }) => {
     if (!swipeGesture) return;
     if (!canGoBack()) return;
+    if (typeof document !== 'undefined' && document.body.getAttribute('data-modal-open') === 'true') {
+      navLog('swipe blocked: modal open');
+      return;
+    }
     const target = event.target as HTMLElement;
     event.preventDefault();
     const startX = getClientX(event);

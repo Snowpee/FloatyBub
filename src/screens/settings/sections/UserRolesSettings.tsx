@@ -9,12 +9,12 @@ import RoleAvatarUpload from '../../../components/RoleAvatarUpload';
 import { toast } from '../../../hooks/useToast';
 
 
-interface userRolesPageProps {
+interface UserRolesSettingsProps {
   onCloseModal?: () => void;
   className?: string;
 }
 
-const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal, className }) => {
+const UserRolesSettings: React.FC<UserRolesSettingsProps> = ({ onCloseModal, className }) => {
   const {
     userRoles,
     currentUserProfile,
@@ -130,7 +130,7 @@ const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal, className }
 
 
   return (
-    <div className={cn("max-w-6xl mx-auto p-4 md:pt-0", className)}>
+    <div className={cn("max-w-6xl mx-auto p-4 md:p-6 md:pt-0", className)}>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
         <div>
           <p className="text-base-content/60">管理用户资料，在对话时传递给AI</p>
@@ -347,4 +347,4 @@ const userRolesPage: React.FC<userRolesPageProps> = ({ onCloseModal, className }
   );
 };
 
-export default userRolesPage;
+export default UserRolesSettings;

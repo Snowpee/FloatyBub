@@ -104,7 +104,7 @@ export const KnowledgeEntryManager: React.FC<KnowledgeEntryManagerProps> = ({
 
   return (
     <div 
-      className="min-h-screen bg-base-100 knowledge-entry-manager"
+      className="min-h-screen knowledge-entry-manager"
       data-knowledge-page
       data-is-detail-view="true"
       data-detail-title={knowledgeBase.name}

@@ -16,7 +16,7 @@ import { playVoice, playVoiceStreaming, stopCurrentVoice, addVoiceStateListener,
 import { supabase } from '../../lib/supabase';
 import { useUserData } from '../../hooks/useUserData';
 import { useAuth } from '../../hooks/useAuth';
-import { ChatEnhancementService } from '../../services/ChatEnhancementService';
+import { ChatEnhancementService } from '../../services/chatEnhancementService';
 import { useKnowledgeStore } from '../../store/knowledgeStore';
 import { useScrollMask } from '../../hooks/useScrollMask';
 import { usePageContext } from '../../hooks/usePageContext';

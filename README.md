@@ -627,8 +627,8 @@ floaty-bub/
 │   │   ├── KnowledgePage.tsx # 知识库页面
 │   │   ├── KnowledgeManagement.tsx # 知识库管理
 │   │   ├── DataPage.tsx    # 数据管理页面
-│   │   ├── SettingsPage.tsx# 设置页面
-│   │   └── ConfigPage.tsx  # 配置页面
+│   │   ├── Settings.tsx    # 设置页面
+│   │   └── settings/       # 设置相关组件
 │   ├── hooks/              # 自定义Hook
 │   │   ├── useDataSync.ts  # 数据同步Hook
 │   │   ├── useUserData.ts  # 用户数据Hook

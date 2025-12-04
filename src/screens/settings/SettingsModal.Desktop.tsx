@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import ConfigPage from './sections/ConfigPage';
+import ConfigSettings from './sections/ConfigSettings';
 import { tabs, TabType, SettingsModalProps } from './config';
 
 const SettingsModalDesktop: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultTab = 'global' }) => {
@@ -98,7 +98,7 @@ const SettingsModalDesktop: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
     };
   }, [activeTab, isOpen]);
 
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ConfigPage;
+  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ConfigSettings;
 
   if (!isOpen) return null;
 
@@ -127,7 +127,7 @@ const SettingsModalDesktop: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
                     <button
                       onClick={() => handleTabClick(tab.id)}
                       className={cn(
-                        'flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 transition-colors',
+                        'flex items-center gap-3 w-full text-left rounded-[var(--radius-field)] px-3 py-2 transition-colors',
                         activeTab === tab.id
                           ? 'bg-base-300 text-base-content'
                           : 'text-base-content hover:bg-base-300'

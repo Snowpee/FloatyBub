@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavProvider, NavContainer, NavLink, BackButton, useNav } from '../../components/navigation/MobileNav';
-import GlobalSettingsPage from '../../screens/settings/sections/GlobalSettingsPage';
+import GlobalSettings from '../../screens/settings/sections/GlobalSettings';
 import ToastTestPage from './ToastTestPage';
 
 const PageShell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -18,7 +18,7 @@ const SettingsNavPage: React.FC = () => {
   const nav = useNav();
   return (
     <PageShell title="Settings">
-      <GlobalSettingsPage onCloseModal={() => nav.pop()} />
+      <GlobalSettings onCloseModal={() => nav.pop()} />
     </PageShell>
   );
 };
