@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, BookOpen, Upload, FileText, Calendar, Edit, Trash2, Download, X, ArrowLeft } from 'lucide-react';
 import { useKnowledgeStore } from '../../../store/knowledgeStore';
-import { KnowledgeBaseForm } from '../../../components/knowledge/KnowledgeBaseForm';
-import { KnowledgeEntryManager } from '../../../components/knowledge/KnowledgeEntryManager';
-import { KnowledgeBulkImport } from '../../../components/knowledge/KnowledgeBulkImport';
+import KnowledgeBaseModal from './KnowledgeBaseModal';
+import KnowledgeBulkImportModal from './KnowledgeBulkImportModal';
+import { KnowledgeEntryManager } from './KnowledgeEntryManager';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import type { KnowledgeBase } from '../../../types/knowledge';
 import { NavLink, BackButton } from '../../../components/navigation/MobileNav';
@@ -317,19 +317,19 @@ const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, cla
 
       {/* 创建知识库表单 */}
       {showCreateForm && (
-        <KnowledgeBaseForm
+        <KnowledgeBaseModal
           isOpen={showCreateForm}
-          onCancel={closeAllModals}
+          onClose={closeAllModals}
           onSuccess={closeAllModals}
         />
       )}
 
       {/* 编辑知识库表单 */}
       {showEditForm && selectedKnowledgeBase && (
-        <KnowledgeBaseForm
+        <KnowledgeBaseModal
           knowledgeBase={selectedKnowledgeBase}
           isOpen={showEditForm}
-          onCancel={closeAllModals}
+          onClose={closeAllModals}
           onSuccess={closeAllModals}
         />
       )}
@@ -344,9 +344,11 @@ const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, cla
 
       {/* 批量导入 */}
       {showBulkImport && selectedKnowledgeBase && (
-        <KnowledgeBulkImport
+        <KnowledgeBulkImportModal
           knowledgeBase={selectedKnowledgeBase}
-          onCancel={closeAllModals}
+          isOpen={showBulkImport}
+          onClose={closeAllModals}
+          onSuccess={closeAllModals}
         />
       )}
 

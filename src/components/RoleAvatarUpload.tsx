@@ -85,7 +85,7 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
   };
 
   return (
-    <div className={cn('flex items-start gap-6', className)}>
+    <div className={cn('flex items-center gap-4', className)}>
       {/* 头像预览 */}
       <div className="relative flex-shrink-0">
         <Avatar
@@ -107,9 +107,9 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
       </div>
 
       {/* 右侧内容 */}
-      <div className="flex-1 space-y-4">
+      <div className="flex-1 space-y-2">
         {/* 操作按钮 */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-1">
           <button
             type="button"
             onClick={handleRandomAvatar}
@@ -119,7 +119,7 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
             随机生成
           </button>
           
-          {currentAvatar && (
+          {/* {currentAvatar && (
             <button
               type="button"
               onClick={handleRemoveAvatar}
@@ -128,19 +128,19 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
               <X className="h-4 w-4 mr-1" />
               移除
             </button>
-          )}
+          )} */}
         </div>
 
         {/* 提示文字 */}
         <div className="text-left">
           <p className="text-xs text-base-content/60">
-            支持 JPEG、PNG、GIF、WebP 格式， 文件大小不超过 5MB。
+            文件大小不超过 5MB。
           </p>
-          {!currentAvatar && (
+          {/* {!currentAvatar && (
             <p className="text-xs text-base-content/40 mt-1">
               未设置头像时将根据角色名自动生成
             </p>
-          )}
+          )} */}
         </div>
       </div>
 

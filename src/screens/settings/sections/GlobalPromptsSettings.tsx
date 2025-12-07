@@ -1,11 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAppStore, GlobalPrompt } from '../../../store';
 import {
   Plus,
   Edit,
   Trash2,
-  Save,
-  X,
   FileText,
   MoreVertical
 } from 'lucide-react';
@@ -13,6 +11,7 @@ import { cn } from '../../../lib/utils';
 import { toast } from '../../../hooks/useToast';
 import EmptyState from '../../../components/EmptyState';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import GlobalPromptsModal, { GlobalPromptFormData } from './GlobalPromptsModal';
 
 
 interface GlobalPromptsSettingsProps {
@@ -28,84 +27,39 @@ const GlobalPromptsSettings: React.FC<GlobalPromptsSettingsProps> = ({ onCloseMo
     deleteGlobalPrompt
   } = useAppStore();
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState<GlobalPrompt | null>(null);
+
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     promptId: string;
     promptTitle: string;
   }>({ isOpen: false, promptId: '', promptTitle: '' });
   
-  const modalRef = useRef<HTMLDialogElement>(null);
-  const [formData, setFormData] = useState<Partial<GlobalPrompt>>({
-    title: '',
-    description: '',
-    prompt: ''
-  });
-
   const handleEdit = (prompt: GlobalPrompt) => {
-    setFormData({
-      title: prompt.title,
-      description: prompt.description || '',
-      prompt: prompt.prompt
-    });
-    setEditingId(prompt.id);
-    setIsEditing(true);
-    modalRef.current?.showModal();
+    setEditingPrompt(prompt);
+    setIsModalOpen(true);
   };
 
   const handleAdd = () => {
-    setFormData({
-      title: '',
-      description: '',
-      prompt: ''
-    });
-    setEditingId(null);
-    setIsEditing(true);
-    modalRef.current?.showModal();
+    setEditingPrompt(null);
+    setIsModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (!formData.title || !formData.prompt) {
-      toast.error('请填写所有必填字段');
-      return;
-    }
-
-    if (editingId) {
-      updateGlobalPrompt(editingId, formData);
-      toast.success('全局提示词已更新');
-    } else {
-      addGlobalPrompt(formData as Omit<GlobalPrompt, 'id' | 'createdAt' | 'updatedAt'>);
-      toast.success('全局提示词已添加');
-    }
-
-    modalRef.current?.close();
-  };
-
-  useEffect(() => {
-    const modal = modalRef.current;
-    
-    const handleModalClose = () => {
-      setIsEditing(false);
-      setEditingId(null);
-    };
-    
-    
-    if (modal) {
-      modal.addEventListener('close', handleModalClose);
-    }
-    
-    
-    return () => {
-      if (modal) {
-        modal.removeEventListener('close', handleModalClose);
+  const handleModalConfirm = async (data: GlobalPromptFormData) => {
+    try {
+      if (editingPrompt) {
+        updateGlobalPrompt(editingPrompt.id, data);
+        toast.success('全局提示词已更新');
+      } else {
+        addGlobalPrompt(data as any);
+        toast.success('全局提示词已添加');
       }
-      // 无需处理删除确认模态的 close 事件，交由 ConfirmDialog 的 onClose 控制
-    };
-  }, []);
-
-  const handleCancel = () => {
-    modalRef.current?.close();
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('保存全局提示词失败:', error);
+      toast.error('保存全局提示词失败');
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -213,82 +167,12 @@ const GlobalPromptsSettings: React.FC<GlobalPromptsSettingsProps> = ({ onCloseMo
       )}
 
       {/* 编辑/添加模态框 */}
-      <dialog ref={modalRef} className="modal">
-        <div className="modal-box max-w-2xl w-full">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-base-content">
-                {editingId ? '编辑全局提示词' : '创建全局提示词'}
-              </h2>
-              <button
-                onClick={handleCancel}
-                className="btn btn-sm btn-circle btn-ghost"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {/* 基本信息 */}
-              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
-                <legend className="fieldset-legend">提示词 *</legend>
-                
-                {/* 标题 */}
-                <label className="input w-full mb-1">
-                  <span className="label">标题</span>
-                  <input
-                    type="text"
-                    value={formData.title || ''}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className=""
-                    placeholder="例如: 专业编程助手提示词"
-                  />
-                </label>
-                <textarea
-                  value={formData.prompt || ''}
-                  onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
-                  rows={8}
-                  className="textarea textarea-bordered w-full"
-                  placeholder="输入全局提示词内容，这将作为系统级别的指导原则..."
-                />
-                <span className="label-text">定义全局提示词内容，可在角色中复用</span>
-              </fieldset>
-
-              {/* 提示词配置 */}
-              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
-                <legend className="fieldset-legend">备注</legend>
-                
-                {/* 描述 */}
-                <input
-                  type="text"
-                  value={formData.description || ''}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="input input-bordered w-full mb-1"
-                  placeholder="简要描述该提示词的用途和特点"
-                />
-
-              </fieldset>
-            </div>
-
-            <div className="modal-action">
-              <button
-                onClick={handleCancel}
-                className="btn btn-ghost"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSave}
-                className="btn btn-primary"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                保存
-              </button>
-            </div>
-        </div>
-        <form method="dialog" className="modal-backdrop">
-          <button>close</button>
-        </form>
-      </dialog>
+      <GlobalPromptsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={handleModalConfirm}
+        initialPrompt={editingPrompt}
+      />
 
       {/* 删除确认弹窗（统一使用 ConfirmDialog） */}
       <ConfirmDialog

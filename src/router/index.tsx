@@ -23,7 +23,9 @@ import MobileNavStandalone from '../screens/_debug/MobileNavStandalone';
 import MobileNavDragTest from '../screens/_debug/MobileNavDragTest';
 import SupabaseDebugPage from '../screens/_debug/SupabaseDebugPage';
 import SyncTestPage from '../screens/_debug/SyncTestPage';
-
+import InputDemo from '../screens/_debug/InputDemo';
+import RoleModal from '../screens/settings/sections/RolesModal';
+import ConfigModal from '../screens/settings/sections/ConfigModal';
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -117,6 +119,18 @@ export const router = createBrowserRouter([
       {
         path: 'debug/sync-test',
         element: <SyncTestPage />
+      },
+      {
+        path: 'debug/input-demo',
+        element: <InputDemo />
+      },
+      {
+        path: 'debug/role-modal',
+        element: <RoleModal isOpen={true} onClose={() => {}} onConfirm={async () => {}} initialRole={undefined} knowledgeBases={[]} />
+      },
+      {
+        path: 'debug/config-modal',
+        element: <ConfigModal isOpen={true} onClose={() => {}} onConfirm={async () => {}} initialConfig={{}} title="调试标题" />
       },
       {
         path: '*',

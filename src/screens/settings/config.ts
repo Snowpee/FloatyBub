@@ -43,16 +43,16 @@ export const tabs = [
     component: UserRolesSettings
   },
   {
-    id: 'knowledge' as TabType,
-    name: '知识库',
-    icon: BookOpen,
-    component: KnowledgeSettings
-  },
-  {
     id: 'globalPrompts' as TabType,
     name: '全局提示词',
     icon: FileText,
     component: GlobalPromptsSettings
+  },
+  {
+    id: 'knowledge' as TabType,
+    name: '知识库',
+    icon: BookOpen,
+    component: KnowledgeSettings
   },
   {
     id: 'voice' as TabType,

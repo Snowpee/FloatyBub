@@ -6,6 +6,7 @@ import { toast } from '../../../hooks/useToast';
 import { getDefaultBaseUrl } from '../../../utils/providerUtils';
 import type { LLMConfig } from '../../../store';
 import BottomSheetModal from '../../../components/BottomSheetModal';
+import { InputProvider } from '@/components/InputProvider';
 
 interface ConfigModalProps {
   isOpen: boolean;
@@ -232,190 +233,189 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
 
   // 表单内容组件
   const FormContent = (
-    <div className="flex flex-col gap-4 p-1">
-      <fieldset className="fieldset bg-base-100 md:bg-base-200 border-base-300 rounded-box border p-3 md:p-4 gap-3 md:gap-4">
-        <div>
-          <label className="input w-full">
-            <span className="label">配置名称 *</span>
-            <input
-              type="text"
-              value={formData.name || ''}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="grow"
-              placeholder="例如: GPT-4"
-            />
-          </label>
-        </div>
-        <div>
-          <label className="select w-full">
-            <span className="label">提供商 *</span>
-            <select
-              value={formData.provider || 'openai'}
-              onChange={(e) => {
-                const newProvider = e.target.value as any;
-                const newBaseUrl = getDefaultBaseUrl(newProvider);
-                setFetchedModels([]);
-                setFormData({
-                  ...formData,
-                  provider: newProvider,
-                  model: '',
-                  baseUrl: newProvider === 'custom' ? formData.baseUrl : newBaseUrl
-                });
-              }}
-              className="grow"
-            >
-              {providers.map(provider => (
-                <option key={provider.value} value={provider.value}>
-                  {provider.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="">
-          <label className="input w-full pr-2">
-            <span className="label">API密钥 *</span>
-            <input
-              type="password"
-              value={formData.apiKey || ''}
-              onChange={(e) => {
-                setFormData({ ...formData, apiKey: e.target.value });
-                if (fetchedModels.length > 0) {
-                  setFetchedModels([]);
-                  setFormData(prev => ({ ...prev, model: '' }));
-                }
-              }}
-              className=""
-              placeholder="输入API密钥"
-            />
-            {formData.provider && supportsModelsApi(formData.provider) && (
-              <button
-                type="button"
-                onClick={fetchModelsList}
-                disabled={fetchingModels || !formData.apiKey}
-                className="btn btn-xs"
-              >
-                {fetchingModels ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    获取中
-                  </>
-                ) : (
-                  '获取模型'
-                )}
-              </button>
-            )}
-          </label>
-        </div>
-
-        <div className="">
-          <label
-            className={cn(
-              'w-full',
-              formData.provider && getProviderModels(formData.provider).length > 0 ? (
-                'select'
-              ) : (
-                'input'
-              )
-            )}
-          >
-            <span className="label">模型 *</span>
-            {formData.provider && getProviderModels(formData.provider).length > 0 ? (
+    <InputProvider>
+      <div className="flex flex-col gap-4 p-0" data-1p-ignore data-form-type="other">
+        <fieldset className='bub-fieldset'>
+          <div>
+            <label className='bub-input'>
+              <span className="label w-16">名称 *</span>
+              <input
+                type="text"
+                value={formData.name || ''}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="例如: GPT-4"
+              />
+            </label>
+          </div>
+          <div>
+            <label className='bub-select'>
+              <span className="label">提供商 *</span>
               <select
-                value={formData.model || ''}
-                onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                className=""
+                value={formData.provider || 'openai'}
+                onChange={(e) => {
+                  const newProvider = e.target.value as any;
+                  const newBaseUrl = getDefaultBaseUrl(newProvider);
+                  setFetchedModels([]);
+                  setFormData({
+                    ...formData,
+                    provider: newProvider,
+                    model: '',
+                    baseUrl: newProvider === 'custom' ? formData.baseUrl : newBaseUrl
+                  });
+                }}
               >
-                <option value="">选择模型</option>
-                {getProviderModels(formData.provider).map(model => (
-                  <option key={model} value={model}>
-                    {model}
+                {providers.map(provider => (
+                  <option key={provider.value} value={provider.value}>
+                    {provider.label}
                   </option>
                 ))}
               </select>
-            ) : (
+            </label>
+          </div>
+          <div className="">
+            <label className='bub-input'>
+              <span className="label">API 密钥 *</span>
               <input
-                type="text"
-                value={formData.model || ''}
-                onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                type="password"
+                value={formData.apiKey || ''}
+                onChange={(e) => {
+                  setFormData({ ...formData, apiKey: e.target.value });
+                  if (fetchedModels.length > 0) {
+                    setFetchedModels([]);
+                    setFormData(prev => ({ ...prev, model: '' }));
+                  }
+                }}
                 className=""
-                placeholder="输入模型名称"
+                placeholder="输入API密钥"
               />
-            )}
-          </label>
-        </div>
+              {formData.provider && supportsModelsApi(formData.provider) && (
+                <button
+                  type="button"
+                  onClick={fetchModelsList}
+                  disabled={fetchingModels || !formData.apiKey}
+                  className="btn btn-xs"
+                >
+                  {fetchingModels ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      获取中
+                    </>
+                  ) : (
+                    '获取模型'
+                  )}
+                </button>
+              )}
+            </label>
+          </div>
 
-        <div className="">
-          <label className="input w-full">
-            <span className="label">基础URL</span>
-            <input
-              type="url"
-              value={formData.baseUrl || ''}
-              onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-              className=""
-              placeholder="https://api.openai.com/v1"
-            />
-          </label>
-        </div>
+          <div className="">
+            <label
+              className={cn(
+                formData.provider && getProviderModels(formData.provider).length > 0 ? (
+                  'bub-select'
+                ) : (
+                  'bub-input'
+                )
+              )}
+            >
+              <span className="label">模型 *</span>
+              {formData.provider && getProviderModels(formData.provider).length > 0 ? (
+                <select
+                  value={formData.model || ''}
+                  onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                >
+                  <option value="">选择模型</option>
+                  {getProviderModels(formData.provider).map(model => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={formData.model || ''}
+                  onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                  className=""
+                  placeholder="输入模型名称"
+                />
+              )}
+            </label>
+          </div>
 
-        <div className="">
-          <label className="input w-full">
-            <span className="label">代理URL</span>
-            <input
-              type="url"
-              value={formData.proxyUrl || ''}
-              onChange={(e) => setFormData({ ...formData, proxyUrl: e.target.value })}
-              className=""
-              placeholder="http://proxy.example.com:8080"
-            />
-          </label>
-        </div>
-      </fieldset>
+          <div className="">
+            <label className='bub-input'>
+              <span className="label">基础 URL</span>
+              <input
+                type="url"
+                value={formData.baseUrl || ''}
+                onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
+                className=""
+                placeholder="https://api.openai.com/v1"
+              />
+            </label>
+          </div>
 
-      <fieldset className="fieldset bg-base-100 md:bg-base-200 border-base-300 rounded-box border p-3 md:p-4 gap-3 md:gap-4">
-        <div>
-          <label className="input w-full">
-            <span className="label">温度</span>
-            <input
-              type="number"
-              min="0"
-              max="2"
-              step="0.1"
-              value={formData.temperature || 0.7}
-              onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
-              className=""
-            />
-          </label>
-        </div>
-        <div>
-          <label className="input w-full">
-            <span className="label">最大令牌</span>
-            <input
-              type="number"
-              min="1"
-              max="8192"
-              value={formData.maxTokens || 2048}
-              onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
-              className=""
-            />
-          </label>
-        </div>
-      </fieldset>
+          <div className="">
+            <label className='bub-input'>
+              <span className="label">代理 URL</span>
+              <input
+                type="url"
+                value={formData.proxyUrl || ''}
+                onChange={(e) => setFormData({ ...formData, proxyUrl: e.target.value })}
+                className=""
+                placeholder="http://proxy.example.com:8080"
+              />
+            </label>
+          </div>
 
-      <fieldset className="fieldset bg-base-100 md:bg-base-200 border-base-300 rounded-box border p-3 md:p-4">
-        <div className="form-control flex items-center">
-          <span className="text-sm text-base-content/70">启用此配置</span>
-          <label className="label cursor-pointer ml-auto">
-            <input
-              type="checkbox"
-              checked={formData.enabled || false}
-              onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-              className="toggle toggle-primary"
-            />
-          </label>
-        </div>
-      </fieldset>
-    </div>
+        </fieldset>
+
+        <fieldset className='bub-fieldset'>
+          <div>
+            <label className='bub-input'>
+              <span className="label">温度</span>
+              <input
+                type="number"
+                min="0"
+                max="2"
+                step="0.1"
+                value={formData.temperature || 0.7}
+                onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
+                className=""
+              />
+            </label>
+          </div>
+          <div>
+            <label className='bub-input'>
+              <span className="label">最大令牌</span>
+              <input
+                type="number"
+                min="1"
+                max="8192"
+                value={formData.maxTokens || 2048}
+                onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
+                className=""
+              />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset className="fieldset bg-base-100 border-base-300 rounded-box border p-4">
+          <div className="form-control flex items-center">
+            <span className="text-sm text-base-content/70">启用此配置</span>
+            <label className="label cursor-pointer ml-auto">
+              <input
+                type="checkbox"
+                checked={formData.enabled || false}
+                onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                className="toggle toggle-primary"
+              />
+            </label>
+          </div>
+        </fieldset>
+      </div>
+    </InputProvider>
   );
 
   if (!isOpen) return null;
@@ -424,7 +424,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
   if (isDesktop) {
     return createPortal(
       <dialog className="modal modal-open modal-middle" open>
-        <div className="modal-box w-11/12 max-w-2xl p-0 flex flex-col bg-base-100 shadow-2xl max-h-[90vh]">
+        <div className="modal-box w-11/12 max-w-2xl p-0 flex flex-col bg-base-200 shadow-2xl max-h-[90vh]">
           {/* Header */}
           <div className="px-6 py-4 flex items-center justify-between border-b border-base-200">
             <div className="text-lg font-bold text-base-content">{title}</div>

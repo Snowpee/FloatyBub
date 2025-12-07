@@ -53,7 +53,6 @@ const FormField = ({
   const renderInput = () => {
     // 移动端样式：去掉 DaisyUI 的边框，使用 iOS 风格
     const mobileClass = `
-      md:input md:input-bordered
       border-0 md:border
       bg-transparent md:bg-base-100
       text-[17px] md:text-sm
@@ -106,12 +105,10 @@ const FormField = ({
       </div>
 
       {/* 桌面端: DaisyUI 标准样式 */}
-      <div className="hidden md:block form-control w-full mb-4">
-        <label className="label">
-          <span className="label-text">{label}</span>
+        <label className="hidden md:flex input w-full">
+          <span className="label">{label}</span>
+          {renderInput()}
         </label>
-        {renderInput()}
-      </div>
     </>
   );
 };

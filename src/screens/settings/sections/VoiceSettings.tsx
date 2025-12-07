@@ -4,6 +4,7 @@ import { toast } from '../../../hooks/useToast';
 import { useAppStore } from '../../../store';
 import { getApiBaseUrl, cn } from '../../../lib/utils';
 import { getCacheStats, clearAllCache, generateStreamingVoiceUrl } from '../../../utils/voiceUtils';
+import VoiceModelModal from './VoiceModelModal';
 
 interface VoiceModel {
   id: string;
@@ -49,14 +50,11 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
   const [playingModel, setPlayingModel] = useState<string | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
-  const [newModelInput, setNewModelInput] = useState('');
-  const [newModelNote, setNewModelNote] = useState('');
   const [isAddingModel, setIsAddingModel] = useState(false);
   const [apiStatus, setApiStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
   const [keyStatus, setKeyStatus] = useState<'unknown' | 'valid' | 'invalid'>('unknown');
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const modalRef = useRef<HTMLDialogElement>(null);
   const [cacheStats, setCacheStats] = useState({ count: 0, size: 0, sizeFormatted: '0 B' });
   const [isClearingCache, setIsClearingCache] = useState(false);
 
@@ -312,13 +310,13 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
   };
 
   // 添加自定义模型
-  const addCustomModel = async () => {
-    if (!newModelInput.trim()) {
+  const addCustomModel = async (modelIdInput: string, note: string) => {
+    if (!modelIdInput.trim()) {
       toast.error('请输入模型ID或网址');
       return;
     }
 
-    const modelId = parseModelInput(newModelInput.trim());
+    const modelId = parseModelInput(modelIdInput.trim());
     
     if (settings.customModels.some(m => m.id === modelId)) {
       toast.error('该模型已存在');
@@ -332,7 +330,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
       if (modelInfo) {
         const newModel: VoiceModel = {
           ...modelInfo,
-          userNote: newModelNote.trim() || undefined
+          userNote: note.trim() || undefined
         };
         
         const newSettings = {
@@ -342,12 +340,12 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
         saveSettings(newSettings);
         
         toast.success(`已添加模型: ${newModel.name}`);
-        closeAddModelModal();
+        setIsModalOpen(false);
       } else {
         const fallbackModel: VoiceModel = {
           id: modelId,
           name: `模型 ${modelId.slice(0, 8)}`,
-          userNote: newModelNote.trim() || undefined
+          userNote: note.trim() || undefined
         };
         
         const newSettings = {
@@ -357,7 +355,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
         saveSettings(newSettings);
         
         toast.success(`已添加模型: ${fallbackModel.name}`);
-        closeAddModelModal();
+        setIsModalOpen(false);
       }
     } catch (error) {
       console.error('添加模型失败:', error);
@@ -380,16 +378,12 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
 
   // 打开添加模型弹窗
   const openAddModelModal = () => {
-    setNewModelInput('');
-    setNewModelNote('');
     setIsModalOpen(true);
-    modalRef.current?.showModal();
   };
 
   // 关闭添加模型弹窗
   const closeAddModelModal = () => {
     setIsModalOpen(false);
-    modalRef.current?.close();
   };
 
 
@@ -728,73 +722,12 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
 
 
       {/* 添加模型弹窗 */}
-      <dialog ref={modalRef} className="modal">
-        <div className="modal-box w-full max-w-md">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-base-content">
-              添加新模型
-            </h2>
-            <button
-              onClick={closeAddModelModal}
-              className="btn btn-ghost btn-sm btn-circle"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          <div className="">
-            {/* 模型信息 */}
-            <fieldset className="fieldset">
-              <label className="input w-full mb-1">
-                <input
-                  type="text"
-                  className=""
-                  value={newModelInput}
-                  onChange={(e) => setNewModelInput(e.target.value)}
-                  placeholder="输入模型ID或Fish Audio网址"
-                />
-              </label>
-            </fieldset>
-
-            {/* 用户备注 */}
-            <fieldset className="fieldset">
-              <label className="input w-full mb-1">
-                <input
-                  type="text"
-                  className=""
-                  value={newModelNote}
-                  onChange={(e) => setNewModelNote(e.target.value)}
-                  placeholder="为此模型添加备注"
-                />
-              </label>
-            </fieldset>
-          </div>
-
-          <div className="modal-action">
-            <button
-              onClick={closeAddModelModal}
-              className="btn btn-ghost"
-            >
-              取消
-            </button>
-            <button
-              onClick={addCustomModel}
-              className="btn btn-primary"
-              disabled={isAddingModel || !newModelInput.trim()}
-            >
-              {isAddingModel ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              {isAddingModel ? '添加中...' : '添加模型'}
-            </button>
-          </div>
-        </div>
-        <form method="dialog" className="modal-backdrop">
-          <button>close</button>
-        </form>
-      </dialog>
+      <VoiceModelModal
+        isOpen={isModalOpen}
+        onClose={closeAddModelModal}
+        onAdd={addCustomModel}
+        isAdding={isAddingModel}
+      />
     </div>
   );
 };

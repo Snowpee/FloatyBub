@@ -1,12 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Edit, Trash2, Save, X, User, CheckCircle, MoreHorizontal } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Edit, Trash2, User, CheckCircle, MoreHorizontal } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { useAppStore, UserProfile } from '../../../store';
-import { generateRandomLocalAvatar } from '../../../utils/avatarUtils';
 import EmptyState from '../../../components/EmptyState';
 import ConfirmDialog from '../../../components/ConfirmDialog';
-import RoleAvatarUpload from '../../../components/RoleAvatarUpload';
 import { toast } from '../../../hooks/useToast';
+import UserRolesModal, { UserRoleFormData } from './UserRolesModal';
 
 
 interface UserRolesSettingsProps {
@@ -24,83 +23,47 @@ const UserRolesSettings: React.FC<UserRolesSettingsProps> = ({ onCloseModal, cla
     setCurrentUserProfile
   } = useAppStore();
 
-  const [isEditing, setIsEditing] = useState(false);
-  const modalRef = useRef<HTMLDialogElement>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null);
 
-  useEffect(() => {
-    const dialog = modalRef.current;
-    if (dialog) {
-      const handleClose = () => {
-        setIsEditing(false);
-        setEditingId(null);
-      };
-      dialog.addEventListener('close', handleClose);
-      return () => dialog.removeEventListener('close', handleClose);
-    }
-  }, []);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     profileId: string;
     profileName: string;
   }>({ isOpen: false, profileId: '', profileName: '' });
 
-  const [formData, setFormData] = useState<{
-    name: string;
-    description: string;
-    avatar: string;
-  }>({ name: '', description: '', avatar: '' });
-
   const handleAdd = () => {
-    const newAvatar = generateRandomLocalAvatar();
-    setFormData({ name: '', description: '', avatar: newAvatar });
-    setIsEditing(true);
-    setEditingId(null);
-    modalRef.current?.showModal();
+    setEditingProfile(null);
+    setIsModalOpen(true);
   };
 
   const handleEdit = (profile: UserProfile) => {
-    setFormData({
-      name: profile.name,
-      description: profile.description,
-      avatar: profile.avatar
-    });
-    setIsEditing(true);
-    setEditingId(profile.id);
-    modalRef.current?.showModal();
+    setEditingProfile(profile);
+    setIsModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (!formData.name.trim()) {
-      toast.error('请输入用户名');
-      return;
-    }
-
+  const handleModalConfirm = async (data: UserRoleFormData) => {
     try {
-      if (editingId) {
-        updateUserProfile(editingId, {
-          name: formData.name.trim(),
-          description: formData.description.trim(),
-          avatar: formData.avatar
+      if (editingProfile) {
+        updateUserProfile(editingProfile.id, {
+          name: data.name.trim(),
+          description: data.description.trim(),
+          avatar: data.avatar
         });
         toast.success('用户资料已更新');
       } else {
         addUserProfile({
-          name: formData.name.trim(),
-          description: formData.description.trim(),
-          avatar: formData.avatar
+          name: data.name.trim(),
+          description: data.description.trim(),
+          avatar: data.avatar
         });
         toast.success('用户资料已添加');
       }
-      modalRef.current?.close();
+      setIsModalOpen(false);
     } catch (error) {
       console.error('保存用户资料失败:', error);
       toast.error('保存用户资料失败');
     }
-  };
-
-  const handleCancel = () => {
-    modalRef.current?.close();
   };
 
   const handleDelete = (id: string) => {
@@ -258,79 +221,12 @@ const UserRolesSettings: React.FC<UserRolesSettingsProps> = ({ onCloseModal, cla
       )}
 
       {/* 编辑对话框 */}
-      <dialog ref={modalRef} className="modal">
-        <div className="modal-box max-w-2xl w-full">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-base-content">
-                {editingId ? '编辑用户资料' : '添加用户资料'}
-              </h2>
-              <button
-                onClick={handleCancel}
-                className="btn btn-sm btn-circle btn-ghost"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {/* 基本信息 */}
-              <fieldset className="fieldset bg-base-200 border-base-300 rounded-box border p-4">
-                <legend className="fieldset-legend">基本信息</legend>
-                
-                {/* 头像 */}
-                <div className="mb-4">
-                  <RoleAvatarUpload
-                    name={formData.name || '用户'}
-                    currentAvatar={formData.avatar}
-                    onAvatarChange={(avatar) => setFormData({ ...formData, avatar: avatar || '' })}
-                  />
-                </div>
-
-                <label className="input w-full mb-1">
-                  <span className="label">昵称 *</span>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className=""
-                    placeholder="你希望 AI 如何称呼你？"
-                    maxLength={50}
-                  />
-                </label>
-                
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  className="textarea textarea-bordered w-full mb-1"
-                  placeholder="用户简介，简要描述用户的特点和背景（可选）"
-                  maxLength={500}
-                />
-                <span className="label-text">用户简介将在对话时传递给AI，帮助AI更好地理解用户背景</span>
-              </fieldset>
-            </div>
-
-            <div className="modal-action">
-              <button
-                onClick={handleCancel}
-                className="btn btn-ghost"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSave}
-                className="btn btn-primary"
-                disabled={!formData.name.trim()}
-              >
-                <Save className="h-4 w-4" />
-                保存
-              </button>
-            </div>
-        </div>
-        <form method="dialog" className="modal-backdrop">
-          <button>close</button>
-        </form>
-      </dialog>
+      <UserRolesModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={handleModalConfirm}
+        initialProfile={editingProfile}
+      />
 
       {/* 删除确认对话框 */}
       <ConfirmDialog

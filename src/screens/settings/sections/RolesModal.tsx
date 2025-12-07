@@ -6,6 +6,7 @@ import {
   GripVertical,
   Check
 } from 'lucide-react';
+import { InputProvider } from '../../../components/InputProvider';
 import { useAppStore, AIRole } from '../../../store';
 import { toast } from '../../../hooks/useToast';
 import BottomSheetModal from '../../../components/BottomSheetModal';
@@ -13,6 +14,7 @@ import RoleAvatarUpload from '../../../components/RoleAvatarUpload';
 import { generateRandomLocalAvatar } from '../../../utils/avatarUtils';
 import { KnowledgeService } from '../../../services/KnowledgeService';
 import type { KnowledgeBase } from '../../../types/knowledge';
+import { cn } from '@/lib/utils';
 
 export interface RoleFormData {
   name: string;
@@ -181,69 +183,73 @@ const RolesModal: React.FC<RolesModalProps> = ({
 
   // 表单内容
   const FormContent = (
-    <div className="flex flex-col gap-4">
-      {/* 基本信息 */}
-      <fieldset className="fieldset bg-base-100 md:bg-base-200 border-base-300 rounded-box border p-3 md:p-4 gap-3 md:gap-4">
+    <InputProvider>
+      <div className="flex flex-col gap-6">
+        {/* 基本信息 */}
+      <fieldset className='bub-fieldset py-4'>
         <RoleAvatarUpload
           name={formData.name || '新角色'}
           currentAvatar={formData.avatar}
           onAvatarChange={(avatar) => setFormData({ ...formData, avatar })}
-          className="self-center"
+          className="self-center pb-4"
         />
-
-        <label className="input w-full">
-          <span className="label">角色名称 *</span>
-          <input
-            type="text"
-            value={formData.name || ''}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className=""
-            placeholder="例如: 编程助手"
-          />
-        </label>
-
-        <fieldset className="fieldset relative p-0">
-          <span className="label ml-[calc(0.75rem+var(--border))] absolute top-3 left-0 z-10">角色提示词 *</span>
-          <textarea
-            value={formData.systemPrompt || ''}
-            onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
-            rows={4}
-            className="textarea textarea-bordered w-full pt-8"
-            placeholder="定义AI的角色、行为方式和回答风格。例如：你是一个专业的编程助手，擅长多种编程语言..."
-          />
-        </fieldset>
-        <fieldset className="fieldset relative p-0">
-          <span className="label ml-[calc(0.75rem+var(--border))] absolute top-3 left-0 z-10">角色描述</span>
-          <textarea
-            value={formData.description || ''}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            rows={2}
-            className="textarea textarea-bordered w-full pt-8"
-            placeholder="角色描述，简要描述这个角色的特点和用途"
-          />
-        </fieldset>
+        <div>
+          <label className='bub-input'>
+            <span className="label">角色名称 *</span>
+            <input
+              type="text"
+              value={formData.name || ''}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className=""
+              placeholder="例如: 编程助手"
+            />
+          </label>
+        </div>
+        
+        <div>
+          <div className='bub-textarea'>
+            <span className="label">角色提示词 *</span>
+            <textarea
+              value={formData.systemPrompt || ''}
+              onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
+              rows={4}
+              className="w-full pt-8"
+              placeholder="定义AI的角色、行为方式和回答风格。例如：你是一个专业的编程助手，擅长多种编程语言..."
+            />
+          </div>
+        </div>
+        <div>
+          <div className='bub-textarea'>
+            <span className="label">角色描述</span>
+            <textarea
+              value={formData.description || ''}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={2}
+              className="w-full pt-8"
+              placeholder="角色描述，简要描述这个角色的特点和用途"
+            />
+          </div>
+        </div>
       </fieldset>
-
 
       {/* 开场白设置 */}
       <div>
-        <div className="pl-3 pb-1 text-sm font-bold text-base-content/50">开场白设置</div>
-        <fieldset className="fieldset bg-base-100 md:bg-base-200 border-base-300 rounded-box border p-3 md:p-4">
-          <div className="space-y-3">
+        <div className="pl-[calc(1rem+1px)] pb-1 text-sm font-bold text-base-content/50">开场白设置</div>
+        <fieldset className="bub-fieldset py-4">
             {formData.openingMessages.map((message, index) => (
-              <div key={index} className="flex gap-2">
+              <div key={index} className="flex gap-2 items-center">
                 <textarea
                   value={message}
                   onChange={(e) => updateOpeningMessage(index, e.target.value)}
                   rows={3}
-                  className="textarea textarea-bordered flex-1"
+                  className="flex-1 bub-textarea"
                   placeholder={`开场白 ${index + 1}：设置角色的开场白，将作为对话的第一句话显示`}
                 />
                 {formData.openingMessages.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeOpeningMessage(index)}
-                    className="btn btn-ghost btn-sm text-error hover:bg-error/10"
+                    className="btn btn-xs btn-circle hover:bg-error/10"
                     title="删除此开场白"
                   >
                     <X className="h-4 w-4" />
@@ -251,32 +257,33 @@ const RolesModal: React.FC<RolesModalProps> = ({
                 )}
               </div>
             ))}
-            <button
-              type="button"
-              onClick={addOpeningMessage}
-              className="btn btn-outline w-full border-base-300 bg-base-100 hover:bg-base-200"
-            >
-              <Plus className="h-4 w-4 mr-2 " />
-              新增更多开场白
-            </button>
-          </div>
+            <div>
+              <button
+                type="button"
+                onClick={addOpeningMessage}
+                className="btn btn-outline w-full border-base-300 bg-base-100 hover:bg-base-200 mt-4"
+              >
+                <Plus className="h-4 w-4 mr-2 " />
+                新增更多开场白
+              </button>
+            </div>
         </fieldset>
       </div>
 
       {/* 提示词配置 */}
       <div>
-        <div className="pl-3 pb-1 text-sm font-bold text-base-content/50">附加提示词</div>
-        <fieldset className="fieldset bg-base-100 md:bg-base-200 border-base-300 rounded-box border p-3 md:p-4"> 
+        <div className="pl-[calc(1rem+1px)] pb-1 text-sm font-bold text-base-content/50">附加提示词</div>
+        <fieldset className="bub-fieldset"> 
           
           {/* 已选择的提示词列表 */}
           {formData.globalPromptIds.length > 0 && (
-            <div className="space-y-2 mb-1">
+            <div className="space-y-0 divide-y divide-base-300">
               {formData.globalPromptIds.map((promptId, index) => {
                 const prompt = globalPrompts.find(p => p.id === promptId);
                 return (
                   <div 
                     key={promptId} 
-                    className="flex items-center justify-between bg-base-100 rounded-field p-1 pl-2 border-[length:var(--border-width)] border-base-300 cursor-move hover:bg-base-200 transition-colors"
+                    className="flex items-center justify-between bg-base-100 p-0 h-12 cursor-move transition-colors"
                     draggable
                     onDragStart={(e) => {
                       e.dataTransfer.setData('text/plain', index.toString());
@@ -319,7 +326,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
                           globalPromptIds: prev.globalPromptIds.filter(id => id !== promptId)
                         }));
                       }}
-                      className="btn btn-ghost btn-circle btn-sm text-error hover:bg-error/10"
+                      className="btn btn-circle btn-xs hover:bg-error/10"
                       title="删除此提示词"
                     >
                       <X className="h-4 w-4" />
@@ -332,9 +339,10 @@ const RolesModal: React.FC<RolesModalProps> = ({
           
           {/* 添加提示词按钮和下拉选择器 */}
           <div className="space-y-1">
-            <label className="select w-full">
+            <label className="bub-select bub-select-l w-full">
               <select
                 value=""
+                className='text-left'
                 onChange={(e) => {
                   const selectedId = e.target.value;
                   if (selectedId && !formData.globalPromptIds.includes(selectedId)) {
@@ -358,51 +366,48 @@ const RolesModal: React.FC<RolesModalProps> = ({
                 }
               </select>
             </label>          
-            <p className="label">
-              可添加多个全局提示词，它们将按顺序应用到对话中。
-            </p>
+            
           </div>
+          
 
         </fieldset>
+        <p className="label text-base-content/60 text-sm ml-[calc(1rem+1px)]">
+          可添加多个全局提示词，它们将按顺序应用到对话中。
+        </p>
       </div>
 
 
       {/* 知识库配置 */}
       <div>
-        <div className="pl-3 pb-1 text-sm font-bold text-base-content/50">知识库配置</div>
-        <fieldset className="fieldset bg-base-100 md:bg-base-200 border-base-300 rounded-box border p-3 md:p-4">
-        {isEditLoading ? (
-          <div className="space-y-2">
-            <div className="skeleton h-10 w-full" />
-            <div className="skeleton h-4 w-56" />
+        <fieldset className="bub-fieldset">
+          <div>
+          {isEditLoading ? (
+            <div className="space-y-2">
+              <div className="skeleton h-10 w-full" />
+              <div className="skeleton h-4 w-56" />
+            </div>
+          ) : (
+            <>
+              <label className="bub-select w-full">
+                <span className="label">知识库</span>
+                <select
+                  value={formData.knowledgeBaseId || ''}
+                  onChange={(e) => setFormData({ ...formData, knowledgeBaseId: e.target.value })}
+                >
+                  <option value="">不使用知识库</option>
+                  {knowledgeBases.map((kb) => (
+                    <option key={kb.id} value={kb.id}>
+                      {kb.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
           </div>
-        ) : (
           <>
-            <label className="select w-full">
-              <select
-                value={formData.knowledgeBaseId || ''}
-                onChange={(e) => setFormData({ ...formData, knowledgeBaseId: e.target.value })}
-              >
-                <option value="">不使用知识库</option>
-                {knowledgeBases.map((kb) => (
-                  <option key={kb.id} value={kb.id}>
-                    {kb.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="label">
-              选择知识库后，AI将能够根据对话内容搜索相关知识条目。
-            </p>
-          </>
-        )}
-        </fieldset>
-      </div>
-      <div>
-        <div className="pl-3 pb-1 text-sm font-bold text-base-content/50">语音设置</div>
-        <fieldset className="fieldset bg-base-100 md:bg-base-200 border-base-300 rounded-box border p-3 md:p-4">
-          <label className="select w-full">
-            {/* <span className="label">语音模型</span> */}
+          <label className="bub-select w-full">
+            <span className="label">语音模型</span>
             <select
               value={formData.voiceModelId || ''}
               onChange={(e) => setFormData({ ...formData, voiceModelId: e.target.value || undefined })}
@@ -415,10 +420,11 @@ const RolesModal: React.FC<RolesModalProps> = ({
               ))}
             </select>
           </label>
-          <span className="label">未设置时将使用默认语音模型</span>
+          </>
         </fieldset>
       </div>
-    </div>
+      </div>
+    </InputProvider>
   );
 
   if (!isOpen) return null;
@@ -427,7 +433,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
   if (isDesktop) {
     return createPortal(
       <dialog className="modal modal-open modal-middle" open>
-        <div className="modal-box w-11/12 max-w-3xl p-0 flex flex-col bg-base-100 shadow-2xl max-h-[90vh]">
+        <div className="modal-box w-11/12 max-w-3xl p-0 flex flex-col bg-base-200 shadow-2xl max-h-[90vh]">
           {/* Header */}
           <div className="px-6 py-4 flex items-center justify-between border-b border-base-200">
             <div className="text-lg font-bold text-base-content">{initialRole ? '编辑角色' : '创建新角色'}</div>

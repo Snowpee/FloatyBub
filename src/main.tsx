@@ -6,6 +6,7 @@ import { router } from './router';
 import { useAppStore } from './store';
 import { toast } from './hooks/useToast';
 import { attachDebugFunctions } from './utils/debugUtils';
+import './code-theme.css';
 
 // 主题初始化完全由 zustand store 负责
 // 不在这里设置默认主题，避免覆盖存储的主题

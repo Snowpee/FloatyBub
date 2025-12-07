@@ -10,24 +10,33 @@ interface MarkdownRendererProps {
 
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
   return (
-    <div className={`markdown-content text-wrap whitespace-normal wrap-break-word overflow-x-hidden ${className}`}>
+    <div className={`markdown-content text-wrap whitespace-normal break-word min-w-0 overflow-x-hidden ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
         components={{
           // 自定义代码块样式
-          code: ({ node, className, children, ...props }) => {
+          code: ({ node, inline, className, children, ...props }: any) => {
             const match = /language-(\w+)/.exec(className || '');
-            const isInline = !className;
-            return !isInline && match ? (
-              <pre className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 overflow-x-auto my-2">
-                <code className={`${className} text-sm`} {...props}>
+            
+            // 如果没有 className 且不是 inline，说明是未声明语言的代码块
+            // react-markdown 会传入 inline 属性
+            return !inline && match ? (
+              <pre className="markdown-code-block border border-base-content/10 rounded-lg p-4 overflow-x-auto my-2 text-wrap break-word min-w-0">
+                <code className={`${className} text-sm bg-transparent`} {...props}>
+                  {children}
+                </code>
+              </pre>
+            ) : !inline ? (
+              // 处理未声明语言的代码块 (block code without language)
+              <pre className="markdown-code-block border border-base-content/10 rounded-lg p-4 overflow-x-auto my-2 text-wrap break-word min-w-0">
+                <code className="text-sm bg-transparent" {...props}>
                   {children}
                 </code>
               </pre>
             ) : (
               <code
-                className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm font-mono"
+                className="bg-base-200 px-1.5 py-0.5 rounded text-sm font-mono text-base-content"
                 {...props}
               >
                 {children}
@@ -40,7 +49,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-primary hover:underline"
               {...props}
             >
               {children}
@@ -49,28 +58,28 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
           // 自定义表格样式
           table: ({ children, ...props }) => (
             <div className="overflow-x-auto my-4">
-              <table className="min-w-full border border-gray-300 dark:border-gray-600" {...props}>
+              <table className="min-w-full border border-base-content/20" {...props}>
                 {children}
               </table>
             </div>
           ),
           th: ({ children, ...props }) => (
             <th
-              className="border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-4 py-2 text-left font-medium"
+              className="border border-base-content/20 bg-base-200 px-4 py-2 text-left font-medium text-base-content"
               {...props}
             >
               {children}
             </th>
           ),
           td: ({ children, ...props }) => (
-            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2" {...props}>
+            <td className="border border-base-content/20 px-4 py-2 text-base-content" {...props}>
               {children}
             </td>
           ),
           // 自定义引用块样式
           blockquote: ({ children, ...props }) => (
             <blockquote
-              className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 my-4 italic text-gray-600 dark:text-gray-400"
+              className="border-l-4 border-base-content/30 pl-4 my-4 italic text-base-content/70"
               {...props}
             >
               {children}
@@ -78,17 +87,17 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
           ),
           // 自定义标题样式
           h1: ({ children, ...props }) => (
-            <h1 className="text-2xl font-bold mt-6 mb-4 text-gray-900 dark:text-white" {...props}>
+            <h1 className="text-2xl font-bold mt-6 mb-4 text-base-content" {...props}>
               {children}
             </h1>
           ),
           h2: ({ children, ...props }) => (
-            <h2 className="text-xl font-bold mt-5 mb-3 text-gray-900 dark:text-white" {...props}>
+            <h2 className="text-xl font-bold mt-5 mb-3 text-base-content" {...props}>
               {children}
             </h2>
           ),
           h3: ({ children, ...props }) => (
-            <h3 className="text-lg font-bold mt-4 mb-2 text-gray-900 dark:text-white" {...props}>
+            <h3 className="text-lg font-bold mt-4 mb-2 text-base-content" {...props}>
               {children}
             </h3>
           ),

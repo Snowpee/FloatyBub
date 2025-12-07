@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../../../store';
 import { toast } from '../../../hooks/useToast';
-import { Search, Globe, Shield, KeyRound, Activity } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import { getApiBaseUrl, cn } from '../../../lib/utils';
 
 export interface SearchSettingsProps {
@@ -10,7 +10,7 @@ export interface SearchSettingsProps {
 }
 
 const SearchSettings: React.FC<SearchSettingsProps> = ({ onCloseModal, className }) => {
-  const { searchConfig, setSearchConfig, updateSearchConfig } = useAppStore();
+  const { searchConfig, setSearchConfig } = useAppStore();
 
   const [localConfig, setLocalConfig] = useState(() => ({
     enabled: searchConfig?.enabled ?? false,
@@ -43,7 +43,7 @@ const SearchSettings: React.FC<SearchSettingsProps> = ({ onCloseModal, className
         engineId: localConfig.engineId?.trim() || undefined,
         language: localConfig.language?.trim() || undefined,
         country: localConfig.country?.trim() || undefined,
-        // 仅支持 'off' | 'active'，移除对 'on' 的比较以消除TS错误
+        // 仅支持 'off' | 'active'
         safeSearch: localConfig.safeSearch === 'active' ? 'active' : 'off',
         maxResults: Math.max(1, Math.min(Number(localConfig.maxResults) || 5, 10))
       });
@@ -85,157 +85,134 @@ const SearchSettings: React.FC<SearchSettingsProps> = ({ onCloseModal, className
   };
 
   return (
-    <div className={cn("p-4 md:p-6 max-w-6xl mx-auto md:pt-0", className)}>
-      <div className="mb-0">
-        <p className="text-base-content/70">配置联网搜索的相关设置</p>
-      </div>
+    <div className={cn("p-4 md:p-6 max-w-4xl mx-auto md:pt-0", className)}>
 
-      <div className="card mt-4 mb-4 bg-base-100">
-        <div className="card-body pt-4 md:pt-6 gap-4">
-          <h3 className="font-medium text-base mb-2">基础设置</h3>
-          <div className="form-control w-full flex">
-            <p className="text-base mb-4 hidden md:block">启用联网搜索</p>
-            <label className="w-full md:w-1/2 ml-auto flex items-center justify-between">
-              <span className="label md:!hidden">启用联网搜索</span>
+      <div className="flex flex-col gap-6">
+        {/* 基础设置 */}
+        <div>
+          <fieldset className='bub-fieldset'>
+            {/* 启用开关 */}
+            <div className="bub-checkbox h-12 flex items-center justify-between pr-0">
+              <span className="label">启用联网搜索</span>
               <input
                 type="checkbox"
                 className="toggle toggle-primary"
                 checked={!!localConfig.enabled}
                 onChange={(e) => setLocalConfig({ ...localConfig, enabled: e.target.checked })}
               />
-            </label>
-          </div>
+            </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            <div className="flex hero-fieldset">
-              <p className="hero-label-md text-base mb-4 hidden md:block">Provider</p>
-              <label className="input w-full md:w-1/2 ml-auto">
-                <span className="label block md:!hidden">Provider</span>
-                <input type="text" className="w-full" value="Google CSE" disabled />
+            {/* Provider */}
+            <div>
+              <label className='bub-input'>
+                <span className="label">Provider</span>
+                <input
+                  type="text"
+                  value="Google CSE"
+                  disabled
+                  className="text-base-content/50"
+                />
               </label>
             </div>
 
-            <div className="flex hero-fieldset">
-              <p className="hero-label-md text-base mb-4 hidden md:block">返回条数（1-10）</p>
-              <label className="input w-full md:w-1/2 ml-auto">
-                <span className="label block md:!hidden">返回条数（1-10）</span>
+            {/* 返回条数 */}
+            <div>
+              <label className='bub-input'>
+                <span className="label">返回条数 (1-10)</span>
                 <input
                   type="number"
                   min={1}
                   max={10}
-                  className="w-full"
                   value={localConfig.maxResults}
                   onChange={(e) => setLocalConfig({ ...localConfig, maxResults: Number(e.target.value) })}
                 />
               </label>
             </div>
-          </div>
+          </fieldset>
         </div>
-      </div>
 
-      <div className="card my-4 bg-base-100">
-        <div className="card-body pt-4 md:pt-6 gap-4">
-          <h3 className="font-medium text-base mb-4">密钥与引擎</h3>
-
-          <div className="flex hero-fieldset">
-            <p className="hero-label-md text-base mb-4 hidden md:block">API Key</p>
-            <label className="input w-full md:w-1/2 ml-auto">
-              <span className="label block md:!hidden">API Key</span>
-              <input
-                type="password"
-                className="w-full"
-                placeholder="用于本地或个人密钥"
-                value={localConfig.apiKey}
-                onChange={(e) => setLocalConfig({ ...localConfig, apiKey: e.target.value })}
-              />
-            </label>
-          </div>
-
-          <div className="flex hero-fieldset">
-            <p className="hero-label-md text-base mb-4 hidden md:block">Engine ID (cx)</p>
-            <label className="input w-full md:w-1/2 ml-auto">
-              <span className="label block md:!hidden">Engine ID (cx)</span>
-              <input
-                type="text"
-                className="w-full"
-                placeholder="留空则使用服务端配置"
-                value={localConfig.engineId}
-                onChange={(e) => setLocalConfig({ ...localConfig, engineId: e.target.value })}
-              />
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <div className="card bg-base-100 shadow-sm mb-4">
-        <div className="card-body pt-4 md:pt-6">
-          <h3 className="font-medium text-base mb-4">搜索参数</h3>
-
-          <div className="form-control flex hero-fieldset mb-2">
-            <p className="hero-label-md text-base mb-4 hidden md:block">语言（hl）</p>
-            <label className="input w-full md:w-1/2 ml-auto">
-              <span className="label block md:!hidden">语言（hl）</span>
-              <input
-                type="text"
-                className="w-full"
-                placeholder="如 zh-CN"
-                value={localConfig.language}
-                onChange={(e) => setLocalConfig({ ...localConfig, language: e.target.value })}
-              />
-            </label>
-          </div>
-
-          <div className="form-control flex hero-fieldset mb-2">
-            <p className="hero-label-md text-base mb-4 hidden md:block">地域（gl）</p>
-            <label className="input w-full md:w-1/2 ml-auto">
-              <span className="label block md:!hidden">地域（gl）</span>
-              <input
-                type="text"
-                className="w-full"
-                placeholder="如 CN"
-                value={localConfig.country}
-                onChange={(e) => setLocalConfig({ ...localConfig, country: e.target.value })}
-              />
-            </label>
-          </div>
-
-          <div className="form-control flex hero-fieldset">
-            <p className="hero-label-md text-base mb-4 hidden md:block">安全搜索</p>
-            <label className="select w-full md:w-1/2 ml-auto">
-              <span className="label block md:!hidden">安全搜索</span>
-              <select
-                className="select select-bordered w-full"
-                value={localConfig.safeSearch}
-                onChange={(e) => setLocalConfig({ ...localConfig, safeSearch: e.target.value as 'off' | 'active' })}
-              >
-                <option value="off">off</option>
-                <option value="active">active</option>
-              </select>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <div className="card bg-base-100 shadow-sm mb-6">
-        <div className="card-body pt-4 md:pt-6">
-          <h3 className="font-medium text-base mb-4">操作</h3>
-          <div className="flex items-center gap-3">
-            <button className="btn btn-primary btn-base" onClick={saveConfig}>
-              保存设置
-            </button>
-            <button className="btn btn-outline btn-base flex items-center gap-2" onClick={runHealthCheck}>
-              <Activity className="h-4 w-4" />
-              健康检查
-            </button>
-            {onCloseModal && (
-              <button className="btn btn-ghost btn-base" onClick={onCloseModal}>
-                关闭
-              </button>
-            )}
-          </div>
-          <div className="text-xs text-base-content/60 mt-3">
+        {/* 密钥与引擎 */}
+        <div>
+          <h3 className="text-sm font-medium text-base-content/50 mb-2 pl-[calc(1rem+1px)]">密钥与引擎</h3>
+          <fieldset className='bub-fieldset'>
+            <div>
+              <label className='bub-input'>
+                <span className="label">API Key</span>
+                <input
+                  type="password"
+                  placeholder="用于本地或个人密钥"
+                  value={localConfig.apiKey}
+                  onChange={(e) => setLocalConfig({ ...localConfig, apiKey: e.target.value })}
+                />
+              </label>
+            </div>
+            <div>
+              <label className='bub-input'>
+                <span className="label">Engine ID (cx)</span>
+                <input
+                  type="text"
+                  placeholder="留空则使用服务端配置"
+                  value={localConfig.engineId}
+                  onChange={(e) => setLocalConfig({ ...localConfig, engineId: e.target.value })}
+                />
+              </label>
+            </div>
+          </fieldset>
+          <div className="text-sm text-base-content/40 py-2 pl-[calc(1rem+1px)]">
             说明：若未在此处输入 API Key / cx，将使用服务端环境变量（更安全）。
           </div>
+        </div>
+
+        {/* 搜索参数 */}
+        <div>
+          <h3 className="text-sm font-medium text-base-content/50 mb-2 pl-[calc(1rem+1px)]">搜索参数</h3>
+          <fieldset className='bub-fieldset'>
+            <div>
+              <label className='bub-input'>
+                <span className="label">语言 (hl)</span>
+                <input
+                  type="text"
+                  placeholder="如 zh-CN"
+                  value={localConfig.language}
+                  onChange={(e) => setLocalConfig({ ...localConfig, language: e.target.value })}
+                />
+              </label>
+            </div>
+            <div>
+              <label className='bub-input'>
+                <span className="label">地域 (gl)</span>
+                <input
+                  type="text"
+                  placeholder="如 CN"
+                  value={localConfig.country}
+                  onChange={(e) => setLocalConfig({ ...localConfig, country: e.target.value })}
+                />
+              </label>
+            </div>
+            <div>
+              <label className='bub-select'>
+                <span className="label">安全搜索</span>
+                <select
+                  value={localConfig.safeSearch}
+                  onChange={(e) => setLocalConfig({ ...localConfig, safeSearch: e.target.value as 'off' | 'active' })}
+                >
+                  <option value="off">off</option>
+                  <option value="active">active</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
+        </div>
+
+        {/* 操作 */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 mt-4">
+          <button className="btn btn-primary w-full sm:w-auto" onClick={saveConfig}>
+            保存设置
+          </button>
+          <button className="btn btn-outline w-full sm:w-auto" onClick={runHealthCheck}>
+            <Activity className="h-4 w-4 mr-2" />
+            健康检查
+          </button>
         </div>
       </div>
     </div>

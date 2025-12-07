@@ -12,7 +12,6 @@ import {
   MoreHorizontal,
   Pin,
   PinOff,
-  Palette,
   EyeOff,
   LogIn,
   User,
@@ -887,7 +886,7 @@ const Layout: React.FC = () => {
 
           {/* 底部操作区 */}
           <div className="p-4 pt-0 flex-shrink-0">
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 gap-4">
 
               <div className="flex justify-between gap-2">
                 {isUserSystemEnabled ? (
@@ -902,10 +901,10 @@ const Layout: React.FC = () => {
                   ) : (
                     <div className="dropdown dropdown-top dropdown-start grow">
                       <button
-                        className="btn btn-ghost btn-md w-full"
+                        className="btn btn-ghost btn-md"
                         tabIndex={0}
                       >
-                        <User className="h-4 w-4" />
+                        <User className="h-5 w-5" />
                         访客模式
                       </button>
                       <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 w-48">
@@ -919,98 +918,17 @@ const Layout: React.FC = () => {
                             className="btn btn-md btn-primary"
                             disabled={authLoading}
                           >
-                            <LogIn className="h-4 w-4" />
+                            <LogIn className="h-5 w-5" />
                             {authLoading ? '加载中...' : '登录'}
-                          </button>
-                        </li>
-                        <li>
-                          <button
-                            onClick={() => {
-                              window.location.hash = '#setting';
-                              (document.activeElement as HTMLElement)?.blur();
-                            }}
-                            className="btn btn-md"
-                          >
-                            <Settings className="h-4 w-4" />
-                            设置
                           </button>
                         </li>
                       </ul>
                     </div>
                   )
                 ) : (
-                  <button
-                    onClick={() => {
-                      window.location.hash = '#setting';
-                    }}
-                    className="btn btn-ghost btn-md"
-                  >
-                    <Settings className="h-4 w-4" />
-                    设置
-                  </button>
+                  ''
                 )}
 
-
-                <div className="dropdown dropdown-top dropdown-end">
-                  <div className="tooltip" data-tip="切换主题">
-                    <button
-                      tabIndex={0}
-                      className="btn btn-ghost btn-circle btn-md"
-                      title="切换主题"
-                    >
-                      <Palette className="h-4 w-4" />
-                      {/* {theme === 'floaty' ? '浮光' : theme === 'dark' ? '暗色' : theme === 'light' ? '简洁' : theme === 'cupcake' ? '纸杯蛋糕' : '主题'} */}
-                    </button>
-                  </div>
-                  <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 w-32">
-                    <span className="text-base text-base-content/40 px-3 py-2">主题</span>
-                    <li>
-                      <button
-                        onClick={() => {
-                          setTheme('floaty');
-                          (document.activeElement as HTMLElement)?.blur();
-                        }}
-                        className={`text-base ${theme === 'floaty' ? 'bg-base-200' : ''}`}
-                      >
-                        浮光
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        onClick={() => {
-                          setTheme('dark');
-                          (document.activeElement as HTMLElement)?.blur();
-                        }}
-                        className={`text-base ${theme === 'dark' ? 'bg-base-200' : ''}`}
-                      >
-                        暗色
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        onClick={() => {
-                          setTheme('light');
-                          (document.activeElement as HTMLElement)?.blur();
-                        }}
-                        className={`text-base ${theme === 'light' ? 'bg-base-200' : ''}`}
-                      >
-                        简洁
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        onClick={() => {
-                          setTheme('cupcake');
-                          (document.activeElement as HTMLElement)?.blur();
-                        }}
-                        className={`text-base ${theme === 'cupcake' ? 'bg-base-200' : ''}`}
-                      >
-                        纸杯蛋糕
-                      </button>
-                    </li>
-
-                  </ul>
-                </div>
                 <div className="tooltip" data-tip="搜索对话">
                   <button
                     type="button"
@@ -1018,7 +936,17 @@ const Layout: React.FC = () => {
                     onClick={() => setIsHistoryModalOpen(true)}
                     title="历史记录"
                   >
-                    <Search className="h-4 w-4" />
+                    <Search className="h-5 w-5" />
+                  </button>
+                </div>
+                <div>
+                  <button
+                    onClick={() => {
+                      window.location.hash = '#setting';
+                    }}
+                    className="btn btn-ghost btn-circle"
+                  >
+                    <Settings className="h-5 w-5" />
                   </button>
                 </div>
               </div>

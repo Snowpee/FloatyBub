@@ -1,0 +1,127 @@
+/* 
+  Code Block Theme Adaptation 
+  Based on Atom One Light and Atom One Dark
+*/
+
+/* Default (Light) Theme Variables */
+:root {
+  /* Use DaisyUI background variable if available, or fallback to theme bg */
+  --hljs-bg: var(--color-base-200, #fafafa); 
+  --hljs-fg: #383a42;
+  --hljs-comment: #a0a1a7;
+  --hljs-keyword: #a626a4;
+  --hljs-section: #e45649;
+  --hljs-literal: #0184bb;
+  --hljs-string: #50a14f;
+  --hljs-attr: #986801;
+  --hljs-symbol: #4078f2;
+  --hljs-built-in: #c18401;
+  --hljs-deletion: #e45649;
+  --hljs-addition: #50a14f;
+  --hljs-emphasis: italic;
+  --hljs-strong: bold;
+}
+
+/* Dark Theme Variables */
+[data-theme="dark"] {
+  /* Use DaisyUI background variable if available, or fallback to theme bg */
+  --hljs-bg: var(--color-base-200, #282c34);
+  --hljs-fg: #abb2bf;
+  --hljs-comment: #5c6370;
+  --hljs-keyword: #c678dd;
+  --hljs-section: #e06c75;
+  --hljs-literal: #56b6c2;
+  --hljs-string: #98c379;
+  --hljs-attr: #d19a66;
+  --hljs-symbol: #61aeee;
+  --hljs-built-in: #e6c07b;
+  --hljs-deletion: #e06c75;
+  --hljs-addition: #98c379;
+}
+
+/* Apply styles specifically to our markdown code blocks */
+/* Using a specific class increases specificity to override default styles or parent styles */
+.markdown-code-block {
+  /* Ensure the background matches the theme */
+  background-color: var(--hljs-bg);
+  color: var(--hljs-fg);
+}
+
+/* Target highlight.js classes inside our wrapper */
+.markdown-code-block .hljs {
+  display: block;
+  overflow-x: auto;
+  background: transparent; /* Background handled by wrapper */
+  color: inherit;
+  padding: 0; /* Padding handled by wrapper */
+}
+
+.markdown-code-block .hljs-comment,
+.markdown-code-block .hljs-quote {
+  color: var(--hljs-comment);
+  font-style: var(--hljs-emphasis);
+}
+
+.markdown-code-block .hljs-doctag,
+.markdown-code-block .hljs-keyword,
+.markdown-code-block .hljs-formula {
+  color: var(--hljs-keyword);
+}
+
+.markdown-code-block .hljs-section,
+.markdown-code-block .hljs-name,
+.markdown-code-block .hljs-selector-tag,
+.markdown-code-block .hljs-deletion,
+.markdown-code-block .hljs-subst {
+  color: var(--hljs-section);
+}
+
+.markdown-code-block .hljs-literal {
+  color: var(--hljs-literal);
+}
+
+.markdown-code-block .hljs-string,
+.markdown-code-block .hljs-regexp,
+.markdown-code-block .hljs-addition,
+.markdown-code-block .hljs-attribute,
+.markdown-code-block .hljs-meta .hljs-string {
+  color: var(--hljs-string);
+}
+
+.markdown-code-block .hljs-attr,
+.markdown-code-block .hljs-variable,
+.markdown-code-block .hljs-template-variable,
+.markdown-code-block .hljs-type,
+.markdown-code-block .hljs-selector-class,
+.markdown-code-block .hljs-selector-attr,
+.markdown-code-block .hljs-selector-pseudo,
+.markdown-code-block .hljs-number {
+  color: var(--hljs-attr);
+}
+
+.markdown-code-block .hljs-symbol,
+.markdown-code-block .hljs-bullet,
+.markdown-code-block .hljs-link,
+.markdown-code-block .hljs-meta,
+.markdown-code-block .hljs-selector-id,
+.markdown-code-block .hljs-title {
+  color: var(--hljs-symbol);
+}
+
+.markdown-code-block .hljs-built_in,
+.markdown-code-block .hljs-title.class_,
+.markdown-code-block .hljs-class .hljs-title {
+  color: var(--hljs-built-in);
+}
+
+.markdown-code-block .hljs-emphasis {
+  font-style: var(--hljs-emphasis);
+}
+
+.markdown-code-block .hljs-strong {
+  font-weight: var(--hljs-strong);
+}
+
+.markdown-code-block .hljs-link {
+  text-decoration: underline;
+}
