@@ -1,68 +1,70 @@
 # Floaty Bub 🫧
 
-一个基于 React + TypeScript 的现代化智能对话助手应用，集成了多角色对话、知识库管理、语音交互、数据同步等丰富功能。
+[中文](#中文) | [English](#english)
+
+<a name="中文"></a>
+
+一个基于 React + TypeScript + Capacitor 的现代化智能对话助手应用，集成了多角色对话、知识库管理、语音交互、数据同步等丰富功能。支持 Web 端及 iOS 移动端原生体验。
 
 > 使用 [TRAE SOLO](https://trae.ai) 开发
-
-> [查看 Demo](https://floatybub.vercel.app/)
+>
+> [查看 Web Demo](https://floatybub.vercel.app/)
 
 ## ✨ 功能特性
 
 ### 🎯 核心功能
 - **多模型支持**: 支持 Kimi、Moonshot、OpenAI、Claude、Gemini 等主流大语言模型
-- **流式响应**: 实时显示AI回复，支持流式文本和图片生成
-- **智能角色系统**: 支持自定义AI角色、系统提示词和个性化开场白
-- **知识库管理**: 完整的知识库CRUD、条目管理、批量导入、智能搜索
-- **用户认证系统**: 基于Supabase的完整用户管理和数据隔离
+- **流式响应**: 实时显示 AI 回复，支持流式文本和图片生成
+- **智能角色系统**: 支持自定义 AI 角色、系统提示词和个性化开场白
+- **知识库管理**: 完整的知识库 CRUD、条目管理、批量导入、智能搜索 (RAG)
+- **用户认证系统**: 基于 Supabase 的完整用户管理和数据隔离
 - **数据同步**: 云端实时同步、离线支持、多设备无缝切换
 - **全局提示词**: 可复用的提示词模板，支持拖拽排序
 - **语音功能**: 集成 Fish Audio TTS，支持文本转语音和音频可视化
 - **会话管理**: 完整的聊天历史记录、会话搜索和分类管理
-- **配置管理**: 灵活的模型配置和API密钥管理
-- **数据导入导出**: 支持完整的数据备份和迁移
+- **跨平台支持**: 完美适配桌面端、移动端 Web，并提供 iOS 原生应用体验
 
 ### 🎨 用户体验
 - **现代化界面**: 基于 DaisyUI 5.0 的精美设计系统
 - **多主题支持**: 支持亮色、深色、纸杯蛋糕、浮光等多种主题
-- **响应式设计**: 完美适配桌面端和移动端，优化移动端交互
-- **拖拽交互**: 支持提示词列表拖拽排序，直观的用户操作
-- **智能通知**: 优雅通知系统，支持 DaisyUI 样式
+- **输入体验优化**: 针对移动端的输入框防遮挡、防自动填充干扰优化
+- **智能通知**: 优雅的 Toast 通知系统
 - **数据持久化**: 本地存储 + 云端同步，数据安全可靠
 
 ### 🔧 技术特色
 - **TypeScript**: 完整的类型安全保障
 - **组件化架构**: 高度模块化和可维护的代码结构
+- **移动端原生**: 使用 Capacitor 将 Web 应用打包为 iOS 原生应用
 - **状态管理**: 基于 Zustand 5.0 的轻量级状态管理
 - **实时通信**: Server-Sent Events 实现流式数据传输
 - **数据库集成**: Supabase 实时数据库，支持 RLS 权限控制
 - **智能搜索**: 基于 jieba-wasm 的中文分词和关键词匹配
 - **Markdown 渲染**: 支持代码高亮和 GitHub 风格的 Markdown
-- **性能优化**: 虚拟滚动、图片缓存、懒加载等优化策略
-- **移动端优化**: 针对移动设备的交互优化和适配
 
 ## 🛠️ 技术栈
 
-- **前端框架**: React 18.3.1 + TypeScript 5.8.3
-- **构建工具**: Vite 6.3.5
-- **样式方案**: Tailwind CSS 4.1.11 + DaisyUI 5.0.47
-- **状态管理**: Zustand 5.0.6
-- **路由管理**: React Router DOM 7.3.0
-- **数据库**: Supabase 2.53.0 (PostgreSQL + 实时订阅)
-- **图标库**: Lucide React 0.511.0
-- **Markdown**: React Markdown 10.1.0 + Rehype Highlight 7.0.2
-- **代码高亮**: Highlight.js 11.11.1
-- **中文分词**: jieba-wasm 2.2.0
-- **语音服务**: Fish Audio TTS API
-- **云存储**: AWS S3 (头像和文件存储)
-- **部署平台**: Vercel
+- **前端框架**: React 18.3 + TypeScript 5.8
+- **移动端框架**: Capacitor 7.4 (iOS)
+- **构建工具**: Vite 6.3
+- **样式方案**: Tailwind CSS 4.1 + DaisyUI 5.0
+- **状态管理**: Zustand 5.0
+- **路由管理**: React Router DOM 7.3
+- **后端/数据库**: Supabase (PostgreSQL + Auth + Realtime)
+- **云存储**: AWS S3 兼容协议 (支持 AWS, Aliyun OSS, Tencent COS)
+- **工具库**: 
+  - `jieba-wasm`: 中文分词
+  - `lucide-react`: 图标库
+  - `react-markdown`: Markdown 渲染
+  - `framer-motion` / `@react-spring/web`: 动画
 
 ## 🚀 快速开始
 
 ### 环境要求
 - Node.js 22.x (推荐)
 - pnpm 或 npm
+- Xcode (仅 iOS 开发需要)
 - Supabase 项目 (用于数据同步)
-- Fish Audio API 密钥 (用于语音功能)
+- Fish Audio API 密钥 (可选，用于语音功能)
 
 ### 安装依赖
 ```bash
@@ -73,707 +75,135 @@ pnpm install
 npm install
 ```
 
-### 启动开发服务器
+### 启动 Web 开发服务器
 ```bash
-# 使用 pnpm
-pnpm dev
-
-# 或使用 npm
 npm run dev
 ```
-
 访问 [http://localhost:5173](http://localhost:5173) 查看应用。
 
-### 构建生产版本
-```bash
-# 使用 pnpm
-pnpm build
+### iOS 开发与构建
+本项目支持通过 Capacitor 构建 iOS 应用。
 
-# 或使用 npm
-npm run build
-```
-
-## 📖 使用指南
-
-### 1. 配置LLM服务
-1. 点击设置按钮，进入"模型"配置页面
-2. 添加新的模型配置
-3. 填写API密钥、基础URL等信息
-4. 保存配置
-
-### 2. 创建AI角色
-1. 在设置中进入"角色卡"页面
-2. 点击"添加角色"按钮
-3. 设置角色名称、描述、系统提示词和开场白
-4. 可选择关联全局提示词模板（支持拖拽排序）
-5. 可关联知识库，提供智能上下文增强
-6. 上传自定义头像（可选）
-7. 保存角色设置
-
-### 3. 配置用户系统
-1. 注册或登录 Supabase 账户
-2. 在设置中进入"用户角色"页面
-3. 创建或编辑用户资料
-4. 设置用户名、描述、个人信息等
-5. 可上传个人头像
-6. 数据将自动同步到云端
-
-### 4. 知识库管理
-1. 在设置中进入"知识库"页面
-2. 创建新的知识库
-3. 添加知识条目，设置关键词和解释
-4. 支持批量导入 JSON 格式的知识条目
-5. 在角色设置中关联知识库
-6. 对话时系统会自动检索相关知识
-
-### 5. 语音功能设置
-1. 在设置中进入"语音"页面
-2. 配置 Fish Audio API 密钥
-3. 选择语音模型和参数
-4. 测试语音合成功能
-
-### 6. 全局设置
-1. 在设置中进入"全局设置"页面
-2. 发送消息快捷键：选择 `Enter` 或 `Ctrl+Enter`
-3. 自动标题总结：开启后系统将自动为会话生成标题
-4. 标题模型选择：可选择“跟随当前会话模型”或“自定义模型”，自定义时从模型列表选择具体模型
-
-### 7. 联网搜索设置
-1. 在设置中进入"联网搜索"页面
-2. 启用「智能联网搜索」开关
-3. 配置 Google CSE 的 `apiKey` 与 `engineId (cx)`（留空则使用服务端环境变量）
-4. 设置搜索参数：语言(`hl`)、地域(`gl`)、安全搜索(`safe`: `off`/`active`)、返回条数（1-10）
-5. 点击「健康检查」验证接口可用性
-
-### 8. 开始聊天
-1. 在首页选择AI角色
-2. 系统会自动显示角色的开场白
-3. 开始与AI对话
-4. 支持实时流式回复和 Markdown 渲染
-
-### 9. 管理会话
-- 在"历史"页面查看所有会话
-- 支持按角色、模型、时间筛选会话
-- 支持会话搜索和导出
-- 点击"查看会话"按钮继续对话
-- 支持隐藏和删除会话
-
-## 🎵 语音功能详细配置
-
-### 功能特性
-- 🔐 安全的后端代理服务，保护 API 密钥
-- 🎵 支持多种音频格式（MP3、WAV）
-- 📱 响应式前端测试界面
-- 🌐 跨域支持，便于开发和部署
-
-### 快速开始
-
-#### 1. 获取 Fish Audio API 密钥
-1. 访问 [Fish Audio 官网](https://fish.audio/)
-2. 注册账号并获取 API 密钥
-3. 保存你的 API 密钥，稍后需要配置
-
-#### 2. 配置后端服务
-```bash
-# 进入后端服务目录
-cd tts-server
-
-# 安装依赖
-npm install
-
-# 复制环境变量模板
-cp .env.example .env
-
-# 编辑 .env 文件，添加你的 API 密钥
-# 将 your_fish_audio_api_key_here 替换为实际的 API 密钥
-vim .env  # 或使用其他编辑器
-```
-
-#### 3. 启动服务
-
-**方法一：使用启动脚本（推荐）**
-```bash
-# 在项目根目录下运行
-./start-tts-server.sh
-```
-
-**方法二：手动启动**
-```bash
-# 启动后端服务
-cd tts-server
-npm run dev
-
-# 在另一个终端启动前端服务
-cd ..
-npm run dev
-```
-
-#### 4. 访问测试页面
-1. 确保前端服务运行在 `http://localhost:5173`
-2. 确保后端服务运行在 `http://localhost:3001`
-3. 在浏览器中访问前端应用
-4. 点击侧边栏的「语音测试」按钮
-5. 或直接访问 `http://localhost:5173/voice-test`
-
-### 使用说明
-
-#### 基础文本转语音
-1. 在文本框中输入要转换的内容
-2. 选择音频格式（MP3/WAV）
-3. 调整比特率、延迟模式等参数
-4. 点击「生成语音」按钮
-5. 等待生成完成后播放或下载音频
-
-#### 配置选项说明
-- **音频格式**: MP3 或 WAV
-- **MP3 比特率**: 64/128/192/320 kbps
-- **延迟模式**: 普通/平衡（影响生成速度和质量）
-- **文本块长度**: 单次处理的文本长度（50-500）
-- **预设语音 ID**: 使用预设的语音模型
-- **标准化音频**: 是否对输出音频进行标准化处理
-
-### 故障排除
-
-#### 后端服务无法启动
-1. **检查端口占用**:
+1. **构建前端资源**
    ```bash
-   lsof -i :3001
+   npm run build
    ```
 
-2. **检查依赖安装**:
+2. **同步资源到 iOS 项目**
    ```bash
-   cd tts-server
-   rm -rf node_modules
-   npm install
+   npx cap sync
+   # 或者使用 npm 脚本
+   npm run cap:sync
    ```
 
-3. **检查 API 密钥配置**:
+3. **打开 Xcode 进行调试/打包**
    ```bash
-   cat tts-server/.env
+   npx cap open ios
+   # 或者使用 npm 脚本
+   npm run cap:open:ios
    ```
-
-#### API 调用失败
-1. **检查 API 密钥是否有效**:
-   ```bash
-   curl -H "Authorization: Bearer YOUR_API_KEY" https://api.fish.audio/v1/models
-   ```
-
-2. **检查网络连接**:
-   ```bash
-   ping api.fish.audio
-   ```
-
-3. **查看后端日志**: 后端服务会输出详细的错误信息，检查控制台日志
-
-#### 前端页面错误
-1. **检查服务器状态**: 页面顶部会显示后端服务器的连接状态
-2. **清除浏览器缓存**: 强制刷新页面（Ctrl+F5 或 Cmd+Shift+R）
-3. **检查控制台错误**: 打开浏览器开发者工具查看错误信息
-
-#### 音频生成缓慢
-1. **调整文本块长度**: 减小 `chunk_length` 参数
-2. **选择平衡延迟模式**: 在配置中选择「平衡」模式
-3. **检查网络状况**: 确保网络连接稳定
-
-## 🌐 部署到 Vercel
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Snowpee/FloatyBub)
-
-本项目已配置为支持 Vercel Serverless Functions，可以将前端和后端一起部署到 Vercel 平台。
-
-### 🚀 部署步骤
-
-#### 1. 准备代码
-确保你的代码已经推送到 GitHub 仓库：
-```bash
-git add .
-git commit -m "配置 Vercel Serverless Functions"
-git push origin main
-```
-
-#### 2. 连接 Vercel
-1. 访问 [vercel.com](https://vercel.com)
-2. 使用 GitHub 账号登录
-3. 点击 "New Project"
-4. 导入你的 GitHub 仓库
-5. 选择项目并点击 "Import"
-
-#### 3. 配置环境变量
-在 Vercel 项目设置中添加环境变量：
-1. 进入项目 Dashboard
-2. 点击 "Settings" 标签
-3. 选择 "Environment Variables"
-4. 添加以下变量：
-
-```
-FISH_AUDIO_API_KEY = your_fish_audio_api_key_here
-VITE_API_SECRET = your_secret_api_key_here // 前端 API 密钥
-API_SECRET = your_secret_api_key_here // 后端 API 密钥
-```
-
-**重要**: 将 `your_fish_audio_api_key_here` 替换为你的实际 Fish Audio API 密钥。
-
-#### 4. 部署
-1. 点击 "Deploy" 按钮
-2. 等待部署完成（通常需要 1-3 分钟）
-3. 部署成功后，你会获得一个 `.vercel.app` 域名
-
-### 🔧 API 端点
-部署后可用的 API 端点：
-- `GET /api/health` - 健康检查
-- `POST /api/tts` - 文本转语音
-- `GET /api/models` - 获取可用模型列表
-
-### 🌐 访问应用
-部署完成后：
-1. 访问你的 Vercel 域名（如：`https://your-project.vercel.app`）
-2. 直接访问语音测试页面：`https://your-project.vercel.app/voice-test`
-3. 应用会自动检测环境并使用正确的 API 地址
-
-### 🔍 故障排除
-
-#### 部署失败
-1. **检查构建日志**：在 Vercel Dashboard 中查看详细的构建日志
-2. **检查依赖**：确保 `api/package.json` 中的依赖正确
-3. **检查语法**：确保所有 JavaScript 文件语法正确
-
-#### API 调用失败
-1. **检查环境变量**：确保 `FISH_AUDIO_API_KEY` 已正确设置
-2. **检查 API 密钥**：确保 Fish Audio API 密钥有效且有足够配额
-3. **查看函数日志**：在 Vercel Dashboard 的 "Functions" 标签中查看日志
-
-#### 前端错误
-1. **清除缓存**：强制刷新浏览器（Ctrl+F5 或 Cmd+Shift+R）
-2. **检查控制台**：打开浏览器开发者工具查看错误信息
-3. **检查网络**：确保网络连接正常
-
-### ⚡ 性能优化
-
-#### Serverless Functions 限制
-- **执行时间**：最大 30 秒（TTS 函数）
-- **内存**：默认 1024MB
-- **冷启动**：首次调用可能有 1-2 秒延迟
-
-#### 优化建议
-1. **文本长度**：建议单次转换文本不超过 500 字符
-2. **并发请求**：避免同时发起多个 TTS 请求
-3. **缓存策略**：考虑在前端缓存生成的音频
-
-### 📊 监控和分析
-在 Vercel Dashboard 中可以查看：
-- **函数调用次数**：监控 API 使用情况
-- **响应时间**：优化性能
-- **错误率**：及时发现问题
-- **带宽使用**：控制成本
-
-
-
-对于中等使用量的 TTS 应用，免费计划通常足够使用。
-
-## 🔒 安全配置
-
-### 概述
-为了保护 TTS API 免受未授权访问，我们已经实现了 API 密钥验证机制。所有 API 请求都需要在请求头中包含有效的 API 密钥。
-
-### 环境变量配置
-
-#### 1. 本地开发环境
-在项目根目录创建 `.env` 文件：
-```bash
-# 前端 API 密钥（用于调用后端 API）
-VITE_API_SECRET=your-secret-api-key-here
-
-# Fish Audio API 密钥
-FISH_AUDIO_API_KEY=your-fish-audio-api-key-here
-```
-
-#### 2. TTS 服务器环境
-在 `tts-server` 目录创建 `.env` 文件：
-```bash
-# Fish Audio API 配置
-FISH_AUDIO_API_KEY=your_fish_audio_api_key_here
-
-# API 安全配置
-API_SECRET=your_secret_api_key_here
-
-# 服务器配置
-PORT=3001
-```
-
-#### 3. Vercel 部署环境
-在 Vercel 项目设置中配置以下环境变量：
-- `API_SECRET`: 用于验证 API 访问的密钥
-- `FISH_AUDIO_API_KEY`: Fish Audio 平台的 API 密钥
-- `VITE_API_SECRET`: 前端 API 密钥（用于调用后端 API）
-
-### API 使用方式
-
-#### 请求头格式
-所有 API 请求都必须包含以下请求头：
-```javascript
-headers: {
-  'Content-Type': 'application/json',
-  'x-api-key': 'your-api-key-here'
-}
-```
-
-#### 受保护的端点
-以下端点需要 API 密钥验证：
-- `GET /api/tts` - 获取支持的模型列表
-- `POST /api/tts` - 文本转语音
-- `GET /api/health` - 健康检查
-
-### 安全建议
-
-#### 1. API 密钥管理
-- 使用强密码生成器创建复杂的 API 密钥
-- 定期轮换 API 密钥
-- 不要在代码中硬编码 API 密钥
-- 不要将 `.env` 文件提交到版本控制系统
-
-#### 2. 生产环境安全
-- 在 Vercel 环境变量中设置 API 密钥
-- 考虑实现请求频率限制
-- 监控 API 使用情况
-- 记录访问日志
-
-#### 3. 网络安全
-- 使用 HTTPS 进行所有 API 通信
-- 考虑实现 IP 白名单（如果适用）
-- 定期审查访问日志
-
-### 错误处理
-
-#### 常见错误响应
-1. **缺少 API 密钥**
-   ```json
-   {
-     "error": "未授权访问：无效的 API 密钥"
-   }
-   ```
-   HTTP 状态码: 401
-
-2. **服务器未配置密钥**
-   ```json
-   {
-     "error": "服务器未配置 API 密钥"
-   }
-   ```
-   HTTP 状态码: 500
-
-### 示例代码
-
-#### JavaScript/TypeScript
-```javascript
-// 获取模型列表
-const response = await fetch('/api/tts', {
-  method: 'GET',
-  headers: {
-    'x-api-key': process.env.VITE_API_SECRET
-  }
-});
-
-// 文本转语音
-const response = await fetch('/api/tts', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': process.env.VITE_API_SECRET
-  },
-  body: JSON.stringify({
-    text: '你好，世界！',
-    model: 'speech-1.6'
-  })
-});
-```
-
-#### cURL
-```bash
-# 获取模型列表
-curl -H "x-api-key: your-api-key-here" \
-     https://your-domain.vercel.app/api/tts
-
-# 文本转语音
-curl -X POST \
-     -H "Content-Type: application/json" \
-     -H "x-api-key: your-api-key-here" \
-     -d '{"text":"你好，世界！","model":"speech-1.6"}' \
-     https://your-domain.vercel.app/api/tts
-```
-
-## 🛠️ 开发工具
-
-### Git 提交脚本
-本项目提供了两个便于 Git 提交的脚本，帮助你快速将代码提交并推送到 GitHub。
-
-#### 脚本说明
-
-**1. `deploy.sh` - 完整提交脚本**
-
-功能特点：
-- 🔍 检查工作区状态
-- 📊 显示变更内容
-- ✅ 提交前确认
-- 🎨 彩色输出提示
-- 🛡️ 错误处理和安全检查
-- 📝 支持交互式输入提交信息
-
-使用方法：
-```bash
-# 方式1：直接提供提交信息
-./deploy.sh "feat: 添加用户头像功能"
-
-# 方式2：交互式输入
-./deploy.sh
-# 然后根据提示输入提交信息
-```
-
-**2. `quick-commit.sh` - 快速提交脚本**
-
-功能特点：
-- ⚡ 快速提交，无需确认
-- 🎯 简洁输出
-- 📦 自动添加所有变更
-- 🚀 一键推送到 GitHub
-
-使用方法：
-```bash
-./quick-commit.sh "fix: 修复头像显示问题"
-```
-
-#### 快速开始
-1. **确保脚本有执行权限**（已自动设置）：
-   ```bash
-   chmod +x deploy.sh quick-commit.sh
-   ```
-
-2. **选择合适的脚本**：
-   - 重要更新或需要仔细检查：使用 `deploy.sh`
-   - 日常小修改或快速迭代：使用 `quick-commit.sh`
-
-#### 提交信息规范建议
-推荐使用以下格式：
-```
-type(scope): description
-
-[optional body]
-
-[optional footer]
-```
-
-**类型 (type)：**
-- `feat`: 新功能
-- `fix`: 修复bug
-- `docs`: 文档更新
-- `style`: 代码格式调整
-- `refactor`: 重构代码
-- `test`: 测试相关
-- `chore`: 构建过程或辅助工具的变动
-
-**示例：**
-```bash
-./deploy.sh "feat(chat): 添加用户头像显示功能"
-./quick-commit.sh "fix: 修复头像生成算法"
-./deploy.sh "docs: 更新README文档"
-```
-
-#### 注意事项
-1. **确保在 Git 仓库中运行**：脚本会自动检查
-2. **网络连接**：推送需要网络连接到 GitHub
-3. **远程仓库配置**：确保已正确配置远程仓库
-4. **分支权限**：确保有推送到当前分支的权限
-5. **Git Hooks**：脚本使用 `--no-verify` 选项跳过 Git hooks，避免因缺失模块或配置问题导致的提交失败
-
-#### 故障排除
-**推送失败？**
-- 检查网络连接
-- 确认 GitHub 认证信息
-- 检查分支推送权限
-
-**脚本无法执行？**
-```bash
-chmod +x deploy.sh quick-commit.sh
-```
-
-**提交被拒绝？**
-- 先拉取最新代码：`git pull`
-- 解决冲突后重新运行脚本
-
-💡 **小贴士**：建议将这些脚本添加到你的 shell 别名中，例如：
-```bash
-# 在 ~/.zshrc 或 ~/.bashrc 中添加
-alias deploy='./deploy.sh'
-alias qc='./quick-commit.sh'
-```
-
-这样你就可以直接使用 `deploy "提交信息"` 或 `qc "提交信息"` 了！
-
-## 📁 项目结构
-
-```
-floaty-bub/
-├── src/
-│   ├── components/          # 组件目录
-│   │   ├── auth/           # 用户认证组件
-│   │   ├── chat/           # 聊天相关组件
-│   │   ├── knowledge/      # 知识库管理组件
-│   │   ├── settings/       # 设置页面组件
-│   │   ├── ui/             # 通用UI组件
-│   │   └── layout/         # 布局组件
-│   ├── pages/              # 页面组件
-│   │   ├── ChatPage.tsx    # 聊天页面
-│   │   ├── HistoryPage.tsx # 历史记录页面
-│   │   ├── RolesPage.tsx   # 角色管理页面
-│   │   ├── KnowledgePage.tsx # 知识库页面
-│   │   ├── KnowledgeManagement.tsx # 知识库管理
-│   │   ├── DataPage.tsx    # 数据管理页面
-│   │   ├── Settings.tsx    # 设置页面
-│   │   └── settings/       # 设置相关组件
-│   ├── hooks/              # 自定义Hook
-│   │   ├── useDataSync.ts  # 数据同步Hook
-│   │   ├── useUserData.ts  # 用户数据Hook
-│   │   └── useKnowledge.ts # 知识库Hook
-│   ├── services/           # 服务层
-│   │   ├── DataSyncService.ts # 数据同步服务
-│   │   ├── supabase.ts     # Supabase客户端
-│   │   └── knowledge.ts    # 知识库服务
-│   ├── store/              # Zustand状态管理
-│   │   └── index.ts        # 全局状态
-│   ├── types/              # TypeScript类型定义
-│   │   ├── knowledge.ts    # 知识库类型
-│   │   ├── auth.ts         # 认证类型
-│   │   └── index.ts        # 通用类型
-│   └── utils/              # 工具函数
-├── api/                    # Vercel API路由
-│   ├── models.js          # 模型信息API
-│   ├── tts.js             # 语音合成API
-│   ├── model-info.js      # 模型详情API
-│   ├── health.js          # 健康检查API
-│   └── validate-key.js    # API密钥验证
-├── public/                # 静态资源
-└── package.json          # 项目配置
-```
-
-### 语音功能相关文件
-```
-api/                    # Vercel Serverless Functions
-├── tts.js              # TTS API 接口
-├── models.js           # 模型列表接口
-├── model-info.js       # 模型信息接口
-├── health.js           # 健康检查接口
-├── validate-key.js     # API密钥验证
-└── package.json        # API依赖配置
-
-tts-server/             # 本地TTS服务器
-├── server.js           # Express服务器
-├── package.json        # 服务器依赖
-├── package-lock.json   # 依赖锁定文件
-├── .env.example        # 环境变量模板
-└── README.md           # 服务器说明文档
-```
-
-### 配置和工具文件
-```
-├── .env.example        # 环境变量模板
-├── start-tts-server.sh # TTS服务器启动脚本
-├── vercel.json         # Vercel 配置文件
-├── tailwind.config.js  # Tailwind CSS 配置
-├── vite.config.ts      # Vite 配置文件
-├── tsconfig.json       # TypeScript 配置
-├── tsconfig.app.json   # 应用TypeScript配置
-├── eslint.config.js    # ESLint 配置
-├── postcss.config.js   # PostCSS 配置
-├── package.json        # 项目依赖配置
-├── pnpm-lock.yaml      # pnpm 锁定文件
-├── index.html          # HTML 入口文件
-└── public/             # 公共静态资源
-    └── favicon.svg     # 网站图标
-```
-
-## 🔎 联网搜索（Google CSE）
-
-### 功能概述
-- 为聊天提供实时信息来源，采用 Google Programmable Search Engine（Custom Search JSON API）。
-- 统一的服务端代理 `/api/search`，前端在设置页开启“网络搜索”并进行健康检查。
-
-### 快速配置
-1. 在 Vercel（或本地 `.env`）配置环境变量：
-   - `GOOGLE_SEARCH_API_KEY`：Google Cloud Console 中启用 Custom Search API 后创建的 API Key
-   - `GOOGLE_SEARCH_CX`：Programmable Search Engine 控制台中的 Engine ID（cx）
-   - `API_SECRET`：后端接口鉴权密钥（Serverless 校验 `x-api-key`）
-   - `VITE_API_SECRET`：前端通过 `x-api-key` 传给后端的密钥（与 `API_SECRET` 对应）
-
-2. 在应用内：设置 → “网络搜索” 页面
-   - 开启“启用联网搜索”
-   - Provider 固定为 `Google CSE`
-   - 可选填写用户自建 `API Key` 与 `Engine ID (cx)`（若留空则使用服务端环境变量）
-   - 调整语言（hl）、地域（gl）、安全搜索（safe）、返回条数等偏好
-   - 点击“健康检查”验证接口可用性
-
-### 使用说明
-- 前端调用统一接口：
-  - `GET /api/search?q=你的查询&num=5`
-  - Header：`x-api-key: <VITE_API_SECRET>`
-  - 统一响应结构：
-    ```json
-    {
-      "items": [{ "title": "...", "link": "...", "snippet": "...", "source": "google-cse" }],
-      "query": "原始查询",
-      "provider": "google-cse",
-      "searchInformation": { "totalResults": 12345, "time": 0.23 }
-    }
-    ```
-
-### 注意事项
-- 建议仅在服务端配置密钥，前端保存用户自建密钥存在泄露风险。
-- 若返回 401/403，请检查 `x-api-key` 与 Google API Key 权限；返回 429 通常为配额或速率限制。
-- `safe` 参数支持 `active/off`；返回条数上限为 10。
-
-## 🔒 隐私与安全
-
-- **本地存储**: 所有用户数据和配置都存储在浏览器本地
-- **API密钥安全**: LLM API 密钥仅在客户端使用，TTS API 密钥通过后端代理保护
-- **无数据收集**: 应用不收集任何用户数据或使用统计
-- **开源透明**: 完全开源，代码公开透明
-- **安全验证**: TTS API 包含密钥验证机制，防止未授权访问
-- **HTTPS 通信**: 所有 API 通信都使用 HTTPS 加密
-- **环境变量保护**: 敏感信息通过环境变量管理，不会暴露在代码中
-
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-## 🆘 获取帮助
-
-如果遇到问题：
-
-1. 查看 [Vercel 官方文档](https://vercel.com/docs)
-2. 检查 [Fish Audio API 文档](https://docs.fish.audio/)
-3. 查看项目的 GitHub Issues
-4. 联系技术支持
-
-## 📄 许可证
-
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
-
-## 🙏 致谢
-
-- [React](https://reactjs.org/) - 用户界面库
-- [Vite](https://vitejs.dev/) - 快速的构建工具
-- [Tailwind CSS](https://tailwindcss.com/) - 实用优先的CSS框架
-- [DaisyUI](https://daisyui.com/) - 基于 Tailwind 的组件库
-- [Zustand](https://github.com/pmndrs/zustand) - 轻量级状态管理
-- [React Router](https://reactrouter.com/) - 声明式路由
-- [Lucide](https://lucide.dev/) - 美观的图标库
-- [Fish Audio](https://fish.audio/) - 高质量语音合成服务
-- [TRAE SOLO](https://trae.ai/) - AI 开发工具
 
 ---
 
-**开始你的AI聊天之旅吧！** 🚀
+<a name="english"></a>
+
+# Floaty Bub 🫧
+
+A modern intelligent dialogue assistant based on React + TypeScript + Capacitor, integrating multi-role dialogue, knowledge base management, voice interaction, and data synchronization. Supports both Web and native iOS experiences.
+
+> Developed with [TRAE SOLO](https://trae.ai)
+>
+> [View Web Demo](https://floatybub.vercel.app/)
+
+## ✨ Features
+
+### 🎯 Core Features
+- **Multi-Model Support**: Supports mainstream LLMs like Kimi, Moonshot, OpenAI, Claude, Gemini, etc.
+- **Streaming Response**: Real-time AI response display with streaming text and image generation.
+- **Smart Persona System**: Custom AI personas, system prompts, and personalized greetings.
+- **Knowledge Base**: Full RAG support with CRUD, bulk import, and intelligent search.
+- **Authentication**: Complete user management and data isolation based on Supabase.
+- **Data Sync**: Real-time cloud sync, offline support, and seamless multi-device switching.
+- **Global Prompts**: Reusable prompt templates with drag-and-drop sorting.
+- **Voice Interaction**: Integrated Fish Audio TTS for text-to-speech and audio visualization.
+- **Chat Management**: Complete chat history, search, and categorization.
+- **Cross-Platform**: Responsive design for Desktop/Web and native iOS support via Capacitor.
+
+### 🎨 User Experience
+- **Modern UI**: Beautiful design system based on DaisyUI 5.0.
+- **Theming**: Supports Light, Dark, Cupcake, Synthwave, and more.
+- **Optimized Input**: Enhanced input handling for mobile (preventing autofill interference).
+- **Smart Notifications**: Elegant Toast notification system.
+- **Persistence**: Local storage + Cloud sync for data reliability.
+
+### 🔧 Technical Highlights
+- **TypeScript**: Complete type safety.
+- **Component Architecture**: Highly modular and maintainable code.
+- **Native Mobile**: Capacitor for packaging Web app as native iOS app.
+- **State Management**: Lightweight state management with Zustand 5.0.
+- **Real-time Communication**: Server-Sent Events for streaming data.
+- **Database**: Supabase Realtime database with RLS.
+- **Smart Search**: Chinese word segmentation via jieba-wasm.
+- **Markdown**: Code highlighting and GitHub-flavored Markdown support.
+
+## 🛠️ Tech Stack
+
+- **Frontend**: React 18.3 + TypeScript 5.8
+- **Mobile**: Capacitor 7.4 (iOS)
+- **Build Tool**: Vite 6.3
+- **Styling**: Tailwind CSS 4.1 + DaisyUI 5.0
+- **State Management**: Zustand 5.0
+- **Routing**: React Router DOM 7.3
+- **Backend/DB**: Supabase (PostgreSQL + Auth + Realtime)
+- **Storage**: AWS S3 Compatible (AWS, Aliyun OSS, Tencent COS)
+- **Utilities**: 
+  - `jieba-wasm`: Word segmentation
+  - `lucide-react`: Icons
+  - `react-markdown`: Rendering
+  - `framer-motion` / `@react-spring/web`: Animations
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 22.x (Recommended)
+- pnpm or npm
+- Xcode (For iOS development only)
+- Supabase Project (For data sync)
+- Fish Audio API Key (Optional, for voice features)
+
+### Installation
+```bash
+# Using pnpm (Recommended)
+pnpm install
+
+# Or using npm
+npm install
+```
+
+### Start Web Development Server
+```bash
+npm run dev
+```
+Visit [http://localhost:5173](http://localhost:5173).
+
+### iOS Development & Build
+This project supports building for iOS via Capacitor.
+
+1. **Build Frontend Assets**
+   ```bash
+   npm run build
+   ```
+
+2. **Sync Assets to iOS Project**
+   ```bash
+   npx cap sync
+   # Or use the script
+   npm run cap:sync
+   ```
+
+3. **Open Xcode**
+   ```bash
+   npx cap open ios
+   # Or use the script
+   npm run cap:open:ios
+   ```
