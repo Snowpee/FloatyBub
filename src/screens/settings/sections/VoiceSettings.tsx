@@ -389,21 +389,13 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
 
 
   return (
-    <div className={cn("p-4 md:p-6 max-w-6xl mx-auto md:pt-0", className)}>
-      <div className="mb-0">
-        <p className="text-base-content/70">
-          配置文本转语音功能的相关设置
-        </p>
-      </div>
+    <div className={cn("p-4 md:p-6 max-w-6xl mx-auto md:pt-0 flex flex-col gap-4", className)}>
 
       {/* 供应商选择 */}
-      <div className="card mt-4 mb-4 bg-base-100">
-        <div className="card-body pt-4 md:pt-6 gap-4">
-          <h3 className="font-medium text-base mb-2">供应商配置</h3>
-          <div className="form-control w-full flex">
-            <p className="text-base mb-4 hidden md:block">语音供应商</p>
-            <label className="select w-full md:w-1/2 ml-auto">
-              <span className="label md:!hidden">语音供应商</span>
+      <fieldset className="bub-fieldset">
+        <div>
+          <div className="bub-select">
+              <span className="label">语音供应商</span>
               <select 
                 value={settings.provider}
                 onChange={(e) => {
@@ -414,8 +406,8 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
                 <option value="fish-audio">Fish Audio</option>
                 <option value="other">其它</option>
               </select>
-            </label>
           </div>
+        </div>
 
       
       {settings.provider === 'other' && (
@@ -426,65 +418,65 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
           <span>暂不支持其它供应商</span>
         </div>
       )}
-
+      </fieldset>
+      
       {/* API 配置 */}
       {settings.provider === 'fish-audio' && (
-          <div>
-            <div className="grid grid-cols-1 gap-4">
-              <div className="flex hero-fieldset">
-                <p className="hero-label-md text-base mb-4 hidden md:block">API 地址</p>
-                <label className="input w-full md:w-1/2 ml-auto">
-                  <span className="label block md:!hidden">API 地址</span>
-                  <input
-                    type="url"
-                    className="w-full"
-                    value={settings.apiUrl}
-                    onChange={(e) => {
-                      const newSettings = { ...settings, apiUrl: e.target.value };
-                      saveSettings(newSettings);
-                    }}
-                    placeholder="https://api.fish.audio"
-                  />
-                </label>
+        <div>
+          <h3 className="text-sm font-medium text-base-content/50 mb-2 pl-[calc(1rem+1px)]">API 配置</h3>
+          <fieldset className="bub-fieldset">
+            <div>
+              <div className="bub-input">
+                <span className="label">API 地址</span>
+                <input
+                  type="url"
+                  className="w-full"
+                  value={settings.apiUrl}
+                  onChange={(e) => {
+                    const newSettings = { ...settings, apiUrl: e.target.value };
+                    saveSettings(newSettings);
+                  }}
+                  placeholder="https://api.fish.audio"
+                />
               </div>
-
-              <div className="flex hero-fieldset">
-                <p className="hero-label-md text-base mb-4 hidden md:block">API 密钥</p>
-                <label className="input w-full md:w-1/2 ml-auto">
-                  <span className="label block md:!hidden">API 密钥</span>
-                  <input
-                    type="password"
-                    className="w-full"
-                    value={settings.apiKey}
-                    onChange={(e) => {
-                      const newSettings = { ...settings, apiKey: e.target.value };
-                      saveSettings(newSettings);
-                    }}
-                    placeholder="输入你的 Fish Audio API 密钥"
-                  />
-                </label>
+            </div>
+            <div>
+              <div className="bub-input">
+                <span className="label">API 密钥</span>
+                <input
+                  type="password"
+                  className="w-full"
+                  value={settings.apiKey}
+                  onChange={(e) => {
+                    const newSettings = { ...settings, apiKey: e.target.value };
+                    saveSettings(newSettings);
+                  }}
+                  placeholder="输入你的 Fish Audio API 密钥"
+                />
               </div>
-            
-              {/* 健康检查 */}
-              <div className="">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-base">连接状态检查</span>
-                  <button
-                    className={`btn btn-sm ${isCheckingHealth ? 'btn-disabled' : 'btn-outline'}`}
-                    onClick={checkApiHealth}
-                    disabled={isCheckingHealth}
-                  >
-                    {isCheckingHealth ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Activity className="w-4 h-4" />
-                    )}
-                    {isCheckingHealth ? '检查中...' : '检查连接'}
-                  </button>
-                </div>
-                
-                {/* API 状态 */}
-                <div className="flex items-center gap-2 mb-2">
+            </div>
+            {/* 健康检查 */}
+            <div>
+              <div className="flex items-center justify-between h-16">
+                <span className="text-base">连接状态检查</span>
+                <button
+                  className={`btn btn-sm ${isCheckingHealth ? 'btn-disabled' : 'btn-outline'}`}
+                  onClick={checkApiHealth}
+                  disabled={isCheckingHealth}
+                >
+                  {isCheckingHealth ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Activity className="w-4 h-4" />
+                  )}
+                  {isCheckingHealth ? '检查中...' : '检查连接'}
+                </button>
+              </div>
+            </div>
+            {/* API 状态 */}
+            <div>
+              <div className="flex items-center gap-6 h-16">
+                <div className="flex items-center gap-1">
                   <div className={`w-3 h-3 rounded-full ${
                     apiStatus === 'online' ? 'bg-success' :
                     apiStatus === 'offline' ? 'bg-error' : 'bg-warning'
@@ -492,14 +484,12 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
                   <span className="text-sm">
                     API 状态: {apiStatus === 'online' ? 
                       '在线' :
-                     apiStatus === 'offline' ? 
+                      apiStatus === 'offline' ? 
                       '离线' : 
                       '未知'}
                   </span>
                 </div>
-                
-                {/* 密钥状态 */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <div className={`w-3 h-3 rounded-full ${
                     keyStatus === 'valid' ? 'bg-success' :
                     keyStatus === 'invalid' ? 'bg-error' : 'bg-warning'
@@ -507,24 +497,69 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
                   <span className="text-sm">
                     密钥状态: {keyStatus === 'valid' ? 
                       '有效' :
-                     keyStatus === 'invalid' ? 
+                      keyStatus === 'invalid' ? 
                       '无效' : 
                       '未知'}
                   </span>
                 </div>
               </div>
             </div>
-          </div>
 
-      )}
-          </div>
+          </fieldset>
         </div>
+      )}
+
+      {/* 朗读设置 - 始终显示 */}
+      <div>
+        <h3 className="text-sm font-medium text-base-content/50 mb-2 pl-[calc(1rem+1px)]">朗读设置</h3>
+        <fieldset className="bub-fieldset">
+          
+          {/* 默认语音模型选择 */}
+          <div>
+            <div className="bub-select">
+              <span className="label">默认语音</span>
+              <select 
+                value={settings.defaultVoiceModelId || ''}
+                onChange={(e) => {
+                  const newSettings = { ...settings, defaultVoiceModelId: e.target.value || undefined };
+                  saveSettings(newSettings);
+                }}
+              >
+                <option value="">请选择默认语音模型</option>
+                {settings.customModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} {model.isPreset ? '(预设)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
+          {/* 模型版本选择 */}
+          <div>
+            <div className="bub-select">
+              <span className="label">模型版本</span>
+              <select 
+                value={settings.modelVersion || 'speech-1.6'}
+                onChange={(e) => {
+                  const newSettings = { ...settings, modelVersion: e.target.value };
+                  saveSettings(newSettings);
+                }}
+              >
+                <option value="speech-1.5">speech-1.5</option>
+                <option value="speech-1.6">speech-1.6</option>
+                <option value="s1">s1</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+        
       {/* 自定义模型管理 */}
       {settings.provider === 'fish-audio' && (
-        <div className="card my-4 bg-base-100">
-          <div className="card-body pt-4 md:pt-6">
-            <h3 className="font-medium text-base mb-4">语音模型管理</h3>
-            
+        <div>
+          <h3 className="text-sm font-medium text-base-content/50 mb-2 pl-[calc(1rem+1px)]">语音模型管理</h3> 
+          <fieldset className="bub-fieldset py-4 divide-y-0">
             {/* 添加新模型按钮 */}
             <div className="mb-4">
               <button
@@ -545,10 +580,10 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className="font-medium text-base">{model.name}</h3>
                         {model.isPreset && (
-                          <span className="badge badge-neutral badge-sm">预设</span>
+                          <span className="badge badge-soft badge-primary badge-sm">预设</span>
                         )}
                         {settings.defaultVoiceModelId === model.id && (
-                          <span className="badge badge-primary badge-sm">默认</span>
+                          <span className="badge badge-soft badge-primary badge-sm">默认</span>
                         )}
                       </div>
                       {model.description && (
@@ -556,15 +591,6 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
                       )}
                       {model.author && (
                         <p className="text-xs text-base-content/60 mb-1">作者: {model.author}</p>
-                      )}
-                      {model.tags && model.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {model.tags.map((tag, index) => (
-                            <span key={index} className="badge badge-outline badge-xs">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
                       )}
                       <p className="text-xs text-base-content/50 font-mono">{model.id}</p>
                     </div>
@@ -612,67 +638,16 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
                 <p>暂无语音模型，请添加模型开始使用</p>
               </div>
             )}
-          </div>
+          </fieldset>
         </div>
       )}
 
-      {/* 朗读设置 - 始终显示 */}
-      <div className="card bg-base-100 shadow-sm mb-4">
-        <div className="card-body pt-4 md:pt-6">
-          <h3 className="font-medium text-base mb-4">朗读设置</h3>
-          
-          {/* 默认语音模型选择 */}
-          <div className="form-control flex hero-fieldset mb-2">
-            <p className="hero-label-md text-base mb-4 hidden md:block">默认语音</p>
-            <label className="select w-full md:w-1/2 ml-auto">
-              <span className="label block md:!hidden">默认语音</span>
-              <select 
-                className="select select-bordered w-full"
-                value={settings.defaultVoiceModelId || ''}
-                onChange={(e) => {
-                  const newSettings = { ...settings, defaultVoiceModelId: e.target.value || undefined };
-                  saveSettings(newSettings);
-                }}
-              >
-                <option value="">请选择默认语音模型</option>
-                {settings.customModels.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name} {model.isPreset ? '(预设)' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          
-          {/* 模型版本选择 */}
-          <div className="form-control flex hero-fieldset">
-            <p className="hero-label-md text-base mb-4 hidden md:block">模型版本</p>
-            <label className="select w-full md:w-1/2 ml-auto">
-              <span className="label block md:!hidden">模型版本</span>
-              <select 
-                className="select select-bordered w-full"
-                value={settings.modelVersion || 'speech-1.6'}
-                onChange={(e) => {
-                  const newSettings = { ...settings, modelVersion: e.target.value };
-                  saveSettings(newSettings);
-                }}
-              >
-                <option value="speech-1.5">speech-1.5</option>
-                <option value="speech-1.6">speech-1.6</option>
-                <option value="s1">s1</option>
-              </select>
-            </label>
-          </div>
 
-        </div>
-      </div>
-
-      <div className="card bg-base-100 shadow-sm mb-6">
-        <div className="card-body pt-4 md:pt-6">
-          <h3 className="font-medium text-base mb-4">缓存管理</h3>
-          
+      <div>
+        <h3 className="text-sm font-medium text-base-content/50 mb-2 pl-[calc(1rem+1px)]">缓存管理</h3> 
+        <fieldset className="bub-fieldset py-4">
           {/* 缓存管理 */}
-          <div className="mb-4">
+          <div>
             <div className="stats stats-vertical lg:stats-horizontal w-full p-4 mb-4">
               <div className="stat">
                 <div className="text-center mb-4">
@@ -716,7 +691,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
               <p>• 清空缓存不会影响设置，但会重新下载语音文件</p>
             </div>
           </div>
-        </div>
+        </fieldset>
       </div>
 
 

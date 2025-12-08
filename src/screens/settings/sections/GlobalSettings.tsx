@@ -70,8 +70,8 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ onCloseModal, className
                     onChange={() => handleChatStyleChange('conversation')} 
                     className="hidden" 
                   />
-                  <span className="text-sm font-medium">对话模式</span>
-                  <span className="text-xs opacity-70 mt-0.5">使用气泡样式，适合聊天</span>
+                  <span className="text-base font-medium">对话模式</span>
+                  <span className="text-sm opacity-50 mt-0.5">使用气泡样式，适合聊天</span> 
                 </label>
                 
                 <label className={cn(
@@ -88,8 +88,8 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ onCloseModal, className
                     onChange={() => handleChatStyleChange('document')} 
                     className="hidden" 
                   />
-                  <span className="text-sm font-medium">文档模式</span>
-                  <span className="text-xs opacity-70 mt-0.5">纯净样式，适合阅读</span>
+                  <span className="text-base font-medium">文档模式</span>
+                  <span className="text-sm opacity-50 mt-0.5">纯净样式，适合阅读</span>
                 </label>
               </div>
             </div>
@@ -143,7 +143,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ onCloseModal, className
 
 
             {/* 自动总结标题 */}
-            <div className="bub-checkbox h-12 flex items-center justify-between pr-0">
+            <div className="bub-checkbox">
               <span className="label">自动总结标题</span>
               <input
                 type="checkbox"

@@ -92,7 +92,7 @@ const SearchSettings: React.FC<SearchSettingsProps> = ({ onCloseModal, className
         <div>
           <fieldset className='bub-fieldset'>
             {/* 启用开关 */}
-            <div className="bub-checkbox h-12 flex items-center justify-between pr-0">
+            <div className="bub-checkbox flex items-center justify-between pr-0">
               <span className="label">启用联网搜索</span>
               <input
                 type="checkbox"

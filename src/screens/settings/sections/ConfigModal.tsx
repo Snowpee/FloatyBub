@@ -401,9 +401,9 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
           </div>
         </fieldset>
 
-        <fieldset className="fieldset bg-base-100 border-base-300 rounded-box border p-4">
-          <div className="form-control flex items-center">
-            <span className="text-sm text-base-content/70">启用此配置</span>
+        <fieldset className="bub-fieldset">
+          <div className="form-control bub-checkbox">
+            <span>启用此配置</span>
             <label className="label cursor-pointer ml-auto">
               <input
                 type="checkbox"

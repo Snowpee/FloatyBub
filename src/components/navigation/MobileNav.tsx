@@ -31,6 +31,10 @@ export const useNav = () => {
   return context;
 };
 
+export const useNavAnim = () => {
+  return useContext(NavAnimContext);
+};
+
 interface NavProviderProps {
   root: React.ComponentType<any>;
   rootProps?: Record<string, any>;
@@ -365,7 +369,10 @@ export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swi
 
   const pushWithAnimation = (component: React.ComponentType<any>, props: Record<string, any> = {}) => {
     if (!animated) { push(component, props || {}); return; }
-    if (!canNavigate()) return;
+    if (!canNavigate()) {
+      navLog('pushWithAnimation blocked', { isAnimating: isAnimatingRef.current, isDragging });
+      return;
+    }
     finalizedRef.current = false;
     const prevId = currentPage?.id || null;
     const newPage: PageConfig = { id: 'temp_push', component, props };
@@ -514,7 +521,7 @@ export const NavLink: React.FC<NavLinkProps> = ({ component, props = {}, childre
   const nav = useNav();
   const anim = useContext(NavAnimContext);
   const handleClick = () => {
-    navLog('NavLink click', { replace });
+    navLog('NavLink click', { replace, anim: !!anim, componentName: component.name || 'anonymous' });
     if (replace) nav.replace(component, props);
     else if (anim) anim.pushWithAnimation(component, props);
     else nav.push(component, props);
@@ -569,5 +576,6 @@ export default {
   NavContainer,
   NavLink,
   BackButton,
-  useNav
+  useNav,
+  useNavAnim
 };

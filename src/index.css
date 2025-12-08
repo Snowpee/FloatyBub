@@ -172,7 +172,7 @@ html, body {
   }
   /* 定义 textarea 样式 */
   .bub-textarea {
-    @apply textarea relative w-full px-0 rounded-none;
+    @apply textarea relative w-full px-0 rounded-none text-base;
     outline: 0 none;
     border-color: transparent;
     
@@ -208,7 +208,7 @@ html, body {
 
   /* 定义 input 样式 */
   .bub-input {
-    @apply input relative w-full px-0 rounded-none h-12 bg-transparent;
+    @apply input relative w-full px-0 rounded-none h-14 bg-transparent text-base;
     outline: 0 none;
     border-color: transparent;
     input {
@@ -266,7 +266,7 @@ html, body {
   }
   /* 定义 select 样式 */
   .bub-select {
-    @apply select relative w-full px-0 rounded-none h-12 bg-transparent appearance-none;
+    @apply select relative w-full px-0 rounded-none h-14 bg-transparent appearance-none text-base;
     outline: 0 none;
     border-color: transparent;
     background-image: none; /* 移除 DaisyUI 默认箭头 */
@@ -346,9 +346,9 @@ html, body {
 
   /* 定义 checkbox 样式 */
   .bub-checkbox {
-    @apply relative w-full px-0 rounded-none h-12 bg-transparent appearance-none;
+    @apply relative w-full px-0 rounded-none h-14 bg-transparent appearance-none text-base flex items-center justify-between pr-0;
     .label {
-      @apply !text-base-content text-sm;
+      @apply !text-base-content;
       flex: none;
     }
   }

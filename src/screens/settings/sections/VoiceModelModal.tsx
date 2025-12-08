@@ -51,30 +51,30 @@ const VoiceModelModal: React.FC<VoiceModelModalProps> = ({
       <div className="flex flex-col gap-4">
         {/* 模型信息 */}
       <fieldset className="bub-fieldset">
-        <label className="bub-input w-full">
-          <span className="label">模型 ID / URL</span>
-          <input
-            type="text"
-            className=""
-            value={newModelInput}
-            onChange={(e) => setNewModelInput(e.target.value)}
-            placeholder="输入模型ID或Fish Audio网址"
-          />
-        </label>
-      </fieldset>
-
-      {/* 用户备注 */}
-      <fieldset className="bub-fieldset">
-        <label className="bub-input w-full">
-          <span className="label">备注</span>
-          <input
-            type="text"
-            className=""
-            value={newModelNote}
-            onChange={(e) => setNewModelNote(e.target.value)}
-            placeholder="为此模型添加备注"
-          />
-        </label>
+        <div>
+          <label className="bub-input w-full">
+            <span className="label">模型 ID / URL</span>
+            <input
+              type="text"
+              className=""
+              value={newModelInput}
+              onChange={(e) => setNewModelInput(e.target.value)}
+              placeholder="输入模型ID或Fish Audio网址"
+            />
+          </label>
+        </div>
+        <div>
+          <label className="bub-input w-full">
+            <span className="label">备注</span>
+            <input
+              type="text"
+              className=""
+              value={newModelNote}
+              onChange={(e) => setNewModelNote(e.target.value)}
+              placeholder="为此模型添加备注"
+            />
+          </label>
+        </div>
       </fieldset>
       </div>
     </InputProvider>

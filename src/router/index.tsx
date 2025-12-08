@@ -26,6 +26,7 @@ import SyncTestPage from '../screens/_debug/SyncTestPage';
 import InputDemo from '../screens/_debug/InputDemo';
 import RoleModal from '../screens/settings/sections/RolesModal';
 import ConfigModal from '../screens/settings/sections/ConfigModal';
+
 export const router = createBrowserRouter([
   {
     path: '/',

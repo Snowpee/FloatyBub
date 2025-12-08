@@ -1,6 +1,7 @@
-import React from 'react';
-import { NavProvider, NavContainer, NavLink, BackButton, useNav } from '../../components/navigation/MobileNav';
+import React, { useState } from 'react';
+import { NavProvider, NavContainer, NavLink, BackButton, useNav, useNavAnim } from '../../components/navigation/MobileNav';
 import GlobalSettings from '../../screens/settings/sections/GlobalSettings';
+import ConfigSettings from '../../screens/settings/sections/ConfigSettings';
 import ToastTestPage from './ToastTestPage';
 
 const PageShell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -28,9 +29,27 @@ const ToastNavPage: React.FC = () => (
     <ToastTestPage />
   </PageShell>
 );
+const ConfigNavPage: React.FC = () => (
+  <PageShell title="Config Playground">
+    <ConfigSettings />
+  </PageShell>
+);
 
 const HomePage: React.FC = () => {
   const nav = useNav();
+  const anim = useNavAnim();
+
+  console.log('[HomePage] anim context:', anim);
+
+  const handlePushViaAPI = () => {
+    console.log('[HomePage] handlePushViaAPI called, anim:', anim);
+    if (anim) {
+      anim.pushWithAnimation(ToastNavPage);
+    } else {
+      nav.push(ToastNavPage);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
       <div className="flex items-center justify-between mb-8">
@@ -39,7 +58,9 @@ const HomePage: React.FC = () => {
       <div className="space-y-4">
         <NavLink component={SettingsNavPage} className="btn btn-primary w-full">Open Settings</NavLink>
         <NavLink component={ToastNavPage} className="btn btn-secondary w-full">Open Toast Playground</NavLink>
-        <button onClick={() => nav.push(ToastNavPage)} className="btn btn-accent w-full">Push via API</button>
+        <NavLink component={ConfigNavPage} className="btn btn-secondary w-full">Open Config Settings</NavLink>
+        <button onClick={handlePushViaAPI} className="btn btn-accent w-full">Push via API</button>
+
       </div>
       <div className="mt-8 p-4 bg-white rounded-lg shadow">
         <h3 className="font-semibold mb-2">导航栈信息</h3>
