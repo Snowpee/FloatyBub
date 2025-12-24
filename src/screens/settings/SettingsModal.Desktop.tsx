@@ -114,12 +114,12 @@ const SettingsModalDesktop: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
         
         {/* 左侧导航栏 */}
         <div className="w-64 bg-base-100 border-r border-base-300/50 flex-shrink-0 flex flex-col">
-          <div className="p-6 pb-4">
+          <div className="px-6 h-[var(--height-header)] flex items-center">
             <h2 className="text-lg font-semibold text-base-content">设置</h2>
           </div>
           
           <div className="flex-1 overflow-y-auto">
-            <ul className="menu p-3 space-y-1 w-full">
+            <ul className="menu p-3 pt-0 space-y-1 w-full">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
@@ -146,7 +146,7 @@ const SettingsModalDesktop: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
         {/* 右侧内容区域 */}
         <div className="flex flex-1 flex-col min-h-0">
           {/* 标题栏 */}
-          <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0 bg-base-200">
+          <div className="flex items-center justify-between pl-6 pr-4 flex-shrink-0 bg-base-200 h-[var(--height-header)]">
             <div className="flex items-center gap-3">
               {isDetailView && detailTitle ? (
                 <div className="flex items-center gap-3">
@@ -185,10 +185,10 @@ const SettingsModalDesktop: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
-                  <h1 className="text-xl font-semibold text-base-content">{detailTitle}</h1>
+                  <h1 className="text-lg font-semibold text-base-content">{detailTitle}</h1>
                 </div>
               ) : (
-                <h1 className="text-xl font-semibold text-base-content">
+                <h1 className="text-lg font-semibold text-base-content">
                   {tabs.find(tab => tab.id === activeTab)?.name}
                 </h1>
               )}

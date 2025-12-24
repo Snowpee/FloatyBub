@@ -472,6 +472,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
       rubberband={true}
       safeArea={true}
       debug={true}
+      fullScreen={false}
       headerTitle={<div className="text-center text-lg font-semibold text-base-content">{title}</div>}
       rightActions={[
         { 

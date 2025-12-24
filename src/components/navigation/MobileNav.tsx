@@ -82,9 +82,10 @@ interface NavContainerProps {
   animated?: boolean;
   swipeGesture?: boolean;
   iosSwipeStartMargin?: number;
+  ignoreGlobalModalState?: boolean;
 }
 
-export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swipeGesture = false, iosSwipeStartMargin = 30 }) => {
+export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swipeGesture = false, iosSwipeStartMargin = 30, ignoreGlobalModalState = false }) => {
   const { stack, pop, push, canGoBack } = useNav();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [xDebug, setXDebug] = useState(0);
@@ -198,7 +199,7 @@ export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swi
   const bind = useDrag(({ down, movement: [mx], velocity: [vx], last, active, event }) => {
     if (!swipeGesture) return;
     if (!canGoBack()) return;
-    if (typeof document !== 'undefined' && document.body.getAttribute('data-modal-open') === 'true') {
+    if (!ignoreGlobalModalState && typeof document !== 'undefined' && document.body.getAttribute('data-modal-open') === 'true') {
       navLog('swipe blocked: modal open');
       return;
     }
@@ -388,7 +389,7 @@ export const NavContainer: React.FC<NavContainerProps> = ({ animated = true, swi
     startSafetyTimer();
     const width = typeof window !== 'undefined' ? window.innerWidth : 1000;
     api.set({ x: width });
-    api.start({ x: 0, config: { tension: 300, friction: 30 }, onRest: () => {
+    api.start({ x: 0, config: { tension: 250, friction: 30 }, onRest: () => {
       if (!finalizedRef.current) {
         navLog('pushWithAnimation onRest finalize');
         finalizedRef.current = true;

@@ -185,6 +185,8 @@ const GlobalPromptsModal: React.FC<GlobalPromptsModalProps> = ({
       rubberband={true}
       safeArea={true}
       debug={true}
+      fullScreen={false}
+      className="--testyou"
       headerTitle={<div className="text-center text-lg font-semibold text-base-content">{initialPrompt ? '编辑全局提示词' : '创建全局提示词'}</div>}
       rightActions={[
         { 

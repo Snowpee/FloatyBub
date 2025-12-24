@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { indexedDBStorage } from './storage';
 import { convertAvatarForExport, convertAvatarFromImport } from '../utils/avatarUtils';
 import { dataSyncService } from '../services/DataSyncService';
 import { supabase } from '../lib/supabase';
@@ -2482,8 +2483,8 @@ export const useAppStore = create<AppState>()(
         sendMessageShortcut: state.sendMessageShortcut
       }),
       storage: {
-        getItem: (name) => {
-          const str = localStorage.getItem(name);
+        getItem: async (name) => {
+          const str = await indexedDBStorage.getItem(name);
           if (!str) return null;
           try {
             // 🔧 使用自定义反序列化器恢复被保护的 snowflake_id
@@ -2529,15 +2530,21 @@ export const useAppStore = create<AppState>()(
             return null;
           }
         },
-        setItem: (name, value) => {
-          // 🔧 使用自定义序列化器保护 snowflake_id 字段
-          const serializedData = customSerializer({
-            state: value,
-            version: 1
-          });
-          localStorage.setItem(name, serializedData);
+        setItem: async (name, value) => {
+          try {
+            // 🔧 使用自定义序列化器保护 snowflake_id 字段
+            const serializedData = customSerializer({
+              state: value,
+              version: 1
+            });
+            await indexedDBStorage.setItem(name, serializedData);
+          } catch (error) {
+            console.error('Failed to persist state:', error);
+            // 即使持久化失败，内存中的状态仍然更新，应用不会立即崩溃
+            // 但用户刷新后数据会丢失
+          }
         },
-        removeItem: (name) => localStorage.removeItem(name)
+        removeItem: (name) => indexedDBStorage.removeItem(name)
       }
     }
   )

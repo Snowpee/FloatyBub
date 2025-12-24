@@ -77,7 +77,7 @@ const HistoryModal = memo<HistoryModalProps>(({ isOpen, onClose }) => {
       safeArea={true}
       debug={true}
       headerTitle={<div className="text-center text-lg font-semibold text-base-content">历史记录</div>}
-      rightActions={[{ icon: <X className="h-4 w-4" />, className: 'btn btn-ghost btn-sm btn-square', role: 'close' }]}
+      leftActions={[{ icon: <X className="h-5 w-5" />, className: 'btn btn-circle', role: 'close' }]}
     >
       <div className="flex-1 overflow-hidden">
         <div className="h-full overflow-y-auto">

@@ -44,10 +44,17 @@ export function UserAvatar({ onOpenSettings, onOpenProfileModal, className }: Us
     return colors[index]
   }
 
+  const signingOutRef = useRef(false)
+
   const handleSignOut = async () => {
-    await signOut()
-    // 刷新页面以确保状态完全更新
-    window.location.reload()
+    if (signingOutRef.current) return
+    signingOutRef.current = true
+    try {
+      await signOut()
+      ;(document.activeElement as HTMLElement | null)?.blur?.()
+    } finally {
+      signingOutRef.current = false
+    }
   }
 
   const handleSettings = () => {
@@ -201,24 +208,6 @@ export function UserAvatar({ onOpenSettings, onOpenProfileModal, className }: Us
               </p>
             )}
           </div>
-
-          {/* 菜单项 */}
-          <li
-            className='py-2'
-          >
-            <button
-              onClick={() => {
-                handleSettings();
-                (document.activeElement as HTMLElement)?.blur();
-              }}
-              //点击后关闭本菜单
-              
-              className="flex items-center gap-3 h-10"
-            >
-              <Settings className="w-4 h-4" />
-              设置
-            </button>
-          </li>
           
           {syncError && (
             <li
@@ -237,6 +226,7 @@ export function UserAvatar({ onOpenSettings, onOpenProfileModal, className }: Us
           <li>
             <button
               onClick={handleSignOut}
+              disabled={authLoading}
               className="flex items-center gap-3 h-10 text-error"
             >
               <LogOut className="w-4 h-4" />

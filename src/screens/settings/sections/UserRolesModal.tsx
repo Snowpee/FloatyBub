@@ -178,6 +178,7 @@ const UserRolesModal: React.FC<UserRolesModalProps> = ({
       rubberband={true}
       safeArea={true}
       debug={true}
+      fullScreen={false}
       headerTitle={<div className="text-center text-lg font-semibold text-base-content">{initialProfile ? '编辑用户资料' : '添加用户资料'}</div>}
       rightActions={[
         { 

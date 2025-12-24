@@ -480,6 +480,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
       rubberband={true}
       safeArea={true}
       debug={true}
+      fullScreen={false}
       headerTitle={<div className="text-center text-lg font-semibold text-base-content">{initialRole ? '编辑角色' : '创建新角色'}</div>}
       rightActions={[
         { 

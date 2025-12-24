@@ -5,7 +5,7 @@ import { useAppStore } from '../store'
 import { useDataSync } from './useDataSync'
 import { dataSyncService } from '../services/DataSyncService'
 
-const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} }
+const console: Console = { ...globalThis.console, log: () => {} }
 
 export interface AuthState {
   user: User | null
@@ -19,7 +19,7 @@ export interface AuthActions {
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signOut: () => Promise<{ error: AuthError | null }>
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>
-  updateProfile: (updates: { display_name?: string; avatar_url?: string }) => Promise<{ error: any }>
+  updateProfile: (updates: { display_name?: string; avatar_url?: string }) => Promise<{ error: { message: string } | null }>
   clearError: () => void
 }
 
@@ -34,18 +34,16 @@ export function useAuth(): AuthState & AuthActions {
   } = useAppStore()
   const { pullFromCloud } = useDataSync()
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const lastSyncUserIdRef = useRef<string | null>(null)
   const lastAuthEventRef = useRef<{ event: string; userId: string | null; timestamp: number } | null>(null)
-  
-  // 组件挂载状态标志
-  let isComponentMounted = true
+  const isMountedRef = useRef(true)
+  const signingOutRef = useRef(false)
   
   // 认证状态一致性检查
   const authConsistencyCheckRef = useRef<NodeJS.Timeout | null>(null)
   
   // 认证状态一致性检查函数
   const checkAuthConsistency = useCallback(async () => {
-    if (!isComponentMounted) return
+    if (!isMountedRef.current || signingOutRef.current) return
     
     try {
       // 获取当前Supabase会话状态
@@ -85,8 +83,9 @@ export function useAuth(): AuthState & AuthActions {
         await syncUserProfile(currentSession.user)
       }
       
-    } catch (error: any) {
-      console.warn('⚠️ [useAuth] 认证状态一致性检查异常:', error.message)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.warn('⚠️ [useAuth] 认证状态一致性检查异常:', message)
     }
   }, [user])
   
@@ -114,13 +113,14 @@ export function useAuth(): AuthState & AuthActions {
   }, [])
 
   // 云端数据同步重试函数
-  const syncCloudDataWithRetry = useCallback(async (user: any, maxRetries = 3) => {
+  const syncCloudDataWithRetry = useCallback(async (user: User, maxRetries = 3) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      if (!isMountedRef.current || signingOutRef.current) return
       try {
         console.log(`🔄 [useAuth] 云端数据同步尝试 ${attempt}/${maxRetries}...`)
         
         // 验证用户状态
-        if (!user || !user.id) {
+        if (!user?.id) {
           console.warn('⚠️ [useAuth] 用户状态无效，跳过云端数据同步')
           return
         }
@@ -160,8 +160,9 @@ export function useAuth(): AuthState & AuthActions {
         try {
           await useAppStore.getState().syncGeneralSettingsFull()
           console.log('✅ [useAuth] 已触发通用设置全量推送')
-        } catch (syncError: any) {
-          console.warn('⚠️ [useAuth] 通用设置全量推送失败，但不影响主流程:', syncError?.message || syncError)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          console.warn('⚠️ [useAuth] 通用设置全量推送失败，但不影响主流程:', message)
         }
         
         // 确保默认角色存在于数据库中
@@ -170,27 +171,30 @@ export function useAuth(): AuthState & AuthActions {
           const defaultRoles = currentState.aiRoles.filter(role => defaultRoleIds.includes(role.id))
           await dataSyncService.ensureDefaultRolesExist(user, defaultRoles)
           console.log('✅ [useAuth] 默认角色同步检查完成')
-        } catch (error: any) {
-          console.warn('⚠️ [useAuth] 默认角色同步检查失败，但不影响主流程:', error.message)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          console.warn('⚠️ [useAuth] 默认角色同步检查失败，但不影响主流程:', message)
           // 不抛出错误，避免影响主要的数据同步流程
         }
         
         return // 成功后退出重试循环
         
-      } catch (error: any) {
-        console.warn(`⚠️ [useAuth] 云端数据同步失败 (尝试 ${attempt}/${maxRetries}):`, error.message)
+      } catch (err) {
+        const errorLike = err as { message?: string; code?: string; status?: number }
+        const message = err instanceof Error ? err.message : errorLike.message || String(err)
+        console.warn(`⚠️ [useAuth] 云端数据同步失败 (尝试 ${attempt}/${maxRetries}):`, message)
         
         // 判断是否为可重试的错误
         const isRetryableError = 
-          error.message?.includes('用户未登录') ||
-          error.message?.includes('fetch') || 
-          error.message?.includes('network') ||
-          error.message?.includes('timeout') ||
-          error.message?.includes('connection') ||
-          error.code === 'PGRST301' ||
-          error.status === 503 ||
-          error.status === 502 ||
-          error.status === 504
+          message.includes('用户未登录') ||
+          message.includes('fetch') || 
+          message.includes('network') ||
+          message.includes('timeout') ||
+          message.includes('connection') ||
+          errorLike.code === 'PGRST301' ||
+          errorLike.status === 503 ||
+          errorLike.status === 502 ||
+          errorLike.status === 504
         
         if (attempt < maxRetries && isRetryableError) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000) // 指数退避，最大5秒
@@ -206,26 +210,27 @@ export function useAuth(): AuthState & AuthActions {
 
   useEffect(() => {
     console.log('🔄 [useAuth] Hook 初始化')
+    isMountedRef.current = true
     const maxRetries = 5
     const retryDelay = 1000 // 1秒
-    let isComponentMounted = true
 
     // 获取初始会话（改进的重试机制）
     const getInitialSession = async (attempt = 1) => {
-      if (!isComponentMounted) return
+      if (!isMountedRef.current || signingOutRef.current) return
       
       try {
         console.log(`🔄 [useAuth] 尝试获取会话 (${attempt}/${maxRetries})...`)
         
         // 添加超时控制
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Session fetch timeout')), 10000)
-        })
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Session fetch timeout')), 10000)
+          })
+        ])
+        const { data: { session }, error } = sessionResult
         
-        const sessionPromise = supabase.auth.getSession()
-        const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]) as any
-        
-        if (!isComponentMounted) return
+        if (!isMountedRef.current || signingOutRef.current) return
         
         if (error) {
           console.error('[useAuth] Error getting session:', error)
@@ -265,7 +270,7 @@ export function useAuth(): AuthState & AuthActions {
           }
         }
       } catch (err) {
-        if (!isComponentMounted) return
+        if (!isMountedRef.current || signingOutRef.current) return
         
         console.error('[useAuth] Error in getInitialSession:', err)
         
@@ -284,7 +289,7 @@ export function useAuth(): AuthState & AuthActions {
         setCurrentUser(null)
       } finally {
         // 确保在所有情况下都设置 loading 为 false
-        if (isComponentMounted && (attempt >= maxRetries || !error)) {
+        if (isMountedRef.current && (attempt >= maxRetries || !error)) {
           setLoading(false)
         }
       }
@@ -292,62 +297,51 @@ export function useAuth(): AuthState & AuthActions {
 
     // 延迟执行，确保组件完全挂载
     const initTimer = setTimeout(() => {
-      if (isComponentMounted) {
+      if (isMountedRef.current && !signingOutRef.current) {
         getInitialSession()
       }
     }, 100)
 
-    // 清理函数
-    return () => {
-      isComponentMounted = false
-      clearTimeout(initTimer)
-      stopAuthConsistencyCheck()
-    }
-    // 监听认证状态变化（改进的处理逻辑）
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!isComponentMounted) return
-        
+        if (!isMountedRef.current) return
+        if (signingOutRef.current && event !== 'SIGNED_OUT') return
+
         const currentUserId = session?.user?.id || null
         const now = Date.now()
-        
-        // 减少重复日志输出：如果是相同的事件和用户，且时间间隔小于2秒，则跳过日志
+
         const shouldLog = !lastAuthEventRef.current || 
           lastAuthEventRef.current.event !== event ||
           lastAuthEventRef.current.userId !== currentUserId ||
           (now - lastAuthEventRef.current.timestamp) > 2000
-        
+
         if (shouldLog) {
           console.log('🔄 [useAuth] 认证状态变化:', event, session?.user?.email || '未登录')
           lastAuthEventRef.current = { event, userId: currentUserId, timestamp: now }
         }
-        
-        // 更新认证状态
+
         setSession(session)
         setUser(session?.user ?? null)
-        setError(null) // 清除之前的错误
-        
-        // 对于TOKEN_REFRESHED事件，不需要重新同步用户数据
+        setError(null)
+
         if (event === 'TOKEN_REFRESHED' && session?.user) {
           console.log('🔄 [useAuth] Token已刷新，保持现有用户状态')
           setLoading(false)
           return
         }
-        
+
         if (session?.user) {
-          // 检查store中是否已有用户数据，避免重复同步
           const { currentUser } = useAppStore.getState()
           const shouldSync = !currentUser || 
                            currentUser.id !== session.user.id || 
                            event === 'SIGNED_IN' ||
                            event === 'INITIAL_SESSION'
-          
+
           if (shouldSync) {
             try {
               await syncUserProfile(session.user)
             } catch (error) {
               console.error('[useAuth] 用户资料同步失败:', error)
-              // 即使同步失败，也要设置基本用户信息
               setCurrentUser({
                 id: session.user.id,
                 name: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
@@ -358,35 +352,33 @@ export function useAuth(): AuthState & AuthActions {
             }
           } else {
             console.log('✅ [useAuth] 用户数据已存在，跳过用户资料同步')
-            // 即使用户资料已存在，也要尝试同步云端数据（带重试机制）
             await syncCloudDataWithRetry(session.user)
           }
-          
-          // 用户登录成功后启动认证状态一致性检查
+
           if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
             startAuthConsistencyCheck()
           }
         } else {
-          // 用户登出，清除所有状态
           console.log('🔄 [useAuth] 用户已登出，清除状态')
           setCurrentUser(null)
           stopAuthConsistencyCheck()
         }
-        
+
         setLoading(false)
       }
     )
 
     return () => {
-        console.log('🧹 [useAuth] Hook 清理')
-        isComponentMounted = false
-        subscription.unsubscribe()
-        stopAuthConsistencyCheck()
-        // 清理防抖定时器
-        if (syncTimeoutRef.current) {
-          clearTimeout(syncTimeoutRef.current)
-        }
+      console.log('🧹 [useAuth] Hook 清理')
+      isMountedRef.current = false
+      clearTimeout(initTimer)
+      subscription.unsubscribe()
+      stopAuthConsistencyCheck()
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current)
+        syncTimeoutRef.current = null
       }
+    }
   }, []) // 空依赖数组，确保只在组件挂载时执行一次
 
   // 同步用户资料到本地状态（改进的错误处理和重试机制）
@@ -397,21 +389,15 @@ export function useAuth(): AuthState & AuthActions {
     }
     
     syncTimeoutRef.current = setTimeout(async () => {
-      if (!isComponentMounted) return
+      if (!isMountedRef.current || signingOutRef.current) return
       
       const maxRetries = 5
       let retryCount = 0
       
       while (retryCount < maxRetries) {
+        if (!isMountedRef.current || signingOutRef.current) return
         try {
           console.log(`🔄 [useAuth] 同步用户资料 (尝试 ${retryCount + 1}/${maxRetries}):`, user.email)
-          
-          // 检查数据库连接状态
-          const { data: healthCheck } = await supabase
-            .from('user_profiles')
-            .select('count')
-            .limit(1)
-            .single()
           
           // 首先尝试获取现有的用户资料
           const { data: existingProfile, error: fetchError } = await supabase
@@ -465,7 +451,7 @@ export function useAuth(): AuthState & AuthActions {
           }
           
           // 更新本地状态
-          if (isComponentMounted) {
+          if (isMountedRef.current && !signingOutRef.current) {
             setCurrentUser({
               id: userProfile.id || userProfile.user_id,
               name: userProfile.display_name || userProfile.name,
@@ -479,22 +465,24 @@ export function useAuth(): AuthState & AuthActions {
           }
           return // 成功后退出重试循环
           
-        } catch (error: any) {
+        } catch (err) {
+          const errorLike = err as { message?: string; code?: string; status?: number }
+          const message = err instanceof Error ? err.message : errorLike.message || String(err)
           retryCount++
-          console.error(`❌ [useAuth] 用户资料同步失败 (尝试 ${retryCount}/${maxRetries}):`, error.message)
+          console.error(`❌ [useAuth] 用户资料同步失败 (尝试 ${retryCount}/${maxRetries}):`, message)
           
           // 判断是否为可重试的错误
           const isRetryableError = 
-            error.message?.includes('fetch') || 
-            error.message?.includes('network') ||
-            error.message?.includes('timeout') ||
-            error.message?.includes('connection') ||
-            error.code === 'PGRST301' || // PostgreSQL connection error
-            error.code === 'PGRST204' || // No rows returned (temporary)
-            error.code === 'PGRST000' || // Generic database error
-            error.status === 503 ||      // Service unavailable
-            error.status === 502 ||      // Bad gateway
-            error.status === 504         // Gateway timeout
+            message.includes('fetch') || 
+            message.includes('network') ||
+            message.includes('timeout') ||
+            message.includes('connection') ||
+            errorLike.code === 'PGRST301' || // PostgreSQL connection error
+            errorLike.code === 'PGRST204' || // No rows returned (temporary)
+            errorLike.code === 'PGRST000' || // Generic database error
+            errorLike.status === 503 ||      // Service unavailable
+            errorLike.status === 502 ||      // Bad gateway
+            errorLike.status === 504         // Gateway timeout
           
           if (retryCount < maxRetries && isRetryableError) {
             const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 8000) // 指数退避，最大8秒
@@ -503,17 +491,17 @@ export function useAuth(): AuthState & AuthActions {
           } else {
             // 所有重试都失败了，使用基本用户信息作为后备
             console.warn('⚠️ [useAuth] 用户资料同步失败，使用基本信息')
-            if (isComponentMounted) {
+            if (isMountedRef.current && !signingOutRef.current) {
               setCurrentUser({
-              id: user.id,
-              name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
-              avatar: user.user_metadata?.avatar_url || '',
-              preferences: {}
-            })
+                id: user.id,
+                name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
+                avatar: user.user_metadata?.avatar_url || '',
+                preferences: {}
+              })
             }
             
             // 如果是权限错误，设置特定的错误状态
-            if (error.message?.includes('permission') || error.code === 'PGRST301') {
+            if (message.includes('permission') || errorLike.code === 'PGRST301') {
               console.error('🚫 [useAuth] 数据库权限错误，可能需要检查RLS策略')
               setError('数据库访问权限错误，请联系管理员')
             }
@@ -545,7 +533,7 @@ export function useAuth(): AuthState & AuthActions {
       
       return { error }
     } catch (err) {
-      const errorMessage = 'An unexpected error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
       setError(errorMessage)
       return { error: { message: errorMessage } as AuthError }
     } finally {
@@ -569,7 +557,7 @@ export function useAuth(): AuthState & AuthActions {
       
       return { error }
     } catch (err) {
-      const errorMessage = 'An unexpected error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
       setError(errorMessage)
       return { error: { message: errorMessage } as AuthError }
     } finally {
@@ -578,24 +566,68 @@ export function useAuth(): AuthState & AuthActions {
   }
 
   const signOut = async () => {
+    signingOutRef.current = true
     setLoading(true)
     setError(null)
-    
+    stopAuthConsistencyCheck()
+
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current)
+      syncTimeoutRef.current = null
+    }
+
+    dataSyncService.clearQueue()
+    setSession(null)
+    setUser(null)
+    setCurrentUser(null)
+
+    const clearAuthStorage = () => {
+      try {
+        const keys = Object.keys(localStorage)
+        for (const key of keys) {
+          if (!key.startsWith('sb-')) continue
+          if (key.endsWith('-auth-token') || key.endsWith('-auth-token-code-verifier')) {
+            localStorage.removeItem(key)
+          }
+        }
+      } catch {}
+
+      try {
+        const keys = Object.keys(sessionStorage)
+        for (const key of keys) {
+          if (!key.startsWith('sb-')) continue
+          if (key.endsWith('-auth-token') || key.endsWith('-auth-token-code-verifier')) {
+            sessionStorage.removeItem(key)
+          }
+        }
+      } catch {}
+    }
+
     try {
-      const { error } = await supabase.auth.signOut()
-      
-      if (error) {
-        setError(error.message)
-      } else {
-        setCurrentUser(null)
-      }
-      
-      return { error }
+      supabase.auth.stopAutoRefresh()
     } catch (err) {
-      const errorMessage = 'An unexpected error occurred'
+      const message = err instanceof Error ? err.message : String(err)
+      console.warn('⚠️ [useAuth] stopAutoRefresh 失败:', message)
+    }
+
+    try {
+      const signOutPromise = supabase.auth.signOut({ scope: 'local' })
+      const timeoutPromise = new Promise<{ error: AuthError | null }>((resolve) => {
+        setTimeout(() => resolve({ error: null }), 2000)
+      })
+      const result = await Promise.race([signOutPromise, timeoutPromise])
+      clearAuthStorage()
+
+      const signOutError = result.error
+      if (signOutError) setError(signOutError.message)
+      return { error: signOutError }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      clearAuthStorage()
       setError(errorMessage)
       return { error: { message: errorMessage } as AuthError }
     } finally {
+      signingOutRef.current = false
       setLoading(false)
     }
   }
@@ -614,7 +646,7 @@ export function useAuth(): AuthState & AuthActions {
       
       return { error }
     } catch (err) {
-      const errorMessage = 'An unexpected error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
       setError(errorMessage)
       return { error: { message: errorMessage } as AuthError }
     }
@@ -648,7 +680,7 @@ export function useAuth(): AuthState & AuthActions {
       
       return { error: null }
     } catch (err) {
-      const errorMessage = 'An unexpected error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
       setError(errorMessage)
       return { error: { message: errorMessage } }
     }
