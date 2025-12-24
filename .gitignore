@@ -44,3 +44,5 @@ test-scripts.sh
 quick-commit.sh
 deploy.sh
 scripts/
+
+_debug/*
