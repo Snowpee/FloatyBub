@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 import { LoginForm } from './LoginForm'
 import { RegisterForm } from './RegisterForm'
 import { ForgotPasswordForm } from './ForgotPasswordForm'
+import BottomSheetModal from '../BottomSheetModal'
 
 type AuthMode = 'login' | 'register' | 'forgot-password'
 
@@ -14,19 +17,19 @@ interface AuthModalProps {
 export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const [isDesktop, setIsDesktop] = useState(false)
 
-  // 使用 DaisyUI 的 dialog 元素控制模态框显示
   useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
+    // 初始化检测
+    setIsDesktop(window.innerWidth >= 1024)
 
-    if (isOpen) {
-      dialog.showModal()
-    } else {
-      dialog.close()
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024)
     }
-  }, [isOpen])
+    
+    window.addEventListener('resize', checkDesktop)
+    return () => window.removeEventListener('resize', checkDesktop)
+  }, [])
 
   const handleSuccess = () => {
     if (mode === 'register' || mode === 'forgot-password') {
@@ -45,6 +48,16 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
   const handleSwitchMode = (newMode: AuthMode) => {
     setMode(newMode)
     setShowSuccessMessage(false)
+  }
+
+  const getTitle = () => {
+    if (showSuccessMessage) return '操作成功'
+    switch (mode) {
+      case 'login': return '登录'
+      case 'register': return '注册'
+      case 'forgot-password': return '找回密码'
+      default: return '认证'
+    }
   }
 
   const renderContent = () => {
@@ -100,27 +113,59 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
     }
   }
 
-  return (
-    <dialog ref={dialogRef} className="modal">
-      <div className="modal-box w-full max-w-md">
-        {/* 关闭按钮 */}
-        <form method="dialog">
-          <button 
-            className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </form>
+  if (!isOpen) return null
+
+  // 桌面端：使用 DaisyUI Modal
+  if (isDesktop) {
+    return createPortal(
+      <dialog className="modal modal-open modal-middle" open>
+        <div className="modal-box w-full max-w-md p-0 flex flex-col bg-base-100 shadow-2xl">
+          {/* Header */}
+          <div className="px-6 py-4 flex items-center justify-between">
+            <div className="text-lg font-bold text-base-content"></div>
+            <form method="dialog">
+              <button className="btn btn-sm btn-circle btn-ghost" onClick={onClose}>
+                <X className="h-5 w-5" />
+              </button>
+            </form>
+          </div>
+          
+          {/* Content */}
+          <div className="p-6">
+            {renderContent()}
+          </div>
+        </div>
         
-        {/* 内容区域 */}
-        {renderContent()}
+        {/* Backdrop */}
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={onClose}>close</button>
+        </form>
+      </dialog>,
+      document.body
+    )
+  }
+
+  // 移动端：使用 BottomSheetModal
+  return createPortal(
+    <BottomSheetModal
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose()
+        }
+      }}
+      onClose={onClose}
+      dismissible={true}
+      dragEnabled={true}
+      headerTitle={<div className="text-center text-lg font-semibold text-base-content"></div>}
+      leftActions={[{ icon: <X className="h-5 w-5" />, className: 'btn btn-circle', role: 'close' }]}
+    >
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full overflow-y-auto px-4 pb-8">
+          {renderContent()}
+        </div>
       </div>
-      
-      {/* 点击外部关闭 */}
-      <form method="dialog" className="modal-backdrop">
-        <button onClick={onClose}>close</button>
-      </form>
-    </dialog>
+    </BottomSheetModal>,
+    document.body
   )
 }

@@ -183,39 +183,39 @@ const KnowledgeEntryModal: React.FC<KnowledgeEntryModalProps> = ({
     <InputProvider>
       <div className="flex flex-col gap-4">
         <fieldset className='bub-fieldset py-4'>
-        {/* 条目名称 */}
-        <div>
-          <label className='bub-input'>
-            <span className="label">条目名称 *</span>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => handleInputChange('name', e.target.value)}
-              placeholder="请输入条目名称"
-              maxLength={100}
-              className={errors.name ? 'input-error' : ''}
-            />
-          </label>
-          {errors.name && (
-            <label className="label py-1">
-              <span className="label-text-alt text-error">{errors.name}</span>
-            </label>
-          )}
-          <label className="label py-1">
-            <span className="label-text-alt opacity-50">
-              {formData.name.length}/100 字符
+          {/* 条目名称 */}
+          <div>
+            <div className='bub-input bub-input-ht'>
+              <label>
+                <span className="label">条目名称 *</span>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="请输入条目名称"
+                  maxLength={100}
+                  className={errors.name ? 'input-error' : ''}
+                />
+              </label>
+              <span>
+            {errors.name && (
+              <span className="text-error">{errors.name}</span>
+            )}
+              <span>
+                {formData.name.length}/100 字符
+              </span>
             </span>
-          </label>
+          </div>
         </div>
 
         {/* 关键词 */}
-        <div>
-          <label className="label">
-            <span className="label-text font-medium">关键词 *</span>
+        <div className="flex flex-col gap-2 py-3">
+          <label>
+            <span className="text-base">关键词 *</span>
           </label>
-          <div className="flex flex-wrap gap-2 mb-2 p-2 border border-base-300 rounded-lg min-h-[3rem]">
+          <div className="flex flex-wrap">
             {formData.keywords.filter(k => k.trim()).map((keyword, index) => (
-              <div key={index} className="badge badge-primary gap-2 h-auto py-1">
+              <div key={index} className="badge badge-primary gap-2 h-[var(--size)] py-1">
                 <span>{keyword}</span>
                 <button
                   type="button"
@@ -350,6 +350,7 @@ const KnowledgeEntryModal: React.FC<KnowledgeEntryModalProps> = ({
       velocityThreshold={0.5}
       rubberband={true}
       safeArea={true}
+      fullScreen={false}
       headerTitle={<div className="text-center text-lg font-semibold text-base-content">{isEditing ? '编辑知识条目' : '添加知识条目'}</div>}
       rightActions={[
         { 

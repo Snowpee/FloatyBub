@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Square, Download, Volume2, Trash2, Settings } from 'lucide-react';
+import { Play, Square, Download, Volume2, Trash2, Settings, RefreshCw } from 'lucide-react';
 import { toast } from '../../hooks/useToast';
+import { clearAllCache } from '../../utils/voiceUtils';
 
 interface TTSRequest {
   text: string;
@@ -420,6 +421,17 @@ const VoiceTest: React.FC = () => {
     loadVoiceSettings();
   }, []);
   
+  // 清除本地缓存
+  const handleClearCache = async () => {
+    try {
+      await clearAllCache();
+      toast.success('本地音频缓存已清空');
+    } catch (error) {
+      console.error('清空缓存失败:', error);
+      toast.error('清空缓存失败');
+    }
+  };
+
   // 当服务器类型或自定义地址改变时重新检查状态
   useEffect(() => {
     checkServerStatus();
@@ -463,12 +475,22 @@ const VoiceTest: React.FC = () => {
           <div className="card-body">
             <div className="flex items-center justify-between mb-4">
               <h2 className="card-title">服务器配置</h2>
-              <button 
-                className="btn btn-sm btn-outline"
-                onClick={checkServerStatus}
-              >
-                刷新状态
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  className="btn btn-sm btn-outline btn-warning"
+                  onClick={handleClearCache}
+                  title="清除本地 IndexedDB 音频缓存"
+                >
+                  <RefreshCw className="w-4 h-4 mr-1" />
+                  清除缓存
+                </button>
+                <button 
+                  className="btn btn-sm btn-outline"
+                  onClick={checkServerStatus}
+                >
+                  刷新状态
+                </button>
+              </div>
             </div>
             
             {/* 服务器选择 */}

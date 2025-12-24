@@ -213,29 +213,25 @@ export const KnowledgeEntryManager: React.FC<KnowledgeEntryManagerProps> = ({
         </button>
 
         {/* 页面内容 */}
-        <div className="mb-8">
-          {/* 描述信息 */}
-          <p className="text-base-content/70 mb-4">
-            {knowledgeBase.description || '管理知识库中的条目'}
-          </p>
-
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
           {/* 统计信息 */}
           {knowledgeEntries.length > 0 && (
-            <div className="card bg-base-200 p-4">
-              <div className="flex items-center gap-6 text-sm text-base-content/70">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  <span>共 {knowledgeEntries.length} 个条目</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Tag className="w-4 h-4" />
-                  <span>
-                    共 {new Set(knowledgeEntries.flatMap(entry => entry.keywords)).size} 个关键词
-                  </span>
-                </div>
-              </div>
-            </div>
+          <div>
+            <p className="text-base-content/70">
+              管理知识库中的条目
+            </p>
+          </div>
           )}
+
+          {/* 操作按钮 */}
+          <button
+            onClick={handleCreateEntry}
+            className="btn btn-outline-light md:btn md:btn-primary w-full md:w-auto"
+          >
+            <Plus className="w-4 h-4" />
+            添加条目
+          </button>
+
         </div>
 
         {/* 错误提示 */}
@@ -253,29 +249,35 @@ export const KnowledgeEntryManager: React.FC<KnowledgeEntryManagerProps> = ({
 
         {/* 操作栏 - 仅在有条目时显示 */}
         {knowledgeEntries.length > 0 && (
-          <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between">
+          <div className="mb-4 flex flex-col md:flex-row gap-4 justify-between">
             {/* 搜索框 */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-base-content/40 w-5 h-5" />
+            <label className="input h-12 md:h-10 w-full">
+              <Search className="text-base-content/40 w-5 h-5" />
               <input
                 type="text"
                 placeholder="搜索条目名称、关键词或内容..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="input input-bordered w-full pl-10"
+                className="input input-bordered"
               />
+            </label>
+            {/* 统计信息 */}  
+            <div className="card h-12 md:h-10 items-center justify-center w-full px-4">
+              <div className="flex items-center gap-6 text-sm text-base-content/70">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  <span>共 {knowledgeEntries.length} 个条目</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4" />
+                  <span>
+                    共 {new Set(knowledgeEntries.flatMap(entry => entry.keywords)).size} 个关键词
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {/* 操作按钮 */}
-            <div className="flex gap-2">
-              <button
-                onClick={handleCreateEntry}
-                className="btn btn-primary gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                添加条目
-              </button>
-            </div>
+
           </div>
         )}
 
@@ -304,7 +306,7 @@ export const KnowledgeEntryManager: React.FC<KnowledgeEntryManagerProps> = ({
             )}
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             {filteredEntries.map((entry) => (
               <KnowledgeEntryCard
                 key={entry.id}

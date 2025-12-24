@@ -1,7 +1,7 @@
 // 知识库管理页面组件
 
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, BookOpen, Upload, FileText, Calendar, Edit, Trash2, Download, X, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect, useContext } from 'react';
+import { Plus, Search, BookOpen, Upload, FileText, Calendar, Edit, Trash2, Download, X, ArrowLeft, ChevronLeft } from 'lucide-react';
 import { useKnowledgeStore } from '../../../store/knowledgeStore';
 import KnowledgeBaseModal from './KnowledgeBaseModal';
 import KnowledgeBulkImportModal from './KnowledgeBulkImportModal';
@@ -10,6 +10,7 @@ import ConfirmDialog from '../../../components/ConfirmDialog';
 import type { KnowledgeBase } from '../../../types/knowledge';
 import { NavLink, BackButton } from '../../../components/navigation/MobileNav';
 import { cn } from '../../../lib/utils';
+import { DragContext } from '../SettingsContext';
 
 interface KnowledgeSettingsProps {
   onCloseModal?: () => void;
@@ -144,14 +145,11 @@ const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, cla
         <>
           {/* 页面头部 */}
           <div className="mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                {/* <h1 className="text-2xl font-bold text-base-content">知识库管理</h1> */}
-                <p className="text-base-content/70 mt-1">管理您的知识库和知识条目</p>
-              </div>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+              <p className="text-base-content/70">管理您的知识库和知识条目</p>
               <button
                 onClick={handleCreateKnowledgeBase}
-                className="btn btn-primary gap-2"
+                className="btn btn-outline-light md:btn md:btn-primary w-full md:w-auto"
               >
                 <Plus className="w-4 h-4" />
                 新建知识库
@@ -159,7 +157,7 @@ const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, cla
             </div>
 
             {/* 搜索框 */}
-            <div className="relative">
+            {/* <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-base-content/50" />
               <input
                 type="text"
@@ -168,7 +166,7 @@ const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, cla
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="input input-bordered w-full pl-10"
               />
-            </div>
+            </div> */}
           </div>
 
           {/* 知识库列表 */}
@@ -369,21 +367,31 @@ const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, cla
 
 // 移动端：知识库条目详情页包装（二级页面）
 const KBEntryManagerPage: React.FC<{ kb: KnowledgeBase; onCloseModal?: () => void }> = ({ kb, onCloseModal }) => {
+  const { bind } = useContext(DragContext);
+  
   return (
-    <div className="flex flex-col overflow-hidden">
-      <div className="p-4 border-b border-base-300 flex items-center justify-between h-14">
-        <div className="flex items-center gap-3">
-          <BackButton className="btn btn-ghost btn-sm btn-circle">
-            <ArrowLeft className="h-4 w-4" />
+    <div className="flex flex-col overflow-hidden h-full bg-base-200 p-4 md:p-6 md:pt-0">
+      <div 
+        {...bind()}
+        className={cn(
+          "px-2 flex items-start gap-3 h-[var(--height-header-m)] shrink-0",
+          "cursor-move select-none",
+          "md:touch-auto touch-none"
+        )}
+      >
+        <div className="flex w-10 h-10 items-center justify-center">
+          <BackButton className="btn btn-circle bg-base-100">
+            <ChevronLeft className="h-5 w-5" />
           </BackButton>
-          <h2 className="text-lg font-semibold text-base-content">{kb.name}</h2>
         </div>
-        <button onClick={onCloseModal} className="btn btn-ghost btn-sm btn-circle">
-          <X className="h-4 w-4" />
-        </button>
+        <h2 className="text-lg font-semibold text-base-content h-10 items-center justify-center flex w-[calc(100%-2rem)]">{kb.name}</h2>
+        <div className="flex w-10 h-10 items-center justify-center">
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-6 max-h-[calc(100vh-4.5rem)] md:max-h-auto">
-        <KnowledgeEntryManager knowledgeBase={kb} onClose={onCloseModal} />
+      <div className="flex-1 overflow-y-scroll overscroll-contain">
+        <div className='h-[calc(100vh-var(--height-header-m)-env(safe-area-inset-top)-env(safe-area-inset-bottom)+1px)]'>
+          <KnowledgeEntryManager knowledgeBase={kb} onClose={onCloseModal} />
+        </div>
       </div>
     </div>
   );

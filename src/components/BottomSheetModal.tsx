@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, ReactNode, memo, useState } from 'react';
 import { animated, useSpring } from '@react-spring/web';
 import { useDrag } from '@use-gesture/react';
+import { cn } from '../lib/utils';
 
 type HeaderAction = {
   label?: string;
@@ -22,7 +23,7 @@ interface BottomSheetModalProps {
   rubberband?: boolean;
   safeArea?: boolean;
   debug?: boolean;
-  children?: React.ReactNode | ((props: { bind: (...args: any[]) => any; isDragging: boolean }) => React.ReactNode);
+  children?: React.ReactNode | ((props: { bind: (...args: any[]) => any; isDragging: boolean; requestClose: (reason?: string) => void }) => React.ReactNode);
   headerTitle?: ReactNode;
   leftActions?: HeaderAction[];
   rightActions?: HeaderAction[];
@@ -31,6 +32,8 @@ interface BottomSheetModalProps {
   contentClassName?: string;
   hideHeader?: boolean;
   lockScroll?: boolean;
+  fullScreen?: boolean;
+  topInset?: string;
 }
 
 const BottomSheetModal = memo<BottomSheetModalProps>(({ 
@@ -53,6 +56,8 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
   contentClassName,
   hideHeader = false,
   lockScroll = true,
+  fullScreen = true,
+  topInset = '0.5rem',
 }) => {
   const instanceIdRef = useRef(Math.random().toString(36).slice(2));
   const instanceId = instanceIdRef.current;
@@ -144,7 +149,7 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
         api.start({ 
           from: { y: closedYRef.current, backdrop: 0 },
           to:   { y: 0,                  backdrop: 1 },
-          config: { tension: 300, friction: 30 }
+          config: { tension: 350, friction: 39 }
         });
         isOpeningRef.current = true;
       } else if (!previousIsOpen.current) {
@@ -153,7 +158,7 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
         api.start({ 
           from: { y: closedYRef.current, backdrop: 0 },
           to:   { y: 0,                  backdrop: 1 },
-          config: { tension: 300, friction: 30 } 
+          config: { tension: 350, friction: 39 } 
         });
         isOpeningRef.current = true;
       }
@@ -202,7 +207,7 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
           onClose?.();
         }, 220);
       } else {
-        api.start({ y: 0, backdrop: 1, config: { tension: 300, friction: 30 } });
+        api.start({ y: 0, backdrop: 1, config: { tension: 280, friction: 26 } });
         if (debug) console.log('[BottomSheetModal] release -> snap back');
       }
     }
@@ -230,7 +235,21 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
   };
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-auto flex align-center justify-center items-center">
+    <div 
+      className={cn(
+        "fixed inset-0 z-50 pointer-events-auto flex align-center justify-center items-center",
+     !fullScreen && `pt-[env(safe-area-inset-top)]`
+        )}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onTouchCancel={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onPointerCancel={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
       <animated.div
         style={{ opacity: backdrop.to((v) => v * 0.5) }}
         className="absolute inset-0 bg-black"
@@ -238,20 +257,23 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
       />
       <animated.div
         style={{ transform: y.to((v) => `translateY(${v}px)`) }}
-        className={[
+        className={cn(
           'bg-base-200 shadow-xl flex flex-col',
-          safeArea ? 'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : '',
+          safeArea && fullScreen ? 'pt-[env(safe-area-inset-top)]' : 'pt-4 bg-base-200',
+          safeArea ? 'pb-[env(safe-area-inset-bottom)]' : '',
+          // safeArea ? 'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : '',
           'w-full h-full',
+          !fullScreen && 'rounded-t-4xl',
           className || ''
-        ].join(' ')}
+        )}
       >
 
         {!hideHeader && (
           <div 
-            className="px-4 pt-3 pb-2 flex items-center justify-between touch-none cursor-grab active:cursor-grabbing" 
+            className="px-4 h-[var(--height-header-m)] flex items-start justify-between touch-none cursor-grab active:cursor-grabbing" 
             {...bind()}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center w-11 h-11">
               {(leftActions || []).map((a, i) => (
                 <button
                   key={i}
@@ -267,10 +289,10 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
             </div>
             <div className="flex-1 text-center">
               {headerTitle ? (
-                <div className="text-center text-lg font-bold text-base-content">{headerTitle}</div>
+                <div className="flex text-center text-lg h-11 items-center justify-center font-bold text-base-content">{headerTitle}</div>
               ) : null}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center w-11 h-11">
               {(rightActions || []).map((a, i) => (
                 <button
                   key={i}
@@ -288,7 +310,7 @@ const BottomSheetModal = memo<BottomSheetModalProps>(({
         )}
         <div className={`flex-1 overflow-hidden ${contentClassName || ''}`}>
           <div className="h-full overflow-y-auto">
-            {typeof children === 'function' ? children({ bind, isDragging: false }) : children}
+            {typeof children === 'function' ? children({ bind, isDragging: false, requestClose }) : children}
           </div>
         </div>
       </animated.div>

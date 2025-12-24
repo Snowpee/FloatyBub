@@ -226,6 +226,7 @@ const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({ knowledgeBase, 
       velocityThreshold={0.5}
       rubberband={true}
       safeArea={true}
+      fullScreen={false}
       headerTitle={<div className="text-center text-lg font-semibold text-base-content">{isEditing ? '编辑知识库' : '创建知识库'}</div>}
       rightActions={[
         { 

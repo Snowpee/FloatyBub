@@ -462,6 +462,7 @@ const KnowledgeBulkImportModal: React.FC<KnowledgeBulkImportModalProps> = ({
       velocityThreshold={0.5}
       rubberband={true}
       safeArea={true}
+      fullScreen={false}
       headerTitle={<div className="text-center text-lg font-semibold text-base-content truncate max-w-[200px]">批量导入 - {knowledgeBase.name}</div>}
       rightActions={
         (importData.length > 0 && importStatus !== 'success' && errors.length === 0) ? [{ 
