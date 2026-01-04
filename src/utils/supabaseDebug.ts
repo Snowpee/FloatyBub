@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 // 网络诊断结果接口
 interface NetworkDiagnostics {

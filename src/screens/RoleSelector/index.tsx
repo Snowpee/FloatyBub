@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppStore } from '../store';
+import { useAppStore } from '@/store';
 import { Bot, Users, Sparkles, ChevronLeft, ChevronRight, Star } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { toast } from '../hooks/useToast';
-import Avatar from '../components/Avatar';
-import FavoriteButton from '../components/FavoriteButton';
+import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/useToast';
+import Avatar from '@/components/Avatar';
+import FavoriteButton from './components/FavoriteButton';
 
 interface RoleSelectorProps {
   className?: string;

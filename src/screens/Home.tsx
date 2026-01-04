@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAppStore } from '../store';
-import { cn } from '../lib/utils';
-import { usePageContext } from '../hooks/usePageContext';
+import { useAppStore } from '@/store';
+import { cn } from '@/lib/utils';
+import { usePageContext } from '@/hooks/usePageContext';
 import {
   MessageCircle,
   Settings,

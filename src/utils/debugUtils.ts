@@ -1,5 +1,5 @@
-import { useAppStore } from '../store';
-import { ChatSession } from '../store';
+import { useAppStore } from '@/store';
+import { ChatSession } from '@/store';
 
 const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} };
 

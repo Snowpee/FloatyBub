@@ -1,6 +1,6 @@
-import { supabase } from '../lib/supabase';
-import { useAppStore } from '../store';
-import { ensureSnowflakeIdString } from './snowflakeId';
+import { supabase } from '@/lib/supabase';
+import { useAppStore } from '@/store';
+import { ensureSnowflakeIdString } from '@/utils/snowflakeId';
 
 /**
  * Snowflake ID 数据修复工具

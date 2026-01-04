@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useContext } from 'react';
 import { Plus, Search, BookOpen, Upload, FileText, Calendar, Edit, Trash2, Download, X, ArrowLeft, ChevronLeft } from 'lucide-react';
-import { useKnowledgeStore } from '../../../store/knowledgeStore';
+import { useKnowledgeStore } from '@/store/knowledgeStore';
 import KnowledgeBaseModal from './KnowledgeBaseModal';
 import KnowledgeBulkImportModal from './KnowledgeBulkImportModal';
 import { KnowledgeEntryManager } from './KnowledgeEntryManager';
-import ConfirmDialog from '../../../components/ConfirmDialog';
-import type { KnowledgeBase } from '../../../types/knowledge';
-import { NavLink, BackButton } from '../../../components/navigation/MobileNav';
-import { cn } from '../../../lib/utils';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import type { KnowledgeBase } from '@/types/knowledge';
+import { NavLink, BackButton } from '@/components/navigation/MobileNav';
+import { cn } from '@/lib/utils';
 import { DragContext } from '../SettingsContext';
 
 interface KnowledgeSettingsProps {

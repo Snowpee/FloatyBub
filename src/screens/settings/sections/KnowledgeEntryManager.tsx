@@ -2,12 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Search, Edit, Trash2, Tag, FileText, Calendar } from 'lucide-react';
-import { useKnowledgeStore } from '../../../store/knowledgeStore';
+import { useKnowledgeStore } from '@/store/knowledgeStore';
 import KnowledgeEntryModal from './KnowledgeEntryModal';
-import ConfirmDialog from '../../../components/ConfirmDialog';
-import type { KnowledgeBase, KnowledgeEntry } from '../../../types/knowledge';
-import { toast } from '../../../hooks/useToast';
-import { KnowledgeService } from '../../../services/KnowledgeService';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import type { KnowledgeBase, KnowledgeEntry } from '@/types/knowledge';
+import { toast } from '@/hooks/useToast';
+import { KnowledgeService } from '@/services/knowledgeService';
 
 interface KnowledgeEntryCardProps {
   entry: KnowledgeEntry;

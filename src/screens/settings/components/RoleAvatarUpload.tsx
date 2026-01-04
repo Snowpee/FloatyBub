@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { Camera, Shuffle } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { validateImageFile, generateRandomLocalAvatar } from '../utils/avatarUtils';
-import Avatar from './Avatar';
-import { toast } from '../hooks/useToast';
-import { createStorageService } from '../services/storage/StorageService';
+import { cn } from '@/lib/utils';
+import { validateImageFile, generateRandomLocalAvatar } from '@/utils/avatarUtils';
+import Avatar from '@/components/Avatar';
+import { toast } from '@/hooks/useToast';
+import { createStorageService } from '@/services/storage/StorageService';
 
 interface RoleAvatarUploadProps {
   name: string;

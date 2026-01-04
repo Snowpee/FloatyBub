@@ -5,10 +5,10 @@ import {
   Check,
   Save
 } from 'lucide-react';
-import { InputProvider } from '../../../components/InputProvider';
-import { GlobalPrompt } from '../../../store';
-import { toast } from '../../../hooks/useToast';
-import BottomSheetModal from '../../../components/BottomSheetModal';
+import { InputProvider } from '@/components/InputProvider';
+import { useAppStore, GlobalPrompt } from '@/store';
+import { toast } from '@/hooks/useToast';
+import BottomSheetModal from '@/components/BottomSheetModal';
 
 export interface GlobalPromptFormData {
   title: string;

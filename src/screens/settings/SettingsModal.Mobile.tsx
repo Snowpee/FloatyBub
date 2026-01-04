@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft } from 'lucide-react';
-import { cn, isCapacitorIOS } from '../../lib/utils';
-import { NavProvider, NavContainer, NavLink, BackButton } from '../../components/navigation/MobileNav';
+import { cn, isCapacitorIOS } from '@/lib/utils';
+import { NavProvider, NavContainer, NavLink, BackButton } from '@/components/navigation/MobileNav';
 import { tabs, TabType, SettingsModalProps } from './config';
-import BottomSheetModal from '../../components/BottomSheetModal';
+import BottomSheetModal from '@/components/BottomSheetModal';
 import { DragContext } from './SettingsContext';
 
 const SettingsModalMobile: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultTab = 'global' }) => {

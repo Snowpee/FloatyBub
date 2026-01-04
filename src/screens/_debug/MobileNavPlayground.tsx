@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { NavProvider, NavContainer, NavLink, BackButton, useNav, useNavAnim } from '../../components/navigation/MobileNav';
-import GlobalSettings from '../../screens/settings/sections/GlobalSettings';
-import ConfigSettings from '../../screens/settings/sections/ConfigSettings';
+import { NavProvider, NavContainer, NavLink, BackButton, useNav, useNavAnim } from '@/components/navigation/MobileNav';
+import GlobalSettings from '@/screens/settings/sections/GlobalSettings';
+import ConfigSettings from '@/screens/settings/sections/ConfigSettings';
 import ToastTestPage from './ToastTestPage';
 
 const PageShell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (

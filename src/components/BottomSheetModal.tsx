@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, ReactNode, memo, useState } from 'react';
 import { animated, useSpring } from '@react-spring/web';
 import { useDrag } from '@use-gesture/react';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 
 type HeaderAction = {
   label?: string;

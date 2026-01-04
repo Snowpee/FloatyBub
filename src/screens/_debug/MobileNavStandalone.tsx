@@ -1,6 +1,6 @@
 import React from 'react';
-import { NavProvider, NavContainer, NavLink, BackButton, useNav } from '../../components/navigation/MobileNav';
-import GlobalSettings from '../../screens/settings/sections/GlobalSettings';
+import { NavProvider, NavContainer, NavLink, BackButton, useNav } from '@/components/navigation/MobileNav';
+import GlobalSettings from '@/screens/settings/sections/GlobalSettings';
 import ToastTestPage from './ToastTestPage';
 
 const PageShell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { indexedDBStorage } from '../store/storage'
+import { indexedDBStorage } from '@/store/storage'
 
 // Supabase 配置
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL

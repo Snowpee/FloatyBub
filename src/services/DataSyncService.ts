@@ -1,7 +1,7 @@
-import { supabase } from '../lib/supabase'
-import { indexedDBStorage } from '../store/storage'
-import { convertAvatarFromImport } from '../utils/avatarUtils'
-import type { Database } from '../lib/supabase'
+import { supabase } from '@/lib/supabase'
+import { indexedDBStorage } from '@/store/storage'
+import { convertAvatarFromImport } from '@/utils/avatarUtils'
+import type { Database } from '@/lib/supabase'
 
 const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} }
 

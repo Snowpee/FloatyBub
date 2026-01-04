@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAppStore } from '../../../store';
+import { useAppStore } from '@/store';
 import {
   Download,
   Upload,
@@ -13,11 +13,20 @@ import {
   FileInput,
   Drama,
   MessageSquare,
-  Logs
+  Logs,
+  FileJson,
+  RefreshCw,
+  Clock
 } from 'lucide-react';
-import { cn } from '../../../lib/utils';
-import { toast } from '../../../hooks/useToast';
-import ConfirmDialog from '../../../components/ConfirmDialog';
+import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/useToast';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useDataSync } from '@/hooks/useDataSync';
+import { useAuth } from '@/hooks/useAuth';
+import { useUserData } from '@/hooks/useUserData';
+import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
+import { dataSyncService } from '@/services/DataSyncService';
+import { supabase } from '@/lib/supabase';
 
 
 interface DataSettingsProps {

@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { KnowledgeService } from '../services/KnowledgeService';
+import { KnowledgeService } from '@/services/knowledgeService';
 import type {
   KnowledgeBase,
   KnowledgeEntry,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { Eye, EyeOff, Mail, Lock, User, UserPlus } from 'lucide-react'
-import { useAuth } from '../../hooks/useAuth'
+import { Eye, EyeOff, Mail, Lock, UserPlus, User } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 interface RegisterFormProps {
   onSuccess?: () => void

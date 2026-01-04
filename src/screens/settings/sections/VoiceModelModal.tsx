@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus, RefreshCw } from 'lucide-react';
-import { InputProvider } from '../../../components/InputProvider';
-import BottomSheetModal from '../../../components/BottomSheetModal';
+import { InputProvider } from '@/components/InputProvider';
+import BottomSheetModal from '@/components/BottomSheetModal';
 
 interface VoiceModelModalProps {
   isOpen: boolean;

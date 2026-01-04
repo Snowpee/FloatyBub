@@ -1,10 +1,10 @@
 import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { MoreHorizontal, Pin, PinOff, Edit3, EyeOff, Trash2 } from 'lucide-react';
-import { cn } from '../lib/utils';
-import Avatar from './Avatar';
-import LongPressMenu from './LongPressMenu';
-import { ChatSession, AIRole } from '../store';
+import { cn } from '@/lib/utils';
+import Avatar from '@/components/Avatar';
+import LongPressMenu from '@/components/LongPressMenu';
+import { ChatSession, AIRole } from '@/store';
 
 interface SessionItemProps {
   session: ChatSession;

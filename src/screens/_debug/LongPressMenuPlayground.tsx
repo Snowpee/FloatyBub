@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
-import LongPressMenu from '../../components/LongPressMenu'
+import LongPressMenu from '@/components/LongPressMenu'
 import { Pin, Edit3, EyeOff, Trash2, Menu } from 'lucide-react'
-import { cn } from '../../lib/utils'
+import { cn } from '@/lib/utils'
 
 const ItemCard: React.FC<{ title: string }> = ({ title }) => (
   <div className={cn('flex items-center justify-between h-12 px-3 rounded-md bg-base-200 active:bg-base-300')}>

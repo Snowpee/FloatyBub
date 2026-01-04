@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Plus, Edit, Trash2, User, CheckCircle, MoreHorizontal } from 'lucide-react';
-import { cn } from '../../../lib/utils';
-import { useAppStore, UserProfile } from '../../../store';
-import EmptyState from '../../../components/EmptyState';
-import ConfirmDialog from '../../../components/ConfirmDialog';
-import { toast } from '../../../hooks/useToast';
+import { cn } from '@/lib/utils';
+import { useAppStore, UserProfile } from '@/store';
+import EmptyState from '@/components/EmptyState';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { toast } from '@/hooks/useToast';
 import UserRolesModal, { UserRoleFormData } from './UserRolesModal';
 
 

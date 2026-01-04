@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback, RefObject } from 'react';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 
 /**
  * 滚动位置类型

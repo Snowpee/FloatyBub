@@ -1,6 +1,9 @@
 import React from 'react';
-import { cn } from '../../../lib/utils';
-import { useAppStore } from '../../../store';
+import { Monitor, Moon, Sun, Laptop } from 'lucide-react';
+import { useAppStore } from '@/store';
+import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/useToast';
+import { usePageContext } from '@/hooks/usePageContext';
 
 interface GlobalSettingsProps {
   onCloseModal?: () => void;

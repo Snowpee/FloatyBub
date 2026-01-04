@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { animated as springAnimated, useSpring } from '@react-spring/web';
 import { useDrag } from '@use-gesture/react';
-import { isCapacitorIOS } from '../../lib/utils';
+import { isCapacitorIOS } from '@/lib/utils';
 
 const navLog = (...args: any[]) => {
   try { console.log('[MobileNav]', ...args); } catch {}

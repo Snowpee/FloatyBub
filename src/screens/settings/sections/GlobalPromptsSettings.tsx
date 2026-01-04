@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAppStore, GlobalPrompt } from '../../../store';
+import { useAppStore, GlobalPrompt } from '@/store';
 import {
   Plus,
   Edit,
@@ -7,10 +7,10 @@ import {
   FileText,
   MoreVertical
 } from 'lucide-react';
-import { cn } from '../../../lib/utils';
-import { toast } from '../../../hooks/useToast';
-import EmptyState from '../../../components/EmptyState';
-import ConfirmDialog from '../../../components/ConfirmDialog';
+import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/useToast';
+import EmptyState from '@/components/EmptyState';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import GlobalPromptsModal, { GlobalPromptFormData } from './GlobalPromptsModal';
 
 

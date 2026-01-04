@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Cloud, CloudOff, RefreshCw, CheckCircle, AlertCircle, Wifi, WifiOff, Database } from 'lucide-react'
-import { dataSyncService, type SyncStatus } from '../services/DataSyncService'
-import { useUserData } from '../hooks/useUserData'
-import { cn } from '../lib/utils'
+import { dataSyncService, type SyncStatus } from '@/services/DataSyncService'
+import { useUserData } from '@/hooks/useUserData'
+import { cn } from '@/lib/utils'
 
 interface SyncStatusIndicatorProps {
   className?: string

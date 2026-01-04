@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Upload, X, AlertCircle, CheckCircle, Loader2, Download, FileText } from 'lucide-react';
-import { useKnowledgeStore } from '../../../store/knowledgeStore';
-import type { KnowledgeBase, ImportKnowledgeEntry } from '../../../types/knowledge';
-import BottomSheetModal from '../../../components/BottomSheetModal';
+import { useKnowledgeStore } from '@/store/knowledgeStore';
+import type { KnowledgeBase, ImportKnowledgeEntry } from '@/types/knowledge';
+import BottomSheetModal from '@/components/BottomSheetModal';
 
 interface KnowledgeBulkImportModalProps {
   knowledgeBase: KnowledgeBase | null;

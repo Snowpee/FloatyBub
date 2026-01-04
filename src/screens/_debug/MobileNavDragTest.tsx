@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavProvider, NavContainer, NavLink, BackButton, useNav } from '../../components/navigation/MobileNav';
+import { NavProvider, NavContainer, NavLink, BackButton, useNav } from '@/components/navigation/MobileNav';
 
 const TestPage: React.FC<{ title: string; pageNum: number }> = ({ title, pageNum }) => {
   const nav = useNav();

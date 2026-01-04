@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { User, LogOut, Settings, Cloud, CloudOff, Bug, Edit } from 'lucide-react'
-import { useAuth } from '../../hooks/useAuth'
-import { useUserData } from '../../hooks/useUserData'
-import { useAppStore } from '../../store'
-import { generateAvatar } from '../../utils/avatarUtils'
-import { debugSupabase, debugQuery, logNetwork } from '../../utils/supabaseDebug'
-import Avatar from '../Avatar'
+import { useAuth } from '@/hooks/useAuth'
+import { useUserData } from '@/hooks/useUserData'
+import { useAppStore } from '@/store'
+import { generateAvatar } from '@/utils/avatarUtils'
+import { debugSupabase, debugQuery, logNetwork } from '@/utils/supabaseDebug'
+import Avatar from '@/components/Avatar'
 import clsx from 'clsx'
 
 interface UserAvatarProps {

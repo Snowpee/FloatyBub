@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Home, ArrowLeft } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { usePageContext } from '../hooks/usePageContext';
+import { cn } from '@/lib/utils';
+import { usePageContext } from '@/hooks/usePageContext';
 
 const NotFound = () => {
   const navigate = useNavigate();

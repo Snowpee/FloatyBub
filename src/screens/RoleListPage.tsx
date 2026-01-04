@@ -1,5 +1,5 @@
 import React from 'react';
-import { usePageContext } from '../hooks/usePageContext';
+import { usePageContext } from '@/hooks/usePageContext';
 import RoleSelector from './RoleSelector';
 
 const RoleListPage: React.FC = () => {

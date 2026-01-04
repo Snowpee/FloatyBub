@@ -1,8 +1,8 @@
 // 知识库服务 - 处理所有知识库相关的API调用
 
 import { v4 as uuidv4 } from 'uuid'
-import { supabase } from '../lib/supabase'
-import { indexedDBStorage } from '../store/storage'
+import { supabase } from '@/lib/supabase'
+import { indexedDBStorage } from '@/store/storage'
 import type {
   KnowledgeBase,
   KnowledgeEntry,
@@ -12,7 +12,7 @@ import type {
   UpdateKnowledgeEntryRequest,
   KnowledgeBaseStats,
   ImportKnowledgeEntriesRequest
-} from '../types/knowledge'
+} from '@/types/knowledge'
 
 type KnowledgeScope = 'local' | string
 

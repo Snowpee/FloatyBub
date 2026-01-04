@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, RefObject } from 'react';
-import { useResizeObserver } from '../hooks/useResizeObserver';
+import { useResizeObserver } from '@/hooks/useResizeObserver';
 
 interface VirtualScrollItem {
   id: string;

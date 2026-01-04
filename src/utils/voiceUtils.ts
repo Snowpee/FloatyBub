@@ -1,5 +1,5 @@
-import { AIRole, VoiceSettings, VoiceModel } from '../store';
-import { getApiBaseUrl } from '../lib/utils';
+import { AIRole, VoiceSettings, VoiceModel } from '@/store';
+import { getApiBaseUrl } from '@/lib/utils';
 
 // 音频缓存相关接口和常量
 interface AudioCacheItem {

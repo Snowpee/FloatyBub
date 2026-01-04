@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Check, Loader2, AlertCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { cn } from '../../../lib/utils';
-import { toast } from '../../../hooks/useToast';
-import { getDefaultBaseUrl } from '../../../utils/providerUtils';
-import type { LLMConfig } from '../../../store';
-import BottomSheetModal from '../../../components/BottomSheetModal';
+import { cn } from '@/lib/utils';
+import { getDefaultBaseUrl } from '@/utils/providerUtils';
 import { InputProvider } from '@/components/InputProvider';
+import type { LLMConfig } from '@/store';
+import { toast } from '@/hooks/useToast';
+import BottomSheetModal from '@/components/BottomSheetModal';
 
 interface ConfigModalProps {
   isOpen: boolean;

@@ -1,7 +1,7 @@
 // 聊天增强服务 - 处理知识库检索和上下文注入
 
-import { KnowledgeService } from './KnowledgeService';
-import type { KnowledgeEntry, KnowledgeBase } from '../types/knowledge';
+import { KnowledgeService } from '@/services/knowledgeService';
+import type { KnowledgeEntry, KnowledgeBase } from '@/types/knowledge';
 
 const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} };
 

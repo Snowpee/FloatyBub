@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
-import { useAppStore } from '../store'
+import { supabase } from '@/lib/supabase'
+import { useAppStore } from '@/store'
 import { useDataSync } from './useDataSync'
-import { dataSyncService } from '../services/DataSyncService'
+import { dataSyncService } from '@/services/DataSyncService'
 
 const console: Console = { ...globalThis.console, log: () => {} }
 

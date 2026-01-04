@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
-import { generateAvatar, isValidImageUrl } from '../utils/avatarUtils';
-import { useAvatarPreload } from '../utils/imageCache';
-import { cn } from '../lib/utils';
+import { generateAvatar, isValidImageUrl } from '@/utils/avatarUtils';
+import { useAvatarPreload } from '@/utils/imageCache';
+import { cn } from '@/lib/utils';
 
 interface AvatarProps {
   name: string;

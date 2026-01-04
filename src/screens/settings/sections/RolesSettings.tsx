@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useAppStore, AIRole } from '../../../store';
+import { useAppStore, AIRole } from '@/store';
 import {
   Plus,
   Edit,
   Trash2,
   MoreHorizontal
 } from 'lucide-react';
-import { cn } from '../../../lib/utils';
-import { toast } from '../../../hooks/useToast';
-import ConfirmDialog from '../../../components/ConfirmDialog';
-import Avatar from '../../../components/Avatar';
-import { KnowledgeService } from '../../../services/KnowledgeService';
-import type { KnowledgeBase } from '../../../types/knowledge';
+import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/useToast';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import Avatar from '@/components/Avatar';
+import { KnowledgeService } from '@/services/knowledgeService';
+import type { KnowledgeBase } from '@/types/knowledge';
 import RolesModal, { RoleFormData } from './RolesModal';
 
 interface RolesSettingsProps {

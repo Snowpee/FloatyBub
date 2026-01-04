@@ -2,7 +2,7 @@ import React, { memo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import HistoryContent from './HistoryContent';
-import BottomSheetModal from '../../components/BottomSheetModal';
+import BottomSheetModal from '@/components/BottomSheetModal';
 
 interface HistoryModalProps {
   isOpen: boolean;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { DatabaseConnectionIndicator } from '../../components/DatabaseConnectionIndicator';
+import { DatabaseConnectionIndicator } from './components/DatabaseConnectionIndicator';
 import { Database } from 'lucide-react';
 
 const DatabaseConnectionTestPage: React.FC = () => {

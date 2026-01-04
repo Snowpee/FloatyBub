@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Square, Download, Volume2, Trash2, Settings, RefreshCw } from 'lucide-react';
-import { toast } from '../../hooks/useToast';
-import { clearAllCache } from '../../utils/voiceUtils';
+import { toast } from '@/hooks/useToast';
+import { clearAllCache } from '@/utils/voiceUtils';
 
 interface TTSRequest {
   text: string;

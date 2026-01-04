@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useToast, ToastMessage } from '../hooks/useToast';
+import { useToast, ToastMessage } from '@/hooks/useToast';
 import { X, CheckCircle, XCircle, Info, AlertTriangle } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 
 interface ToastItemProps {
   toast: ToastMessage;

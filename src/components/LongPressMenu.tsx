@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { cn, isCapacitorIOS } from '../lib/utils'
+import { cn, isCapacitorIOS } from '@/lib/utils'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 
 export interface LongPressMenuItem {

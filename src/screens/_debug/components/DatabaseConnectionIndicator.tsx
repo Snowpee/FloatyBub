@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { Database, Wifi, WifiOff, AlertCircle, CheckCircle, Clock } from 'lucide-react'
-import { cn } from '../lib/utils'
+import { cn } from '@/lib/utils'
 import { 
   ConnectionStatus, 
   onDatabaseStatusChange, 
   getDatabaseConnectionStatus,
   testDatabaseConnection 
-} from '../utils/databaseConnectionTest'
+} from '@/utils/databaseConnectionTest'
 
 interface DatabaseConnectionIndicatorProps {
   size?: 'sm' | 'md' | 'lg'

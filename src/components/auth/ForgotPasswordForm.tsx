@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Mail, ArrowLeft, Send } from 'lucide-react'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth } from '@/hooks/useAuth'
 
 interface ForgotPasswordFormProps {
   onSuccess?: () => void

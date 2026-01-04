@@ -3,8 +3,8 @@
  * 用于验证 Snowflake ID 的一致性和数据完整性
  */
 
-import { ChatSession, ChatMessage } from '../store/index';
-import { supabase } from '../lib/supabase';
+import { ChatSession, ChatMessage } from '@/store/index';
+import { supabase } from '@/lib/supabase';
 
 export interface IntegrityCheckResult {
   isValid: boolean;

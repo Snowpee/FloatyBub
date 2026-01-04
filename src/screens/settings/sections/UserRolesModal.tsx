@@ -4,12 +4,12 @@ import {
   X,
   Check
 } from 'lucide-react';
-import { InputProvider } from '../../../components/InputProvider';
-import { UserProfile } from '../../../store';
-import { toast } from '../../../hooks/useToast';
-import BottomSheetModal from '../../../components/BottomSheetModal';
-import RoleAvatarUpload from '../../../components/RoleAvatarUpload';
-import { generateRandomLocalAvatar } from '../../../utils/avatarUtils';
+import { InputProvider } from '@/components/InputProvider';
+import { UserProfile } from '@/store';
+import { toast } from '@/hooks/useToast';
+import BottomSheetModal from '@/components/BottomSheetModal';
+import RoleAvatarUpload from '../components/RoleAvatarUpload';
+import { generateRandomLocalAvatar } from '@/utils/avatarUtils';
 
 export interface UserRoleFormData {
   name: string;

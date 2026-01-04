@@ -1,5 +1,5 @@
 import React from 'react';
-import { toast } from '../../hooks/useToast';
+import { toast } from '@/hooks/useToast';
 import { CheckCircle, XCircle, Info, AlertTriangle } from 'lucide-react';
 
 const ToastTestPage: React.FC = () => {

@@ -29,7 +29,7 @@ import { useAuth } from './hooks/useAuth';
 import { UserAvatar } from './components/auth/UserAvatar';
 import { AuthModal } from './components/auth/AuthModal';
 import HistoryModal from './screens/history/HistoryModal';
-import SessionItem from './components/SessionItem';
+import { SessionItem } from './screens/chats';
 import VirtualScrollContainer from './components/VirtualScrollContainer';
 import AvatarUpload from './components/AvatarUpload';
 import { useUserData } from './hooks/useUserData';

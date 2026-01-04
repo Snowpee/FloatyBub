@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { indexedDBStorage } from './storage';
-import { convertAvatarForExport, convertAvatarFromImport } from '../utils/avatarUtils';
-import { dataSyncService } from '../services/DataSyncService';
-import { supabase } from '../lib/supabase';
-import { generateSnowflakeId, ensureSnowflakeIdString } from '../utils/snowflakeId';
+import { convertAvatarForExport, convertAvatarFromImport } from '@/utils/avatarUtils';
+import { dataSyncService } from '@/services/DataSyncService';
+import { supabase } from '@/lib/supabase';
+import { generateSnowflakeId, ensureSnowflakeIdString } from '@/utils/snowflakeId';
 
 const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn } from '@/lib/utils';
 import ConfigSettings from './sections/ConfigSettings';
 import { tabs, TabType, SettingsModalProps } from './config';
 

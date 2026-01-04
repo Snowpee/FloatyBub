@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { validateImageFile } from '../utils/avatarUtils';
+import { cn } from '@/lib/utils';
+import { validateImageFile } from '@/utils/avatarUtils';
 import Avatar from './Avatar';
-import { toast } from '../hooks/useToast';
-import { createStorageService, StorageService } from '../services/storage/StorageService';
+import { toast } from '@/hooks/useToast';
+import { createStorageService, StorageService } from '@/services/storage/StorageService';
 
 interface AvatarUploadProps {
   name: string;

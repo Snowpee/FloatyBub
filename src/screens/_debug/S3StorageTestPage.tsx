@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Download, Trash2, List, Image, AlertCircle, CheckCircle } from 'lucide-react';
-import { createStorageService } from '../../services/storage/StorageService';
-import type { FileMetadata } from '../../services/storage/types';
+import { createStorageService } from '@/services/storage/StorageService';
+import type { FileMetadata } from '@/services/storage/types';
 
 interface UploadedFile {
   metadata: FileMetadata;

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useAppStore } from '../../../store';
-import { toast } from '../../../hooks/useToast';
+import { useAppStore } from '@/store';
+import { toast } from '@/hooks/useToast';
 import { Activity } from 'lucide-react';
-import { getApiBaseUrl, cn } from '../../../lib/utils';
+import { getApiBaseUrl, cn } from '@/lib/utils';
 
 export interface SearchSettingsProps {
   onCloseModal?: () => void;

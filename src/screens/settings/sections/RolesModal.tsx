@@ -6,14 +6,14 @@ import {
   GripVertical,
   Check
 } from 'lucide-react';
-import { InputProvider } from '../../../components/InputProvider';
-import { useAppStore, AIRole } from '../../../store';
-import { toast } from '../../../hooks/useToast';
-import BottomSheetModal from '../../../components/BottomSheetModal';
-import RoleAvatarUpload from '../../../components/RoleAvatarUpload';
-import { generateRandomLocalAvatar } from '../../../utils/avatarUtils';
-import { KnowledgeService } from '../../../services/KnowledgeService';
-import type { KnowledgeBase } from '../../../types/knowledge';
+import { InputProvider } from '@/components/InputProvider';
+import { useAppStore, AIRole } from '@/store';
+import { toast } from '@/hooks/useToast';
+import BottomSheetModal from '@/components/BottomSheetModal';
+import RoleAvatarUpload from '../components/RoleAvatarUpload';
+import { generateRandomLocalAvatar } from '@/utils/avatarUtils';
+import { KnowledgeService } from '@/services/knowledgeService';
+import type { KnowledgeBase } from '@/types/knowledge';
 import { cn } from '@/lib/utils';
 
 export interface RoleFormData {

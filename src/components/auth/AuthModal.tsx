@@ -4,7 +4,7 @@ import { X } from 'lucide-react'
 import { LoginForm } from './LoginForm'
 import { RegisterForm } from './RegisterForm'
 import { ForgotPasswordForm } from './ForgotPasswordForm'
-import BottomSheetModal from '../BottomSheetModal'
+import BottomSheetModal from '@/components/BottomSheetModal'
 
 type AuthMode = 'login' | 'register' | 'forgot-password'
 

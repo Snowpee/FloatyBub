@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { SupabaseDebugger } from '../../utils/supabaseDebug'
-import { useAuth } from '../../hooks/useAuth'
+import { SupabaseDebugger } from '@/utils/supabaseDebug'
+import { useAuth } from '@/hooks/useAuth'
 import { CheckCircle, XCircle, AlertCircle, Play, RefreshCw, Database, Network, Shield, Settings } from 'lucide-react'
 
 interface DiagnosticResult {

@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from 'react'
-import { useUserData } from '../../hooks/useUserData'
-import { useAuth } from '../../hooks/useAuth'
-import { useAppStore } from '../../store'
+import { RefreshCw, CheckCircle, AlertCircle, Clock, Database, Cloud, Wifi, WifiOff } from 'lucide-react';
+import { useDataSync } from '@/hooks/useDataSync';
+import { useAuth } from '@/hooks/useAuth';
+import { useUserData } from '@/hooks/useUserData';
+import { cn } from '@/lib/utils';
+import { dataSyncService } from '@/services/DataSyncService';
+import { SyncStatusIndicator } from '@/components/SyncStatusIndicator';
+import { toast } from '@/hooks/useToast';
+import { useAppStore } from '@/store';
 
 const SyncTestPage: React.FC = () => {
   const { user } = useAuth()

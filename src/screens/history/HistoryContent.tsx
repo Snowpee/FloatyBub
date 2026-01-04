@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAppStore } from '../../store';
+import { useAppStore } from '@/store';
 import {
   Search,
   Trash2,
@@ -16,10 +16,10 @@ import {
   MoreHorizontal,
   Trash
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
-import { toast } from '../../hooks/useToast';
-import ConfirmDialog from '../../components/ConfirmDialog';
-import Avatar from '../../components/Avatar';
+import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/useToast';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import Avatar from '@/components/Avatar';
 
 interface HistoryPageProps {
   onCloseModal?: () => void;

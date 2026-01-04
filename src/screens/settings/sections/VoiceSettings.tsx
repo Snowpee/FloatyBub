@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, Play, Square, RefreshCw, Settings, Plus, Trash2, Activity, X, Database } from 'lucide-react';
-import { toast } from '../../../hooks/useToast';
-import { useAppStore } from '../../../store';
-import { getApiBaseUrl, cn } from '../../../lib/utils';
-import { getCacheStats, clearAllCache, generateStreamingVoiceUrl } from '../../../utils/voiceUtils';
+import { toast } from '@/hooks/useToast';
+import { useAppStore } from '@/store';
+import { getApiBaseUrl, cn } from '@/lib/utils';
+import { getCacheStats, clearAllCache, generateStreamingVoiceUrl } from '@/utils/voiceUtils';
 import VoiceModelModal from './VoiceModelModal';
 
 interface VoiceModel {

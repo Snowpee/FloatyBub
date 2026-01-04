@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Plus, Check } from 'lucide-react';
-import { InputProvider } from '../../../components/InputProvider';
-import { useKnowledgeStore } from '../../../store/knowledgeStore';
-import type { KnowledgeBase, KnowledgeEntry, CreateKnowledgeEntryRequest, UpdateKnowledgeEntryRequest } from '../../../types/knowledge';
-import BottomSheetModal from '../../../components/BottomSheetModal';
+import { InputProvider } from '@/components/InputProvider';
+import { useKnowledgeStore } from '@/store/knowledgeStore';
+import type { KnowledgeBase, KnowledgeEntry, CreateKnowledgeEntryRequest, UpdateKnowledgeEntryRequest } from '@/types/knowledge';
+import BottomSheetModal from '@/components/BottomSheetModal';
 
 interface KnowledgeEntryModalProps {
   knowledgeBase: KnowledgeBase;

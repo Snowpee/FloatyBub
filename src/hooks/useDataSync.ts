@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { dataSyncService, type SyncStatus, type SyncResult } from '../services/DataSyncService'
-import { supabase } from '../lib/supabase'
+import { dataSyncService, type SyncStatus, type SyncResult } from '@/services/DataSyncService'
+import { supabase } from '@/lib/supabase'
 
 export interface DataSyncHookReturn {
   status: SyncStatus

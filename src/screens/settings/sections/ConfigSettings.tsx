@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAppStore, LLMConfig } from '../../../store';
+import { useAppStore, LLMConfig } from '@/store';
 import {
   Plus,
   Edit,
@@ -9,12 +9,12 @@ import {
   Wifi,
   MoreHorizontal
 } from 'lucide-react';
-import { cn } from '../../../lib/utils';
-import { toast } from '../../../hooks/useToast';
-import ConfirmDialog from '../../../components/ConfirmDialog';
+import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/useToast';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import ConfigModal from './ConfigModal';
-import EmptyState from '../../../components/EmptyState';
-import { getDefaultBaseUrl } from '../../../utils/providerUtils';
+import EmptyState from '@/components/EmptyState';
+import { getDefaultBaseUrl } from '@/utils/providerUtils';
 
 interface ConfigSettingsProps {
   onCloseModal?: () => void;
