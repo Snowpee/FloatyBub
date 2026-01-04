@@ -44,6 +44,10 @@ const toISO = (v: any): string => {
 // 全局上传同步单飞锁
 let GLOBAL_SYNC_TO_CLOUD_LOCK = false
 
+const USER_IDLE_THRESHOLD_MS = 2 * 60 * 1000
+const CLOUD_PULL_INTERVAL_MS = 15 * 60 * 1000
+const MIN_CLOUD_PULL_GAP_MS = 60 * 1000
+
 export interface UserDataState {
   syncing: boolean
   lastSyncTime: Date | null
@@ -116,6 +120,28 @@ export const useUserData = () => {
     downlink: 0,
     rtt: 0
   })
+
+  const lastUserActivityAtRef = useRef<number>(Date.now())
+  const lastCloudPullAtRef = useRef<number>(0)
+  const initialCloudPullScheduledForRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const markActivity = () => {
+      lastUserActivityAtRef.current = Date.now()
+    }
+
+    window.addEventListener('pointerdown', markActivity)
+    window.addEventListener('keydown', markActivity)
+    window.addEventListener('touchstart', markActivity)
+    window.addEventListener('focus', markActivity)
+
+    return () => {
+      window.removeEventListener('pointerdown', markActivity)
+      window.removeEventListener('keydown', markActivity)
+      window.removeEventListener('touchstart', markActivity)
+      window.removeEventListener('focus', markActivity)
+    }
+  }, [])
 
   // ================== 会话锁定逻辑 ==================
 
@@ -376,46 +402,63 @@ export const useUserData = () => {
 
       if (sessionError) throw sessionError;
 
-      const cloudSessions: ChatSession[] = [];
-      const activeData = (sessions || []).filter((s: any) => !s.is_deleted && !s.metadata?.deletedAt);
+      const baseSessions: any[] = (sessions || []).filter((s: any) => !s.is_deleted && !s.metadata?.deletedAt)
 
-      // 2. 获取每个会话的消息
-      for (const session of activeData) {
-        const { data: messages, error: msgError } = await supabase
-          .from('messages')
-          .select('*, snowflake_id::text')
-          .eq('session_id', session.id)
-          .is('deleted_at', null)
-          .order('message_timestamp', { ascending: true });
-          
-        if (msgError) throw msgError;
+      let cloudSessions: ChatSession[] = []
 
-        const sessionMessages: ChatMessage[] = (messages || []).map((msg: any) => ({
-          id: msg.id,
-          role: msg.role,
-          content: msg.content,
-          reasoningContent: msg.reasoning_content,
-          timestamp: new Date(msg.metadata?.timestamp || msg.message_timestamp),
-          message_timestamp: msg.message_timestamp,
-          snowflake_id: msg.snowflake_id,
-          roleId: msg.metadata?.roleId,
-          userProfileId: msg.metadata?.userProfileId,
-          versions: msg.versions || [msg.content || ''],
-          currentVersionIndex: msg.current_version_index ?? 0
-        }));
+      if (baseSessions.length > 0) {
+        const sessionIdList = baseSessions.map((s: any) => s.id)
+        const grouped = new Map<string, any[]>()
+        const CHUNK_SIZE = 50
+        for (let i = 0; i < sessionIdList.length; i += CHUNK_SIZE) {
+          const chunk = sessionIdList.slice(i, i + CHUNK_SIZE)
+          const { data: messagesRows, error: msgError } = await supabase
+            .from('messages')
+            .select('*, snowflake_id::text')
+            .in('session_id', chunk)
+            .is('deleted_at', null)
+            .order('session_id', { ascending: true })
+            .order('message_timestamp', { ascending: true })
 
-        cloudSessions.push({
-          id: session.id,
-          title: session.title,
-          messages: sessionMessages,
-          roleId: session.metadata?.roleId,
-          modelId: session.metadata?.modelId,
-          isHidden: session.is_hidden,
-          isPinned: session.is_pinned,
-          createdAt: new Date(session.metadata?.createdAt || session.created_at),
-          updatedAt: new Date(session.metadata?.updatedAt || session.updated_at),
-          lastSyncedAt: session.metadata?.lastSyncedAt ? new Date(session.metadata.lastSyncedAt) : undefined
-        });
+          if (msgError) throw msgError
+
+          for (const row of messagesRows || []) {
+            const sessionId = (row as any).session_id as string
+            const list = grouped.get(sessionId) || []
+            list.push(row)
+            grouped.set(sessionId, list)
+          }
+        }
+
+        cloudSessions = baseSessions.map((session: any) => {
+          const rows = grouped.get(session.id) || []
+          const sessionMessages: ChatMessage[] = rows.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            reasoningContent: msg.reasoning_content,
+            timestamp: new Date(msg.metadata?.timestamp || msg.message_timestamp),
+            message_timestamp: msg.message_timestamp,
+            snowflake_id: msg.snowflake_id,
+            roleId: msg.metadata?.roleId,
+            userProfileId: msg.metadata?.userProfileId,
+            versions: msg.versions || [msg.content || ''],
+            currentVersionIndex: msg.current_version_index ?? 0
+          }))
+
+          return {
+            id: session.id,
+            title: session.title,
+            messages: sessionMessages,
+            roleId: session.metadata?.roleId,
+            modelId: session.metadata?.modelId,
+            isHidden: session.is_hidden,
+            isPinned: session.is_pinned,
+            createdAt: new Date(session.metadata?.createdAt || session.created_at),
+            updatedAt: new Date(session.metadata?.updatedAt || session.updated_at),
+            lastSyncedAt: session.metadata?.lastSyncedAt ? new Date(session.metadata.lastSyncedAt) : undefined
+          }
+        })
       }
 
       // 3. 合并逻辑 (Merge Strategy)
@@ -479,9 +522,33 @@ export const useUserData = () => {
       const { data: deletedRows } = await supabase
          .from('chat_sessions')
          .select('id')
+         .eq('user_id', user.id)
          .not('deleted_at', 'is', null);
       
       const deletedIds = new Set((deletedRows || []).map((r:any) => r.id));
+
+      const sessionIdsToCheck = Array.from(new Set([
+        ...baseSessions.map((s: any) => s.id),
+        ...currentLocalSessions.map(s => s.id)
+      ]))
+      const deletedMessageIdsBySession = new Map<string, Set<string>>()
+      if (sessionIdsToCheck.length > 0) {
+        const { data: deletedMessageRows, error: deletedMessageError } = await supabase
+          .from('messages')
+          .select('id, session_id, deleted_at')
+          .in('session_id', sessionIdsToCheck)
+          .not('deleted_at', 'is', null)
+
+        if (deletedMessageError) throw deletedMessageError
+
+        for (const row of deletedMessageRows || []) {
+          const sessionId = (row as any).session_id as string
+          const messageId = (row as any).id as string
+          const set = deletedMessageIdsBySession.get(sessionId) || new Set<string>()
+          set.add(messageId)
+          deletedMessageIdsBySession.set(sessionId, set)
+        }
+      }
       
       const finalSessions = Array.from(mergedSessionsMap.values())
         .filter(s => {
@@ -490,6 +557,16 @@ export const useUserData = () => {
                 return isSessionLocked(s.id) || s.messages.some(m => m.isStreaming || (m as any).pendingUpload);
             }
             return true;
+        })
+        .map(s => {
+          const deletedMessageIds = deletedMessageIdsBySession.get(s.id)
+          if (!deletedMessageIds || deletedMessageIds.size === 0) return s
+          const filteredMessages = (s.messages || []).filter(m => {
+            if (m.isStreaming || (m as any).pendingUpload) return true
+            return !deletedMessageIds.has(m.id)
+          })
+          if (filteredMessages.length === (s.messages || []).length) return s
+          return { ...s, messages: filteredMessages }
         })
         .sort((a, b) => {
             const tA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
@@ -502,12 +579,22 @@ export const useUserData = () => {
       setSyncing(false);
 
     } catch (error: any) {
-      console.error('从云端同步失败:', error);
-      setSyncError(error.message);
+      // 只有在非预期错误或最终失败时才使用 error 级别
+      if (attempt >= 3) {
+        console.error('从云端同步最终失败:', error);
+        setSyncError(error.message);
+      } else {
+        console.warn(`从云端同步遇到临时错误 (尝试 ${attempt}/3):`, error.message || error);
+      }
+      
       setSyncing(false);
       
       if (attempt < 3 && navigator.onLine) {
-        setTimeout(() => syncFromCloud(attempt + 1), 2000);
+        const delay = Math.min(30000, 2000 * Math.pow(2, attempt - 1))
+        const canRetry = document.visibilityState === 'visible' && (Date.now() - lastUserActivityAtRef.current) < USER_IDLE_THRESHOLD_MS
+        if (canRetry) {
+          setTimeout(() => syncFromCloud(attempt + 1), delay)
+        }
       }
     }
   }, [user, syncing, hasStreamingMessages, isSessionLocked]);
@@ -541,12 +628,6 @@ export const useUserData = () => {
         debouncedSyncToCloud.current = setTimeout(() => {
             syncToCloud();
         }, 2000); // 2秒防抖
-    } else if (!syncing && chatSessions.length > 0) {
-        // 定期同步
-        const interval = setInterval(() => {
-             syncToCloud();
-        }, 5 * 60 * 1000);
-        return () => clearInterval(interval);
     }
 
     return () => {
@@ -569,33 +650,45 @@ export const useUserData = () => {
 
     const triggerCloudPull = (force = false) => {
       if (!navigator.onLine) return;
-      if (!force && shouldDelayCloudPull()) return;
+      const now = Date.now()
+      if (!force) {
+        if (document.visibilityState !== 'visible') return
+        if (now - lastUserActivityAtRef.current > USER_IDLE_THRESHOLD_MS) return
+        if (now - lastCloudPullAtRef.current < MIN_CLOUD_PULL_GAP_MS) return
+        if (shouldDelayCloudPull()) return
+      }
       if (!syncing) {
+        lastCloudPullAtRef.current = now
         syncFromCloud();
       }
     };
 
-    if (debouncedSyncFromCloud.current) {
-      clearTimeout(debouncedSyncFromCloud.current);
+    if (initialCloudPullScheduledForRef.current !== user.id) {
+      initialCloudPullScheduledForRef.current = user.id
+      if (debouncedSyncFromCloud.current) {
+        clearTimeout(debouncedSyncFromCloud.current);
+      }
+      debouncedSyncFromCloud.current = setTimeout(() => {
+        triggerCloudPull(true);
+      }, 3000);
     }
-    debouncedSyncFromCloud.current = setTimeout(() => {
-      triggerCloudPull(true);
-    }, 3000);
 
     if (periodicCloudSyncRef.current) {
       clearInterval(periodicCloudSyncRef.current);
     }
     periodicCloudSyncRef.current = setInterval(() => {
       triggerCloudPull(false);
-    }, 5 * 60 * 1000);
+    }, CLOUD_PULL_INTERVAL_MS);
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
+        lastUserActivityAtRef.current = Date.now()
         triggerCloudPull(false);
       }
     };
 
     const handleOnline = () => {
+      lastUserActivityAtRef.current = Date.now()
       triggerCloudPull(true);
     };
 

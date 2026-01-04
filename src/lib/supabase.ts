@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { indexedDBStorage } from '../store/storage'
 
 // Supabase 配置
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
@@ -9,12 +10,82 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing required Supabase environment variables. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.')
 }
 
+const fetchWithApikey: typeof fetch = async (input, init) => {
+  const existingHeaders = (() => {
+    if (init?.headers) return init.headers
+    if (typeof input === 'string' || input instanceof URL) return undefined
+    return input.headers
+  })()
+
+  const headers = new Headers(existingHeaders)
+  if (!headers.has('apikey')) {
+    headers.set('apikey', supabaseAnonKey)
+  }
+
+  const method = (() => {
+    if (init?.method) return init.method
+    if (typeof input === 'string' || input instanceof URL) return 'GET'
+    return input.method || 'GET'
+  })().toUpperCase()
+
+  const maxRetries = method === 'GET' || method === 'HEAD' ? 3 : 1
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+  const jitter = () => Math.floor(Math.random() * 250)
+  const isRetryableStatus = (status: number) => status === 429 || status === 502 || status === 503 || status === 504
+  const isRetryableFetchError = (err: unknown) => {
+    if (err instanceof DOMException) {
+      return err.name === 'AbortError'
+    }
+    if (err instanceof TypeError) return true
+    const message = err instanceof Error ? err.message : String(err)
+    const m = message.toLowerCase()
+    return m.includes('failed to fetch') || m.includes('network') || m.includes('connection') || m.includes('http2') || m.includes('timeout')
+  }
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(input, { ...init, headers })
+      if (attempt < maxRetries && isRetryableStatus(res.status)) {
+        try {
+          await res.text()
+        } catch {}
+
+        const retryAfter = res.headers.get('retry-after')
+        const retryAfterMs = retryAfter ? Number(retryAfter) * 1000 : NaN
+        const delay = Number.isFinite(retryAfterMs)
+          ? retryAfterMs
+          : Math.min(1000 * Math.pow(2, attempt - 1) + jitter(), 4000)
+        await sleep(delay)
+        continue
+      }
+      return res
+    } catch (err) {
+      if (attempt < maxRetries && navigator.onLine && isRetryableFetchError(err)) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1) + jitter(), 4000)
+        await sleep(delay)
+        continue
+      }
+      throw err
+    }
+  }
+
+  return fetch(input, { ...init, headers })
+}
+
 // 创建 Supabase 客户端
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    storage:
+      typeof window !== 'undefined'
+        ? {
+            getItem: (key) => indexedDBStorage.getItem(key),
+            setItem: (key, value) => indexedDBStorage.setItem(key, value),
+            removeItem: (key) => indexedDBStorage.removeItem(key)
+          }
+        : undefined
   },
   db: {
     schema: 'public'
@@ -22,7 +93,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'X-Client-Info': 'supabase-js-web'
-    }
+    },
+    fetch: fetchWithApikey
   },
   // 重要：配置数据类型转换，确保 BIGINT 类型作为字符串返回
   // 这解决了 JavaScript Number 类型精度丢失的问题

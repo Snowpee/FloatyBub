@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { indexedDBStorage } from '../store/storage'
 import { convertAvatarFromImport } from '../utils/avatarUtils'
 import type { Database } from '../lib/supabase'
 
@@ -33,10 +34,85 @@ export class DataSyncService {
   private retryDelay = 1000 // 1秒
   private statusCallbacks: ((status: SyncStatus) => void)[] = []
 
+  private initialized = false
+  private initPromise: Promise<void> | null = null
+  private currentUserId: string | null = null
+  private onlineListener = () => {
+    this.handleOnline().catch(() => {})
+  }
+  private offlineListener = () => {
+    this.handleOffline()
+  }
+
   constructor() {
-    // 监听网络状态变化
-    window.addEventListener('online', this.handleOnline.bind(this))
-    window.addEventListener('offline', this.handleOffline.bind(this))
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', this.onlineListener)
+      window.addEventListener('offline', this.offlineListener)
+    }
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (this.initialized) return
+    if (this.initPromise) return this.initPromise
+
+    this.initPromise = (async () => {
+      if (!this.isOnline) {
+        this.updateStatus('offline')
+      }
+      this.initialized = true
+    })()
+
+    return this.initPromise
+  }
+
+  private getQueueKey(userId: string) {
+    return `dataSync:queue:${userId}`
+  }
+
+  private getLastSyncTimeKey(userId: string) {
+    return `dataSync:lastSyncTime:${userId}`
+  }
+
+  private safeJsonParse<T>(value: string | null, fallback: T): T {
+    if (!value) return fallback
+    try {
+      return JSON.parse(value) as T
+    } catch {
+      return fallback
+    }
+  }
+
+  private async ensureScopeForUser(userId: string): Promise<void> {
+    await this.ensureInitialized()
+    if (this.currentUserId === userId) return
+
+    const [queueRaw, lastSyncRaw] = await Promise.all([
+      indexedDBStorage.getItem(this.getQueueKey(userId)),
+      indexedDBStorage.getItem(this.getLastSyncTimeKey(userId))
+    ])
+
+    this.syncQueue = this.safeJsonParse<SyncItem[]>(queueRaw, [])
+    this.lastSyncTime = lastSyncRaw ? Number(lastSyncRaw) : null
+    this.currentUserId = userId
+  }
+
+  private async persistQueue(): Promise<void> {
+    if (!this.currentUserId) return
+    await indexedDBStorage.setItem(this.getQueueKey(this.currentUserId), JSON.stringify(this.syncQueue))
+  }
+
+  private async persistLastSyncTime(): Promise<void> {
+    if (!this.currentUserId || this.lastSyncTime === null) return
+    await indexedDBStorage.setItem(this.getLastSyncTimeKey(this.currentUserId), String(this.lastSyncTime))
+  }
+
+  private isProbablyNetworkError(error: unknown) {
+    if (!this.isOnline) return true
+    if (!navigator.onLine) return true
+    if (error instanceof TypeError) return true
+    const message = error instanceof Error ? error.message : String(error)
+    const m = message.toLowerCase()
+    return m.includes('failed to fetch') || m.includes('network') || m.includes('connection') || m.includes('timeout')
   }
 
   // 添加状态监听器
@@ -73,6 +149,14 @@ export class DataSyncService {
 
   // 添加到同步队列
   async queueSync(type: SyncItem['type'], data: any): Promise<void> {
+    await this.ensureInitialized()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('用户未登录')
+    }
+    await this.ensureScopeForUser(user.id)
+
     const item: SyncItem = {
       id: this.generateId(),
       type,
@@ -83,14 +167,26 @@ export class DataSyncService {
 
     this.syncQueue.push(item)
 
+    await this.persistQueue()
+
 
     if (this.isOnline && this.syncStatus !== 'syncing') {
       await this.processSyncQueue()
+    } else if (!this.isOnline) {
+      this.updateStatus('offline')
     }
   }
 
   // 处理同步队列
   private async processSyncQueue(): Promise<SyncResult> {
+    await this.ensureInitialized()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('用户未登录')
+    }
+    await this.ensureScopeForUser(user.id)
+
     if (this.syncQueue.length === 0) {
       return { success: true, syncedItems: 0 }
     }
@@ -99,31 +195,46 @@ export class DataSyncService {
     let syncedItems = 0
     const errors: string[] = []
 
-    while (this.syncQueue.length > 0) {
-      const item = this.syncQueue.shift()!
+    const queueSnapshot = [...this.syncQueue]
+    const remaining: SyncItem[] = []
 
-      try {
-        await this.syncToCloud(item)
-        syncedItems++
+    for (const originalItem of queueSnapshot) {
+      let item: SyncItem = { ...originalItem }
 
-      } catch (error) {
+      while (true) {
+        try {
+          await this.syncToCloud(item)
+          syncedItems++
+          break
+        } catch (error) {
+          const isNetwork = this.isProbablyNetworkError(error)
+          item = { ...item, retries: item.retries + 1 }
 
-        
-        if (item.retries < this.maxRetries) {
-          item.retries++
-          this.syncQueue.unshift(item)
-          await new Promise(resolve => setTimeout(resolve, this.retryDelay * item.retries))
-        } else {
+          if (item.retries < this.maxRetries && isNetwork) {
+            remaining.push(item)
+            break
+          }
+
+          if (item.retries < this.maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, this.retryDelay * item.retries))
+            continue
+          }
+
           errors.push(`${item.type}: ${error instanceof Error ? error.message : '未知错误'}`)
+          break
         }
       }
     }
+
+    this.syncQueue = remaining
+    await this.persistQueue()
 
     if (errors.length > 0) {
       this.updateStatus('error')
       return { success: false, error: errors.join('; '), syncedItems }
     } else {
       this.lastSyncTime = Date.now()
+      await this.persistLastSyncTime()
       this.updateStatus('synced')
       return { success: true, syncedItems }
     }
@@ -248,13 +359,16 @@ export class DataSyncService {
       }
     };
 
-    // 将前端字段映射到数据库结构
-    const dbData = {
+    const isBase64Image = (value: string | undefined | null) => {
+      if (!value) return false
+      return value.startsWith('data:image/')
+    }
+
+    const dbData: any = {
       id: data.id,
       user_id: data.user_id,
       name: data.name,
       prompt: data.systemPrompt,
-      avatar: data.avatar,
       is_favorite: data.isFavorite || false, // 添加收藏字段
       global_prompt_ids: data.globalPromptIds || [], // 新的多个提示词ID数组
       settings: {
@@ -267,6 +381,12 @@ export class DataSyncService {
       },
       created_at: safeToISOString(data.createdAt),
       updated_at: safeToISOString(data.updatedAt)
+    }
+
+    if (!isBase64Image(data.avatar)) {
+      dbData.avatar = data.avatar
+    } else {
+      console.warn('🚫 syncAIRole: 检测到 base64 头像，已在写库时丢弃')
     }
 
     console.log('📝 syncAIRole: 数据库数据结构', {
@@ -422,15 +542,26 @@ export class DataSyncService {
   // 同步用户资料
   private async syncUserProfile(data: any): Promise<void> {
     console.log('🔄 DataSyncService.syncUserProfile: 开始同步用户资料', data)
+
+    const isBase64Image = (value: string | undefined | null) => {
+      if (!value) return false
+      return value.startsWith('data:image/')
+    }
     
     // 将前端用户资料数据映射到数据库结构
-    const dbData = {
+    const dbData: any = {
       user_id: data.user_id,
       display_name: data.name || data.displayName || data.display_name,
-      avatar: data.avatar || data.avatarUrl || data.avatar_url,
       bio: data.bio || '',
       preferences: data.preferences || {},
       updated_at: data.updated_at || new Date().toISOString()
+    }
+
+    const incomingAvatar = data.avatar || data.avatarUrl || data.avatar_url
+    if (!isBase64Image(incomingAvatar)) {
+      dbData.avatar = incomingAvatar
+    } else {
+      console.warn('🚫 DataSyncService.syncUserProfile: 检测到 base64 头像，已在写库时丢弃')
     }
 
     console.log('📤 DataSyncService.syncUserProfile: 准备写入数据库', dbData)
@@ -451,16 +582,28 @@ export class DataSyncService {
   // 同步用户角色
   private async syncUserRole(data: any): Promise<void> {
     console.log('🔄 DataSyncService.syncUserRole: 开始同步用户角色', data)
+
+    const isBase64Image = (value: string | undefined | null) => {
+      if (!value) return false
+      return value.startsWith('data:image/')
+    }
     
     // 将前端用户角色数据映射到数据库结构
-    const dbData = {
+    const dbData: any = {
       id: data.id,
       user_id: data.user_id,
       name: data.name,
       description: data.description || '',
-      avatar: data.avatar || '',
       created_at: data.createdAt ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
       updated_at: data.updatedAt ? new Date(data.updatedAt).toISOString() : new Date().toISOString()
+    }
+
+    const incomingAvatar = data.avatar || ''
+    if (!isBase64Image(incomingAvatar)) {
+      dbData.avatar = incomingAvatar
+    } else {
+      dbData.avatar = ''
+      console.warn('🚫 DataSyncService.syncUserRole: 检测到 base64 头像，已在写库时置空')
     }
 
     console.log('📤 DataSyncService.syncUserRole: 准备写入数据库', dbData)
@@ -486,6 +629,8 @@ export class DataSyncService {
     generalSettings: any | null
     userRoles: any[]
   }> {
+    await this.ensureInitialized()
+
     let user = userParam
     if (!user) {
       const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -494,6 +639,8 @@ export class DataSyncService {
     if (!user) {
       throw new Error('用户未登录')
     }
+
+    await this.ensureScopeForUser(user.id)
 
     const [llmConfigsResult, aiRolesResult, globalPromptsResult, voiceSettingsResult, generalSettingsResult, userRolesResult] = await Promise.all([
       supabase.from('llm_configs').select('*').eq('user_id', user.id),
@@ -614,6 +761,7 @@ export class DataSyncService {
 
   // 手动触发同步
   async manualSync(): Promise<SyncResult> {
+    await this.ensureInitialized()
     if (!this.isOnline) {
       throw new Error('网络未连接')
     }
@@ -623,23 +771,40 @@ export class DataSyncService {
 
   // 清空同步队列
   clearQueue(): void {
-    this.syncQueue = []
-    this.updateStatus('idle')
+    const run = async () => {
+      await this.ensureInitialized()
+      this.syncQueue = []
+      this.updateStatus(this.isOnline ? 'idle' : 'offline')
+      if (this.currentUserId) {
+        await indexedDBStorage.removeItem(this.getQueueKey(this.currentUserId))
+      }
+    }
+
+    run().catch(() => {})
   }
 
   // 网络连接恢复
   private async handleOnline(): Promise<void> {
-
+    await this.ensureInitialized()
     this.isOnline = true
-    
-    if (this.syncQueue.length > 0) {
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user?.id) {
+        await this.ensureScopeForUser(user.id)
+      }
+    } catch {}
+
+    if (this.syncQueue.length > 0 && this.syncStatus !== 'syncing') {
       await this.processSyncQueue()
+      return
     }
+
+    this.updateStatus('idle')
   }
 
   // 网络断开
   private handleOffline(): void {
-
     this.isOnline = false
     this.updateStatus('offline')
   }
@@ -718,8 +883,10 @@ export class DataSyncService {
 
   // 销毁服务
   destroy(): void {
-    window.removeEventListener('online', this.handleOnline.bind(this))
-    window.removeEventListener('offline', this.handleOffline.bind(this))
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('online', this.onlineListener)
+      window.removeEventListener('offline', this.offlineListener)
+    }
     this.statusCallbacks = []
   }
 }

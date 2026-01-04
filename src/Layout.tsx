@@ -158,6 +158,7 @@ const Layout: React.FC = () => {
     }
 
     setIsSaving(true);
+    let cloudSyncWarning = false;
     try {
       // 更新本地用户资料
       if (currentUser) {
@@ -168,54 +169,117 @@ const Layout: React.FC = () => {
         console.log('✅ 本地资料已更新');
       }
 
-      // 更新Supabase认证用户元数据
       if (user) {
-        const updateData = {
-          display_name: editingName.trim(),
-          avatar_url: editingAvatar
-        };
+        const displayName = editingName.trim();
+        const avatar = editingAvatar;
 
-        const { error } = await supabase.auth.updateUser({
-          data: updateData
+        setCurrentUser({
+          id: currentUser?.id || user.id,
+          name: displayName,
+          email: currentUser?.email || user.email || '',
+          avatar: avatar || currentUser?.avatar || '',
+          preferences: currentUser?.preferences || {}
         });
 
-        if (error) {
-          console.error('❌ 更新失败:', error);
-          toast.error('保存失败，请重试');
-          return;
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        const isRetryable = (message: string) => {
+          const m = message.toLowerCase();
+          return (
+            m.includes('failed to fetch') ||
+            m.includes('fetch') ||
+            m.includes('network') ||
+            m.includes('timeout') ||
+            m.includes('connection') ||
+            m.includes('http2')
+          );
+        };
+
+        const isBase64Image = (value: string | undefined | null) => {
+          if (!value) return false;
+          return value.startsWith('data:image/');
+        };
+
+        if (isBase64Image(avatar)) {
+          console.warn('🚫 检测到 base64 头像，禁止写入数据库，仅保留本地状态');
         }
 
-        // 重新获取用户数据并更新本地状态
-        const { data: { user: updatedUser }, error: getUserError } = await supabase.auth.getUser();
+        let cloudOk = false;
+        if (navigator.onLine) {
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            const profilePayload: any = {
+              user_id: user.id,
+              display_name: displayName,
+              updated_at: new Date().toISOString()
+            };
 
-        if (getUserError) {
-          console.error('❌ 获取用户数据失败:', getUserError);
-        } else if (updatedUser) {
-          const newUserState = {
-            id: currentUser?.id || updatedUser.id,
-            name: updatedUser.user_metadata?.display_name || currentUser?.name || 'User',
-            email: currentUser?.email || updatedUser.email || '',
-            avatar: updatedUser.user_metadata?.avatar_url || currentUser?.avatar || '',
-            preferences: currentUser?.preferences || {}
-          };
+            if (!isBase64Image(avatar)) {
+              profilePayload.avatar = avatar;
+            }
 
-          setCurrentUser(newUserState);
-          console.log('✅ 用户资料更新完成:', newUserState.name);
+            const { error } = await supabase
+              .from('user_profiles')
+              .upsert(profilePayload, { onConflict: 'user_id' });
 
-          // 同步用户资料到数据库
-          const userData = {
-            user_id: updatedUser.id,
-            name: updatedUser.user_metadata?.display_name || editingName.trim(),
-            avatar: updatedUser.user_metadata?.avatar_url || editingAvatar,
-            email: updatedUser.email || ''
-          };
+            if (!error) {
+              cloudOk = true;
+              break;
+            }
 
-          await queueDataSync('user_profile', userData);
-          console.log('✅ 用户资料已同步到数据库');
+            const message = error.message || '';
+            if (attempt < 3 && isRetryable(message)) {
+              await sleep(Math.min(1000 * Math.pow(2, attempt - 1), 3000));
+              continue;
+            }
+            break;
+          }
+        }
+
+        if (!cloudOk) {
+          cloudSyncWarning = true;
+          try {
+            const syncPayload: any = {
+              user_id: user.id,
+              name: displayName,
+              email: user.email || ''
+            };
+
+            if (!isBase64Image(avatar)) {
+              syncPayload.avatar = avatar;
+            }
+
+            await queueDataSync('user_profile', syncPayload);
+          } catch (e) {
+            console.warn('⚠️ 用户资料写入队列失败:', e);
+          }
+        }
+
+        if (navigator.onLine) {
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            const userMeta: any = {
+              display_name: displayName
+            };
+
+            if (!isBase64Image(avatar)) {
+              userMeta.avatar_url = avatar;
+            }
+
+            const { error } = await supabase.auth.updateUser({
+              data: userMeta
+            });
+
+            if (!error) break;
+
+            const message = error.message || '';
+            if (attempt < 2 && isRetryable(message)) {
+              await sleep(800);
+              continue;
+            }
+            break;
+          }
         }
       }
 
-      toast.success('用户资料更新成功');
+      toast.success(cloudSyncWarning ? '用户资料已保存到本地，云端稍后同步' : '用户资料更新成功');
       handleCloseUserProfileModal();
     } catch (error) {
       console.error('💥 保存失败:', error);

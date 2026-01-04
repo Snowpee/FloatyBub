@@ -22,6 +22,7 @@ interface KnowledgeStore {
   knowledgeBases: KnowledgeBase[];
   currentKnowledgeBase: KnowledgeBase | null;
   knowledgeEntries: KnowledgeEntry[];
+  entriesKnowledgeBaseId: string | null;
   knowledgeBaseStats: KnowledgeBaseStats[];
   loading: boolean;
   error: string | null;
@@ -76,6 +77,7 @@ export const useKnowledgeStore = create<KnowledgeStore>()(devtools(
     knowledgeBases: [],
     currentKnowledgeBase: null,
     knowledgeEntries: [],
+    entriesKnowledgeBaseId: null,
     knowledgeBaseStats: [],
     loading: false,
     error: null,
@@ -83,12 +85,24 @@ export const useKnowledgeStore = create<KnowledgeStore>()(devtools(
 
     // 知识库操作
     loadKnowledgeBases: async () => {
-      set({ loading: true, error: null });
+      const { knowledgeBases } = get();
+      const hasLocal = knowledgeBases.length > 0;
+      if (!hasLocal) {
+        set({ loading: true, error: null });
+      } else {
+        set({ error: null });
+      }
       try {
         const knowledgeBases = await KnowledgeService.getKnowledgeBases();
         set({ knowledgeBases, loading: false });
       } catch (error) {
-        set({ error: (error as Error).message, loading: false });
+        const message = (error as Error).message;
+        const { knowledgeBases: existing } = get();
+        if (existing.length > 0) {
+          set({ error: message, loading: false });
+        } else {
+          set({ error: message, loading: false });
+        }
       }
     },
 
@@ -148,6 +162,7 @@ export const useKnowledgeStore = create<KnowledgeStore>()(devtools(
           knowledgeBases: filteredKnowledgeBases,
           currentKnowledgeBase: currentKnowledgeBase?.id === id ? null : currentKnowledgeBase,
           knowledgeEntries: currentKnowledgeBase?.id === id ? [] : get().knowledgeEntries,
+          entriesKnowledgeBaseId: currentKnowledgeBase?.id === id ? null : get().entriesKnowledgeBaseId,
           loading: false 
         });
       } catch (error) {
@@ -162,12 +177,24 @@ export const useKnowledgeStore = create<KnowledgeStore>()(devtools(
 
     // 知识条目操作
     loadKnowledgeEntries: async (knowledgeBaseId: string) => {
-      set({ loading: true, error: null });
+      const { knowledgeEntries, entriesKnowledgeBaseId } = get();
+      const hasLocalForSameBase = entriesKnowledgeBaseId === knowledgeBaseId && knowledgeEntries.length > 0;
+      if (!hasLocalForSameBase) {
+        set({ loading: true, error: null });
+      } else {
+        set({ error: null });
+      }
       try {
         const knowledgeEntries = await KnowledgeService.getKnowledgeEntries(knowledgeBaseId);
-        set({ knowledgeEntries, loading: false });
+        set({ knowledgeEntries, entriesKnowledgeBaseId: knowledgeBaseId, loading: false });
       } catch (error) {
-        set({ error: (error as Error).message, loading: false });
+        const message = (error as Error).message;
+        const { knowledgeEntries: existing, entriesKnowledgeBaseId: existingBaseId } = get();
+        if (existingBaseId === knowledgeBaseId && existing.length > 0) {
+          set({ error: message, loading: false });
+        } else {
+          set({ error: message, loading: false, knowledgeEntries: [], entriesKnowledgeBaseId: knowledgeBaseId });
+        }
       }
     },
 
@@ -368,6 +395,7 @@ export const useKnowledgeStore = create<KnowledgeStore>()(devtools(
       knowledgeBases: [],
       currentKnowledgeBase: null,
       knowledgeEntries: [],
+      entriesKnowledgeBaseId: null,
       knowledgeBaseStats: [],
       loading: false,
       error: null,

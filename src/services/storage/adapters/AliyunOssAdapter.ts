@@ -4,6 +4,12 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import type { StorageAdapter, StorageConfig, UploadOptions, UploadResult } from '../types';
 
+const normalizeOssRegion = (region: string) => {
+  const trimmed = region.trim()
+  if (!trimmed) return trimmed
+  return trimmed.startsWith('oss-') ? trimmed : `oss-${trimmed}`
+}
+
 export class AliyunOssAdapter implements StorageAdapter {
   private client: S3Client;
   private bucket: string;
@@ -11,15 +17,15 @@ export class AliyunOssAdapter implements StorageAdapter {
 
   constructor(config: StorageConfig) {
     this.bucket = config.bucket;
-    this.region = config.region;
+    this.region = normalizeOssRegion(config.region);
     // 阿里云OSS使用S3兼容API
     this.client = new S3Client({
-      region: config.region,
+      region: this.region,
       credentials: {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
       },
-      endpoint: config.endpoint || `https://oss-${config.region}.aliyuncs.com`,
+      endpoint: config.endpoint || `https://${this.region}.aliyuncs.com`,
       forcePathStyle: false,
     });
   }
@@ -43,7 +49,7 @@ export class AliyunOssAdapter implements StorageAdapter {
     
     return {
       key,
-      url: `https://${this.bucket}.oss-${this.region}.aliyuncs.com/${key}`,
+      url: `https://${this.bucket}.${this.region}.aliyuncs.com/${key}`,
       etag: result.ETag || '',
       size: file.size,
     };

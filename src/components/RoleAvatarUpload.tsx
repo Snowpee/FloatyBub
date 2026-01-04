@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X, Camera, Shuffle } from 'lucide-react';
+import { Camera, Shuffle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { validateImageFile, generateRandomLocalAvatar } from '../utils/avatarUtils';
 import Avatar from './Avatar';
@@ -44,16 +44,10 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
       const storageService = createStorageService();
       
       if (!storageService) {
-        // 如果存储服务不可用，回退到base64
-        console.warn('Storage service not available, falling back to base64');
-        const { fileToBase64 } = await import('../utils/avatarUtils');
-        const base64 = await fileToBase64(file);
-        onAvatarChange(base64);
-        toast.success('头像上传成功（本地存储）');
+        toast.error('未配置云存储，无法上传自定义头像');
         return;
       }
 
-      // 使用S3存储服务上传头像
       const fileMetadata = await storageService.uploadAvatar(file);
       onAvatarChange(fileMetadata.accessUrl);
       toast.success('头像上传成功');

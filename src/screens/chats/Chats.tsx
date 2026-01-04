@@ -2441,8 +2441,8 @@ const Chats: React.FC = () => {
                       // 用户已登录但未设置角色，使用用户头像
                       return (
                         <Avatar
-                          name={user.user_metadata?.full_name || user.email || '用户'}
-                          avatar={user.user_metadata?.avatar_url}
+                          name={currentUser?.name || user.user_metadata?.full_name || user.email || '用户'}
+                          avatar={currentUser?.avatar || user.user_metadata?.avatar_url}
                           size="md"
                         />
                       );

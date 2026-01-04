@@ -213,10 +213,16 @@ export function useAuth(): AuthState & AuthActions {
     isMountedRef.current = true
     const maxRetries = 5
     const retryDelay = 1000 // 1秒
+    let hasPendingOnlineRetry = false
 
     // 获取初始会话（改进的重试机制）
     const getInitialSession = async (attempt = 1) => {
       if (!isMountedRef.current || signingOutRef.current) return
+
+      if (!navigator.onLine) {
+        setLoading(false)
+        return
+      }
       
       try {
         console.log(`🔄 [useAuth] 尝试获取会话 (${attempt}/${maxRetries})...`)
@@ -272,7 +278,31 @@ export function useAuth(): AuthState & AuthActions {
       } catch (err) {
         if (!isMountedRef.current || signingOutRef.current) return
         
-        console.error('[useAuth] Error in getInitialSession:', err)
+        const message = err instanceof Error ? err.message : String(err)
+        const m = message.toLowerCase()
+        const isNetworkish = m.includes('timeout') || m.includes('failed to fetch') || m.includes('fetch') || m.includes('network') || m.includes('connection') || m.includes('http2')
+
+        if (isNetworkish) {
+          console.warn('[useAuth] getInitialSession 网络异常:', message)
+        } else {
+          console.error('[useAuth] Error in getInitialSession:', err)
+        }
+
+        if (!navigator.onLine) {
+          setLoading(false)
+          if (!hasPendingOnlineRetry) {
+            hasPendingOnlineRetry = true
+            const onOnline = () => {
+              window.removeEventListener('online', onOnline)
+              hasPendingOnlineRetry = false
+              if (isMountedRef.current && !signingOutRef.current) {
+                getInitialSession(1)
+              }
+            }
+            window.addEventListener('online', onOnline)
+          }
+          return
+        }
         
         // 如果还有重试次数，则重试
         if (attempt < maxRetries) {
@@ -415,10 +445,15 @@ export function useAuth(): AuthState & AuthActions {
           if (!existingProfile) {
             // 如果用户资料不存在，创建新的
             console.log('📝 [useAuth] 创建新用户资料')
+            const isBase64Image = (value: string | undefined | null) => {
+              if (!value) return false
+              return value.startsWith('data:image/')
+            }
+
             const newProfile = {
               user_id: user.id,
               display_name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
-              avatar: user.user_metadata?.avatar_url || '',
+              avatar: isBase64Image(user.user_metadata?.avatar_url) ? '' : user.user_metadata?.avatar_url || '',
               preferences: {}
             }
             
@@ -433,9 +468,14 @@ export function useAuth(): AuthState & AuthActions {
           } else {
             // 如果用户资料已存在，更新必要的字段
             console.log('🔄 [useAuth] 更新现有用户资料')
+            const isBase64Image = (value: string | undefined | null) => {
+              if (!value) return false
+              return value.startsWith('data:image/')
+            }
+
             const updatedProfile = {
               display_name: user.user_metadata?.display_name || existingProfile.display_name,
-              avatar: user.user_metadata?.avatar_url || existingProfile.avatar,
+              avatar: isBase64Image(user.user_metadata?.avatar_url) ? existingProfile.avatar : user.user_metadata?.avatar_url || existingProfile.avatar,
               updated_at: new Date().toISOString()
             }
             
@@ -469,8 +509,13 @@ export function useAuth(): AuthState & AuthActions {
           const errorLike = err as { message?: string; code?: string; status?: number }
           const message = err instanceof Error ? err.message : errorLike.message || String(err)
           retryCount++
-          console.error(`❌ [useAuth] 用户资料同步失败 (尝试 ${retryCount}/${maxRetries}):`, message)
           
+          // 如果离线，直接终止重试
+          if (!navigator.onLine) {
+            console.warn(`⚠️ [useAuth] 网络离线，停止用户资料同步 (尝试 ${retryCount}/${maxRetries})`)
+            break
+          }
+
           // 判断是否为可重试的错误
           const isRetryableError = 
             message.includes('fetch') || 
@@ -485,10 +530,14 @@ export function useAuth(): AuthState & AuthActions {
             errorLike.status === 504         // Gateway timeout
           
           if (retryCount < maxRetries && isRetryableError) {
+            // 使用 warn 而不是 error，避免控制台刷屏
+            console.warn(`⚠️ [useAuth] 用户资料同步遇到临时错误，将重试 (尝试 ${retryCount}/${maxRetries}):`, message)
             const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 8000) // 指数退避，最大8秒
             console.log(`⏳ [useAuth] ${delay}ms 后重试...`)
             await new Promise(resolve => setTimeout(resolve, delay))
           } else {
+            // 最终失败时才使用 error
+            console.error(`❌ [useAuth] 用户资料同步最终失败 (尝试 ${retryCount}/${maxRetries}):`, message)
             // 所有重试都失败了，使用基本用户信息作为后备
             console.warn('⚠️ [useAuth] 用户资料同步失败，使用基本信息')
             if (isMountedRef.current && !signingOutRef.current) {
@@ -662,12 +711,26 @@ export function useAuth(): AuthState & AuthActions {
     setError(null)
     
     try {
+      const isBase64Image = (value: string | undefined) => {
+        if (!value) return false
+        return value.startsWith('data:image/')
+      }
+
+      const payload: any = {
+        updated_at: new Date().toISOString()
+      }
+
+      if (typeof updates.display_name !== 'undefined') {
+        payload.display_name = updates.display_name
+      }
+
+      if (typeof updates.avatar_url !== 'undefined' && !isBase64Image(updates.avatar_url)) {
+        payload.avatar = updates.avatar_url
+      }
+
       const { error } = await supabase
         .from('user_profiles')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
+        .update(payload)
         .eq('user_id', user.id)
       
       if (error) {

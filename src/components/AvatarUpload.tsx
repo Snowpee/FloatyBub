@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, X, Camera } from 'lucide-react';
+import { Camera } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { fileToBase64, validateImageFile } from '../utils/avatarUtils';
+import { validateImageFile } from '../utils/avatarUtils';
 import Avatar from './Avatar';
 import { toast } from '../hooks/useToast';
 import { createStorageService, StorageService } from '../services/storage/StorageService';
@@ -28,7 +28,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
     const service = createStorageService();
     setStorageService(service);
     if (!service) {
-      console.warn('Storage service not available, will fallback to base64');
+      console.warn('Storage service not available');
     }
   }, []);
 
@@ -45,22 +45,13 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
 
     setIsUploading(true);
     try {
-      // 优先使用S3存储服务
-      if (storageService) {
-        try {
-          const fileMetadata = await storageService.uploadAvatar(file);
-          onAvatarChange(fileMetadata.accessUrl);
-          toast.success('头像上传成功');
-          return;
-        } catch (s3Error) {
-          console.warn('S3上传失败，降级使用base64:', s3Error);
-          toast.warning('云存储上传失败，使用本地存储');
-        }
+      if (!storageService) {
+        toast.error('未配置云存储，无法上传自定义头像');
+        return;
       }
-      
-      // 降级方案：使用base64
-      const base64 = await fileToBase64(file);
-      onAvatarChange(base64);
+
+      const fileMetadata = await storageService.uploadAvatar(file);
+      onAvatarChange(fileMetadata.accessUrl);
       toast.success('头像上传成功');
     } catch (error) {
       console.error('头像上传失败:', error);
