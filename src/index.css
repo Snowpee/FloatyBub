@@ -211,10 +211,9 @@ html, body {
     }
   
   .label {
-    @apply absolute top-3 left-0 z-10 ml-0 !text-base-content;
-    /* @media (min-width: 768px) {
-      margin-left: calc(0.75rem + var(--border));
-    } */
+    @apply absolute top-0 left-0 z-10 ml-0 !text-base-content;
+      padding: calc(var(--spacing) * 2) calc(var(--spacing) * 2) calc(var(--spacing) * 4) 0;
+      background-image: linear-gradient(to bottom, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 1) 60%, rgba(255, 255, 255, 0) 100%);
   }
   }
 
