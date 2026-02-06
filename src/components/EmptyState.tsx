@@ -4,11 +4,13 @@ import { FileX } from 'lucide-react';
 interface EmptyStateProps {
   message?: string;
   className?: string;
+  action?: React.ReactNode;
 }
 
 const EmptyState: React.FC<EmptyStateProps> = ({ 
   message,
-  className = "text-center py-12" 
+  className = "text-center py-12",
+  action
 }) => {
   return (
     <div className={className}>
@@ -20,6 +22,11 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         <p className="text-base-content/60">
           {message}
         </p>
+      )}
+      {action && (
+        <div className="mt-4">
+          {action}
+        </div>
       )}
     </div>
   );

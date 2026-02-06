@@ -1,4 +1,4 @@
-import { Settings, Users, Database, FileText, UserCircle, Volume2, Globe, BookOpen, Search } from 'lucide-react';
+import { Settings, Users, Database, FileText, UserCircle, Volume2, Globe, BookOpen, Search, Zap } from 'lucide-react';
 import ConfigSettings from './sections/ConfigSettings';
 import RolesSettings from './sections/RolesSettings';
 import UserRolesSettings from './sections/UserRolesSettings';
@@ -8,8 +8,9 @@ import GlobalPromptsSettings from './sections/GlobalPromptsSettings';
 import VoiceSettings from './sections/VoiceSettings';
 import KnowledgeSettings from './sections/KnowledgeSettings';
 import SearchSettings from './sections/SearchSettings';
+import SkillsSettings from './sections/SkillsSettings';
 
-export type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'knowledge' | 'search';
+export type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'knowledge' | 'search' | 'skills';
 
 export interface SettingsModalProps {
   isOpen: boolean;
@@ -47,6 +48,12 @@ export const tabs = [
     name: '全局提示词',
     icon: FileText,
     component: GlobalPromptsSettings
+  },
+  {
+    id: 'skills' as TabType,
+    name: '技能库',
+    icon: Zap,
+    component: SkillsSettings
   },
   {
     id: 'knowledge' as TabType,

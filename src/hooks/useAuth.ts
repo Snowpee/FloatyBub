@@ -278,6 +278,12 @@ export function useAuth(): AuthState & AuthActions {
       } catch (err) {
         if (!isMountedRef.current || signingOutRef.current) return
         
+        // 忽略 AbortError
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          console.log('ℹ️ [useAuth] getInitialSession 请求被中止')
+          return
+        }
+        
         const message = err instanceof Error ? err.message : String(err)
         const m = message.toLowerCase()
         const isNetworkish = m.includes('timeout') || m.includes('failed to fetch') || m.includes('fetch') || m.includes('network') || m.includes('connection') || m.includes('http2')

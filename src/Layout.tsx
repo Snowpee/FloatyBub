@@ -441,7 +441,7 @@ const Layout: React.FC = () => {
 
   // 根据roleId获取AI角色信息
   const getAIRole = useCallback((roleId: string) => {
-    return aiRoles.find(role => role.id === roleId) || aiRoles[0];
+    return aiRoles.find(role => role.id === roleId);
   }, [aiRoles]);
 
   const deleteSession = async (sessionId: string) => {

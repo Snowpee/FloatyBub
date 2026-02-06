@@ -104,6 +104,7 @@ export interface AIRole {
   avatar?: string;
   globalPromptId?: string; // 关联的全局提示词ID（向后兼容）
   globalPromptIds?: string[]; // 关联的多个全局提示词ID数组
+  skillIds?: string[]; // 关联的多个 Skill ID 数组
   voiceModelId?: string; // 角色专属语音模型ID
   isFavorite?: boolean; // 收藏状态
   createdAt: Date;
@@ -126,6 +127,23 @@ export interface GlobalPrompt {
   title: string;
   description?: string;
   prompt: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AgentSkillFile {
+  path: string;
+  content: string;
+}
+
+// Agent Skill 接口
+export interface AgentSkill {
+  id: string;
+  name: string;
+  description: string;
+  content: string; // SKILL.md content
+  files?: AgentSkillFile[]; // Additional files (scripts, references, assets)
+  enabled: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -230,6 +248,9 @@ interface AppState {
   
   // 全局提示词
   globalPrompts: GlobalPrompt[];
+
+  // Agent Skills
+  agentSkills: AgentSkill[];
   
   // 聊天会话
   chatSessions: ChatSession[];
@@ -273,6 +294,11 @@ interface AppState {
   addGlobalPrompt: (prompt: Omit<GlobalPrompt, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateGlobalPrompt: (id: string, prompt: Partial<GlobalPrompt>) => void;
   deleteGlobalPrompt: (id: string) => Promise<void>;
+
+  // Agent Skills 相关
+  addAgentSkill: (skill: Omit<AgentSkill, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateAgentSkill: (id: string, skill: Partial<AgentSkill>) => void;
+  deleteAgentSkill: (id: string) => Promise<void>;
   
   // 聊天会话相关
   createChatSession: (roleId: string, modelId: string) => string;
@@ -364,7 +390,7 @@ const convertToUUID = (oldId: string): string => {
 };
 
 // 数据同步辅助函数
-const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile' | 'user_role', data: any) => {
+const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile' | 'user_role' | 'agent_skill', data: any) => {
   try {
     console.log('🔄 queueDataSync: 准备同步数据', { type, data })
     
@@ -508,6 +534,7 @@ export const useAppStore = create<AppState>()(
       currentUserProfile: null,
       currentUser: null,
       globalPrompts: [],
+      agentSkills: [],
       chatSessions: [],
       currentSessionId: null,
       tempSessionId: null,
@@ -939,6 +966,89 @@ export const useAppStore = create<AppState>()(
           }
           console.error('删除全局提示词时发生错误:', error);
           throw new Error(`删除全局提示词时发生错误: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
+      },
+
+      // Agent Skills 相关 actions
+      addAgentSkill: (skill) => {
+        const newSkill: AgentSkill = {
+          ...skill,
+          id: generateId(),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        set((state) => ({
+          agentSkills: [...state.agentSkills, newSkill]
+        }));
+        // 自动同步到云端
+        queueDataSync('agent_skill', newSkill);
+      },
+
+      updateAgentSkill: (id, skill) => {
+        let updatedSkill: AgentSkill | null = null;
+        set((state) => {
+          const newSkills = state.agentSkills.map(s => {
+            if (s.id === id) {
+              updatedSkill = { ...s, ...skill, updatedAt: new Date() };
+              return updatedSkill;
+            }
+            return s;
+          });
+          return { agentSkills: newSkills };
+        });
+        // 自动同步到云端
+        if (updatedSkill) {
+          queueDataSync('agent_skill', updatedSkill);
+        }
+      },
+
+      deleteAgentSkill: async (id) => {
+        // 先保存原始状态，以便在失败时回滚
+        const originalState = get();
+        const originalSkill = originalState.agentSkills.find(s => s.id === id);
+        
+        // 先从本地状态删除
+        set((state) => ({
+          agentSkills: state.agentSkills.filter(s => s.id !== id),
+          // 清除使用了该 Skill 的角色关联 (Array filter)
+          aiRoles: state.aiRoles.map(role => 
+            role.skillIds ? { ...role, skillIds: role.skillIds.filter(sid => sid !== id) } : role
+          )
+        }));
+        
+        // 同步删除到数据库
+        try {
+          const { error } = await supabase
+            .from('agent_skills')
+            .delete()
+            .eq('id', id);
+          
+          if (error) {
+            // 回滚本地状态
+            if (originalSkill) {
+              set((state) => ({
+                agentSkills: [...state.agentSkills, originalSkill],
+                aiRoles: originalState.aiRoles // Restore roles too
+              }));
+            }
+            console.error('删除 Skill 失败:', error);
+            throw new Error(`删除 Skill 失败: ${error.message}`);
+          }
+        } catch (error) {
+          // 如果是我们抛出的错误，直接重新抛出
+          if (error instanceof Error && error.message.includes('删除 Skill 失败')) {
+            throw error;
+          }
+          
+          // 回滚本地状态
+          if (originalSkill) {
+            set((state) => ({
+              agentSkills: [...state.agentSkills, originalSkill],
+              aiRoles: originalState.aiRoles
+            }));
+          }
+          console.error('删除 Skill 时发生错误:', error);
+          throw new Error(`删除 Skill 时发生错误: ${error instanceof Error ? error.message : '未知错误'}`);
         }
       },
       
@@ -2151,6 +2261,7 @@ export const useAppStore = create<AppState>()(
           aiRoles,
           userRoles,
           globalPrompts: state.globalPrompts,
+          agentSkills: state.agentSkills,
           chatSessions: state.chatSessions,
           currentModelId: state.currentModelId,
           currentUserProfile,
@@ -2195,6 +2306,12 @@ export const useAppStore = create<AppState>()(
             updatedAt: new Date(prompt.updatedAt || Date.now())
           }));
           
+          const agentSkills = (data.agentSkills || []).map((skill: any) => ({
+            ...skill,
+            createdAt: new Date(skill.createdAt || Date.now()),
+            updatedAt: new Date(skill.updatedAt || Date.now())
+          }));
+          
           const chatSessions = (data.chatSessions || []).map((session: any) => ({
             ...session,
             createdAt: new Date(session.createdAt || Date.now()),
@@ -2219,6 +2336,7 @@ export const useAppStore = create<AppState>()(
             aiRoles,
             userRoles,
             globalPrompts,
+            agentSkills,
             chatSessions,
             currentModelId: data.currentModelId || null,
             currentUserProfile,
@@ -2244,6 +2362,7 @@ export const useAppStore = create<AppState>()(
           userRoles: [],
           currentUserProfile: null,
           globalPrompts: [],
+          agentSkills: [],
           chatSessions: [],
           currentSessionId: null,
           tempSessionId: null,
@@ -2254,7 +2373,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'ai-chat-storage',
-      version: 9, // 版本9：引入 assistantConfig 并与 autoTitleConfig 向后兼容
+      version: 10, // 版本10：新增 agentSkills
       onRehydrateStorage: () => {
         console.log('🔄 zustand 开始恢复存储数据');
         return (state, error) => {
@@ -2459,6 +2578,13 @@ export const useAppStore = create<AppState>()(
           persistedState.autoTitleConfig = persistedState.assistantConfig || defaultAutoTitleConfig;
         }
       }
+      
+      // 版本10迁移：新增 agentSkills
+      if (version < 10) {
+        if (!persistedState.agentSkills) {
+          persistedState.agentSkills = [];
+        }
+      }
 
       return persistedState;
       },
@@ -2470,6 +2596,7 @@ export const useAppStore = create<AppState>()(
         currentUserProfile: state.currentUserProfile,
         currentUser: state.currentUser, // 添加currentUser到持久化状态
         globalPrompts: state.globalPrompts,
+        agentSkills: state.agentSkills,
         chatSessions: state.chatSessions,
         currentSessionId: state.currentSessionId,
         tempSessionId: state.tempSessionId,
@@ -2509,6 +2636,13 @@ export const useAppStore = create<AppState>()(
                 ...prompt,
                 createdAt: new Date(prompt.createdAt),
                 updatedAt: new Date(prompt.updatedAt)
+              }));
+            }
+            if (state.agentSkills) {
+              state.agentSkills = state.agentSkills.map((skill: any) => ({
+                ...skill,
+                createdAt: new Date(skill.createdAt),
+                updatedAt: new Date(skill.updatedAt)
               }));
             }
             if (state.chatSessions) {

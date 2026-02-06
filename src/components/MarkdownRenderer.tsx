@@ -6,9 +6,10 @@ import rehypeHighlight from 'rehype-highlight';
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  onLinkClick?: (href: string) => boolean | void;
 }
 
-const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
+const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '', onLinkClick }) => {
   return (
     <div className={`markdown-content text-wrap whitespace-normal break-word min-w-0 overflow-x-hidden ${className}`}>
       <ReactMarkdown
@@ -49,7 +50,16 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:underline"
+              className="text-primary hover:underline cursor-pointer"
+              onClick={(e) => {
+                if (href && onLinkClick) {
+                  const handled = onLinkClick(href);
+                  if (handled) {
+                    e.preventDefault();
+                  }
+                  e.stopPropagation();
+                }
+              }}
               {...props}
             >
               {children}

@@ -8,7 +8,7 @@ const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} }
 // 同步项目类型
 export interface SyncItem {
   id: string
-  type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile' | 'user_role'
+  type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile' | 'user_role' | 'agent_skill'
   data: any
   timestamp: number
   retries: number
@@ -274,6 +274,9 @@ export class DataSyncService {
         break
       case 'user_role':
         await this.syncUserRole(dataWithUserId)
+        break
+      case 'agent_skill':
+        await this.syncAgentSkill(dataWithUserId)
         break
       default:
         throw new Error(`未知的同步类型: ${type}`)
@@ -620,6 +623,34 @@ export class DataSyncService {
     console.log('✅ DataSyncService.syncUserRole: 同步成功')
   }
 
+  // 同步 Agent Skill
+  private async syncAgentSkill(data: any): Promise<void> {
+    console.log('🔄 DataSyncService.syncAgentSkill: 开始同步 Agent Skill', data)
+
+    const dbData = {
+      id: data.id,
+      user_id: data.user_id,
+      name: data.name,
+      description: data.description || '',
+      content: data.content,
+      files: data.files || [], // 同步文件列表
+      enabled: data.enabled !== undefined ? data.enabled : true,
+      created_at: data.createdAt ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
+      updated_at: data.updatedAt ? new Date(data.updatedAt).toISOString() : new Date().toISOString()
+    }
+
+    const { error } = await supabase
+      .from('agent_skills')
+      .upsert(dbData, { onConflict: 'id' })
+    
+    if (error) {
+      console.error('❌ DataSyncService.syncAgentSkill: 同步失败', error)
+      throw new Error(`Agent Skill 同步失败: ${error.message}`)
+    }
+    
+    console.log('✅ DataSyncService.syncAgentSkill: 同步成功')
+  }
+
   // 从云端拉取数据
   async pullFromCloud(userParam?: any): Promise<{
     llmConfigs: any[]
@@ -628,6 +659,7 @@ export class DataSyncService {
     voiceSettings: any | null
     generalSettings: any | null
     userRoles: any[]
+    agentSkills: any[]
   }> {
     await this.ensureInitialized()
 
@@ -642,13 +674,14 @@ export class DataSyncService {
 
     await this.ensureScopeForUser(user.id)
 
-    const [llmConfigsResult, aiRolesResult, globalPromptsResult, voiceSettingsResult, generalSettingsResult, userRolesResult] = await Promise.all([
+    const [llmConfigsResult, aiRolesResult, globalPromptsResult, voiceSettingsResult, generalSettingsResult, userRolesResult, agentSkillsResult] = await Promise.all([
       supabase.from('llm_configs').select('*').eq('user_id', user.id),
       supabase.from('ai_roles').select('*').eq('user_id', user.id),
       supabase.from('global_prompts').select('*').eq('user_id', user.id),
       supabase.from('voice_settings').select('*').eq('user_id', user.id).maybeSingle(),
       supabase.from('general_settings').select('*').eq('user_id', user.id).maybeSingle(),
-      supabase.from('user_roles').select('*').eq('user_id', user.id)
+      supabase.from('user_roles').select('*').eq('user_id', user.id),
+      supabase.from('agent_skills').select('*').eq('user_id', user.id)
     ])
 
     if (llmConfigsResult.error) {
@@ -662,6 +695,9 @@ export class DataSyncService {
     }
     if (userRolesResult.error) {
       throw new Error(`拉取用户角色失败: ${userRolesResult.error.message}`)
+    }
+    if (agentSkillsResult.error) {
+      throw new Error(`拉取 Agent Skills 失败: ${agentSkillsResult.error.message}`)
     }
     // 语音设置可能不存在，不抛出错误
     // 通用设置可能不存在，不抛出错误
@@ -734,6 +770,17 @@ export class DataSyncService {
       updatedAt: item.updated_at
     }))
 
+    const agentSkills = (agentSkillsResult.data || []).map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description || '',
+      content: item.content,
+      files: item.files || [], // 拉取文件列表
+      enabled: item.enabled,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at
+    }))
+
     // 将通用设置数据库格式转换回前端格式
     let generalSettings = null
     if (generalSettingsResult.data) {
@@ -755,7 +802,8 @@ export class DataSyncService {
       globalPrompts,
       voiceSettings,
       generalSettings,
-      userRoles
+      userRoles,
+      agentSkills
     }
   }
 

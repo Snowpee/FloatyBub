@@ -4,7 +4,8 @@ import {
   Plus,
   X,
   GripVertical,
-  Check
+  Check,
+  Zap
 } from 'lucide-react';
 import { InputProvider } from '@/components/InputProvider';
 import { useAppStore, AIRole } from '@/store';
@@ -25,6 +26,7 @@ export interface RoleFormData {
   avatar: string;
   globalPromptId: string;
   globalPromptIds: string[];
+  skillIds: string[];
   voiceModelId: string;
   knowledgeBaseId: string;
 }
@@ -44,7 +46,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
   initialRole,
   knowledgeBases
 }) => {
-  const { globalPrompts, voiceSettings } = useAppStore();
+  const { globalPrompts, voiceSettings, agentSkills } = useAppStore();
   const [isEditLoading, setIsEditLoading] = useState(false);
   
   // 简单的桌面端检测逻辑
@@ -71,6 +73,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
     avatar: '',
     globalPromptId: '',
     globalPromptIds: [],
+    skillIds: [],
     voiceModelId: '',
     knowledgeBaseId: ''
   });
@@ -91,6 +94,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
           avatar: initialRole.avatar,
           globalPromptId: initialRole.globalPromptId || '',
           globalPromptIds: globalPromptIds,
+          skillIds: initialRole.skillIds || [],
           voiceModelId: initialRole.voiceModelId || '',
           knowledgeBaseId: '' // 将异步获取
         });
@@ -122,6 +126,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
           avatar: generateRandomLocalAvatar(),
           globalPromptId: '',
           globalPromptIds: [],
+          skillIds: [],
           voiceModelId: '',
           knowledgeBaseId: ''
         });
@@ -148,7 +153,8 @@ const RolesModal: React.FC<RolesModalProps> = ({
       currentOpeningIndex: Math.min(formData.currentOpeningIndex, filteredOpeningMessages.length - 1),
       // 向后兼容：如果有globalPromptIds，设置第一个为globalPromptId
       globalPromptId: formData.globalPromptIds.length > 0 ? formData.globalPromptIds[0] : '',
-      globalPromptIds: formData.globalPromptIds
+      globalPromptIds: formData.globalPromptIds,
+      skillIds: formData.skillIds
     };
 
     await onConfirm(roleData);
@@ -373,6 +379,114 @@ const RolesModal: React.FC<RolesModalProps> = ({
         </fieldset>
         <p className="label text-base-content/60 text-sm ml-[calc(1rem+1px)]">
           可添加多个全局提示词，它们将按顺序应用到对话中。
+        </p>
+      </div>
+
+      {/* 技能配置 */}
+      <div>
+        <div className="pl-[calc(1rem+1px)] pb-1 text-sm font-bold text-base-content/50">Agent Skills</div>
+        <fieldset className="bub-fieldset">
+          
+          {/* 已选择的技能列表 */}
+          {formData.skillIds.length > 0 && (
+            <div className="space-y-0 divide-y divide-base-300">
+              {formData.skillIds.map((skillId, index) => {
+                const skill = agentSkills.find(s => s.id === skillId);
+                return (
+                  <div 
+                    key={skillId} 
+                    className="flex items-center justify-between bg-base-100 p-0 h-12 cursor-move transition-colors"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', index.toString());
+                      e.dataTransfer.setData('type', 'skill');
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (e.dataTransfer.getData('type') !== 'skill') return;
+                      const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                      const hoverIndex = index;      
+                      if (dragIndex !== hoverIndex) {
+                        setFormData(prev => {
+                          const newSkillIds = [...prev.skillIds];
+                          const draggedItem = newSkillIds[dragIndex];
+                          newSkillIds.splice(dragIndex, 1);
+                          newSkillIds.splice(hoverIndex, 0, draggedItem);
+                          return {
+                            ...prev,
+                            skillIds: newSkillIds
+                          };
+                        });
+                      }
+                    }}
+                  >
+                    <div className="flex items-center text-base-content/40 mr-2">
+                      <GripVertical className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm text-base-content flex items-center gap-2">
+                        <Zap className="h-3 w-3 text-primary" />
+                        {skill?.name || '未知技能'}
+                      </h4>
+                      {skill?.description && (
+                        <p className="text-sm text-base-content/60 mt-0.5 truncate max-w-[200px]">{skill.description}</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          skillIds: prev.skillIds.filter(id => id !== skillId)
+                        }));
+                      }}
+                      className="btn btn-circle btn-xs hover:bg-error/10"
+                      title="移除此技能"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          
+          {/* 添加技能下拉选择器 */}
+          <div className="space-y-1">
+            <label className="bub-select bub-select-l w-full">
+              <select
+                value=""
+                className='text-left'
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  if (selectedId && !formData.skillIds.includes(selectedId)) {
+                    setFormData(prev => ({
+                      ...prev,
+                      skillIds: [...prev.skillIds, selectedId]
+                    }));
+                  }
+                  e.target.value = '';
+                }}
+              >
+                <option value="">添加技能...</option>
+                {agentSkills
+                  .filter(skill => !formData.skillIds.includes(skill.id))
+                  .map((skill) => (
+                    <option key={skill.id} value={skill.id}>
+                      {skill.name}
+                    </option>
+                  ))
+                }
+              </select>
+            </label>          
+          </div>
+
+        </fieldset>
+        <p className="label text-base-content/60 text-sm ml-[calc(1rem+1px)]">
+          为角色配备特定技能，这些技能将作为上下文提供给 AI。
         </p>
       </div>
 

@@ -34,7 +34,8 @@ const fetchWithApikey: typeof fetch = async (input, init) => {
   const isRetryableStatus = (status: number) => status === 429 || status === 502 || status === 503 || status === 504
   const isRetryableFetchError = (err: unknown) => {
     if (err instanceof DOMException) {
-      return err.name === 'AbortError'
+      // 如果是 AbortError，通常是用户取消或超时，不应重试
+      return err.name !== 'AbortError'
     }
     if (err instanceof TypeError) return true
     const message = err instanceof Error ? err.message : String(err)

@@ -207,12 +207,12 @@ const HistoryContent: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
   };
 
   const getRoleName = (roleId: string) => {
-    const role = aiRoles.find(r => r.id === roleId) || aiRoles[0];
+    const role = aiRoles.find(r => r.id === roleId);
     return role?.name || '未知角色';
   };
 
   const getRole = (roleId: string) => {
-    return aiRoles.find(r => r.id === roleId) || aiRoles[0];
+    return aiRoles.find(r => r.id === roleId);
   };
 
   const getModelName = (modelId: string) => {

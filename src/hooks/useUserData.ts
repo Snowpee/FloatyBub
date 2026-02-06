@@ -259,7 +259,10 @@ export const useUserData = () => {
         const newSessionId = convertToUUID(session.id);
         const updatedMessages = session.messages.map(message => ({
            ...message, 
-           id: convertToUUID(message.id)
+           id: convertToUUID(message.id),
+           // 确保versions字段包含当前内容，防止数据丢失
+           versions: message.versions && message.versions.length > 0 ? message.versions : [message.content],
+           currentVersionIndex: message.currentVersionIndex !== undefined ? message.currentVersionIndex : 0
         }));
         return { ...session, id: newSessionId, messages: updatedMessages };
       });
@@ -668,9 +671,39 @@ export const useUserData = () => {
       if (debouncedSyncFromCloud.current) {
         clearTimeout(debouncedSyncFromCloud.current);
       }
+      
+      // 登录后的首次同步：采用 串行合并 策略
+      // 1. 先尝试将本地数据上传到云端 (syncToCloud)
+      // 2. 然后从云端拉取最新数据并合并 (syncFromCloud)
+      // 这样可以最大程度避免本地数据被云端旧数据覆盖（虽然 syncFromCloud 有合并逻辑，但串行更安全）
+      const performLoginSync = async () => {
+        if (!navigator.onLine) return;
+        
+        console.log('🚀 [LoginSync] 开始登录后合并同步序列...');
+        
+        // 1. 上传本地数据
+        try {
+          console.log('🚀 [LoginSync] 步骤1: 上传本地数据...');
+          await syncToCloud();
+        } catch (e) {
+          console.warn('⚠️ [LoginSync] 上传本地数据部分失败，继续尝试拉取...', e);
+        }
+        
+        // 2. 拉取云端数据
+        try {
+          console.log('🚀 [LoginSync] 步骤2: 拉取并合并云端数据...');
+          await syncFromCloud();
+        } catch (e) {
+          console.error('❌ [LoginSync] 拉取云端数据失败', e);
+        }
+        
+        console.log('✅ [LoginSync] 登录同步序列完成');
+      };
+
+      // 延迟一点执行，确保 Auth 状态完全稳定
       debouncedSyncFromCloud.current = setTimeout(() => {
-        triggerCloudPull(true);
-      }, 3000);
+        performLoginSync();
+      }, 1000);
     }
 
     if (periodicCloudSyncRef.current) {
