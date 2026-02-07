@@ -1,7 +1,7 @@
 {
-  "name": "tts-server",
+  "name": "local-server",
   "version": "1.0.0",
-  "description": "Fish Audio TTS 代理服务",
+  "description": "Local proxy server for Floaty Bub (TTS, web search, etc.)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -17,7 +17,7 @@
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
-  "keywords": ["tts", "fish-audio", "text-to-speech"],
+  "keywords": ["proxy", "tts", "search", "fish-audio"],
   "author": "",
   "license": "MIT"
 }

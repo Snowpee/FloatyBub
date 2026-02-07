@@ -866,7 +866,7 @@ const VoiceTest: React.FC = () => {
             
             {serverStatus !== 'online' && (
               <div className="alert alert-warning mt-4">
-                <span>请先启动后端服务: cd tts-server && npm run dev</span>
+                <span>请先启动后端服务: cd local-server && npm run dev</span>
               </div>
             )}
             
@@ -933,7 +933,7 @@ const VoiceTest: React.FC = () => {
             <h2 className="card-title mb-4">📖 使用说明</h2>
             <div className="prose max-w-none">
               <ol className="list-decimal list-inside space-y-2 text-sm">
-                <li>确保后端服务已启动: <code className="bg-base-300 px-2 py-1 rounded">cd tts-server && npm run dev</code></li>
+                <li>确保后端服务已启动: <code className="bg-base-300 px-2 py-1 rounded">cd local-server && npm run dev</code></li>
                 <li>输入你的 Fish Audio API 密钥（将保存在本地浏览器中）</li>
                 <li>管理语音模型：可以添加新的音色模型或使用预设模型</li>
                 <li>输入要转换的文本内容</li>

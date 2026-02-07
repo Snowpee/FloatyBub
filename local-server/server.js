@@ -20,7 +20,7 @@ const FISH_AUDIO_MODEL_URL = 'https://api.fish.audio';
 const SUPPORTED_MODELS = ['speech-1.5', 'speech-1.6', 's1'];
 const DEFAULT_MODEL = 'speech-1.6';
 
-console.log('TTS 服务启动，Fish Audio API Key 将由前端提供');
+console.log('本地代理服务启动，Fish Audio API Key 将由前端提供');
 
 // API 密钥验证中间件
 const apiKeyAuth = (req, res, next) => {
@@ -616,7 +616,7 @@ app.get('/api/model-info/:modelId', apiKeyAuth, async (req, res) => {
 
 // 启动服务器
 app.listen(PORT, () => {
-  console.log(`🎵 TTS 服务器运行在 http://localhost:${PORT}`);
+  console.log(`🚀 本地代理服务运行在 http://localhost:${PORT}`);
   console.log(`📋 健康检查: http://localhost:${PORT}/api/health`);
   console.log(`🔑 Fish Audio API Key 由前端提供`);
 });

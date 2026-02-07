@@ -1,6 +1,6 @@
-# Fish Audio TTS 代理服务
+# 本地代理服务 (Local Proxy Server)
 
-这是一个基于 Node.js Express 的代理服务，用于安全地调用 Fish Audio 的文本转语音 API。
+这是一个基于 Node.js Express 的代理服务，用于在本地安全地提供 TTS、联网搜索等接口能力。
 
 ## 功能特性
 
@@ -17,7 +17,7 @@
 ### 1. 安装依赖
 
 ```bash
-cd tts-server
+cd local-server
 npm install
 ```
 
