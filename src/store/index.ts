@@ -180,6 +180,8 @@ export interface ChatSession {
   isPinned?: boolean; // 是否置顶
   pendingUpload?: boolean;
   lastSyncedAt?: Date;
+  activeSkillIds?: string[]; // 当前会话激活的技能ID列表
+  loadedSkillFiles?: string[]; // 技能加载的文件列表
 }
 
 // 语音设置接口
@@ -1067,7 +1069,9 @@ export const useAppStore = create<AppState>()(
           messages: [],
           createdAt: new Date(),
           updatedAt: new Date(),
-          pendingUpload: true
+          pendingUpload: true,
+          activeSkillIds: [],
+          loadedSkillFiles: []
         };
         
         set((state) => ({
@@ -1091,7 +1095,9 @@ export const useAppStore = create<AppState>()(
           messages: [],
           createdAt: new Date(),
           updatedAt: new Date(),
-          pendingUpload: true
+          pendingUpload: true,
+          activeSkillIds: [],
+          loadedSkillFiles: []
         };
         
         console.warn('TEMP_SESSION_CREATED', { sessionId, roleId, modelId, at: new Date().toISOString() });
@@ -2373,7 +2379,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'ai-chat-storage',
-      version: 10, // 版本10：新增 agentSkills
+      version: 11, // 版本11：新增 ChatSession 的 activeSkillIds 和 loadedSkillFiles
       onRehydrateStorage: () => {
         console.log('🔄 zustand 开始恢复存储数据');
         return (state, error) => {
@@ -2585,6 +2591,15 @@ export const useAppStore = create<AppState>()(
           persistedState.agentSkills = [];
         }
       }
+
+      // 版本11迁移：为 ChatSession 新增 activeSkillIds 和 loadedSkillFiles
+       if (version < 11 && persistedState?.chatSessions) {
+         persistedState.chatSessions = persistedState.chatSessions.map((session: any) => ({
+           ...session,
+           activeSkillIds: session.activeSkillIds || [],
+           loadedSkillFiles: session.loadedSkillFiles || []
+         }));
+       }
 
       return persistedState;
       },

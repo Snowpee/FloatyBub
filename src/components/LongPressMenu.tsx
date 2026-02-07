@@ -91,7 +91,6 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
       document.removeEventListener('touchcancel', docTouchEndHandlerRef.current as EventListener)
       docTouchEndHandlerRef.current = null
     }
-    console.warn('[LongPressMenu] clearTimer', { reason, ts: Date.now() })
   }
 
   // ... (computePosition 保持不变) ...
@@ -162,8 +161,6 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
       // 重置 Timer 引用，避免后续 clearTimer 误删（虽然逻辑上已经不需要了）
       openDelayTimerRef.current = null 
       longPressTriggeredRef.current = false // 重置状态
-
-      console.warn('[LongPressMenu] openMenu executed', { ts: Date.now() })
     }, Math.max(0, openDelay))
   }
 
@@ -179,8 +176,6 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
       setOpen(false)
       setFloatVisible(false)
     }, 160)
-    
-    console.warn('[LongPressMenu] closeMenu', { ts: Date.now() })
   }
 
   useEffect(() => {
@@ -287,8 +282,6 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
     guardTimerRef.current = window.setTimeout(() => {
       if (guardOkRef.current) {
         timerRef.current = window.setTimeout(() => { 
-          console.warn('[LongPressMenu] longpress timer fired'); 
-          
           // 🔥🔥 1. 立刻震动，反馈成功
           if (enableHaptics && isCapacitorIOS()) {
             try { Haptics.impact({ style: ImpactStyle.Light }) } catch {}
@@ -357,7 +350,6 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
   const onTouchEnd = () => { 
     // 🔥🔥 核心修复：如果长按已经触发成功（正在等待 delay），不要清除定时器！
     if (longPressTriggeredRef.current) {
-      console.warn('[LongPressMenu] touchEnd ignored because longpress triggered')
       return
     }
     clearTimer('component touchend') 

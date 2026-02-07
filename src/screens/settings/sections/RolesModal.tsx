@@ -36,6 +36,7 @@ interface RolesModalProps {
   onClose: () => void;
   onConfirm: (data: RoleFormData) => Promise<void>;
   initialRole: AIRole | null;
+  initialKnowledgeBaseId: string | null;
   knowledgeBases: KnowledgeBase[];
 }
 
@@ -44,6 +45,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
   onClose,
   onConfirm,
   initialRole,
+  initialKnowledgeBaseId,
   knowledgeBases
 }) => {
   const { globalPrompts, voiceSettings, agentSkills } = useAppStore();
@@ -96,25 +98,9 @@ const RolesModal: React.FC<RolesModalProps> = ({
           globalPromptIds: globalPromptIds,
           skillIds: initialRole.skillIds || [],
           voiceModelId: initialRole.voiceModelId || '',
-          knowledgeBaseId: '' // 将异步获取
+          knowledgeBaseId: initialKnowledgeBaseId || ''
         });
-        
-        // 异步获取知识库关联
-        const loadKnowledgeBaseId = async () => {
-          setIsEditLoading(true);
-          try {
-            const kbId = await KnowledgeService.getRoleKnowledgeBaseId(initialRole.id);
-            setFormData(prev => ({
-              ...prev,
-              knowledgeBaseId: kbId || ''
-            }));
-          } catch (error) {
-            console.error('获取角色知识库关联失败:', error);
-          } finally {
-            setIsEditLoading(false);
-          }
-        };
-        loadKnowledgeBaseId();
+        setIsEditLoading(false);
       } else {
         // 创建模式
         setFormData({
@@ -133,7 +119,8 @@ const RolesModal: React.FC<RolesModalProps> = ({
         setIsEditLoading(false);
       }
     }
-  }, [isOpen, initialRole]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialRole?.id, initialKnowledgeBaseId]);
 
   const handleSave = async () => {
     if (!formData.name?.trim()) {

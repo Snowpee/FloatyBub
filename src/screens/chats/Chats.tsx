@@ -81,6 +81,7 @@ const Chats: React.FC = () => {
     setCurrentSession,
     createChatSession,
     createTempSession,
+    updateChatSession,
     deleteTempSession,
     addMessage,
     updateMessage,
@@ -137,6 +138,33 @@ const Chats: React.FC = () => {
 
   // 临时会话和正式会话使用相同的角色获取逻辑
   const isTemporarySession = tempSessionId === currentSession?.id;
+
+  // 恢复 Skill 状态
+  useEffect(() => {
+    if (currentSession?.id) {
+      const { id, activeSkillIds, loadedSkillFiles } = currentSession;
+      const loadedPaths = loadedSkillFiles || [];
+      const current = skillLoadStateRef.current.get(id);
+      
+      // 如果本地没有状态，或者状态不一致，则从 Store 恢复
+      // 注意：这里我们信任 Store 为最新状态，因为每次更新都会同步回 Store
+      if (!current || 
+          JSON.stringify(current.activeSkillIds) !== JSON.stringify(activeSkillIds || []) ||
+          JSON.stringify(current.loadedPaths) !== JSON.stringify(loadedPaths)) {
+        
+        console.log('🔄 [SkillLoad] Hydrating skill state from session store', { 
+          sessionId: id, 
+          activeSkillIds, 
+          loadedPaths 
+        });
+        
+        skillLoadStateRef.current.set(id, { 
+          activeSkillIds: activeSkillIds || [], 
+          loadedPaths: loadedPaths
+        });
+      }
+    }
+  }, [currentSession]);
   
   // 使用 useMemo 优化角色获取逻辑，避免频繁重新计算
   const currentRole = useMemo(() => {
@@ -733,13 +761,38 @@ ${skill.content}
     }));
 
     const systemPrompt = [
-      '你是一个“Skill 路由器”。你的任务是判断是否需要调用 Skill，并选择最合适的 Skill。',
-      '请仅输出严格 JSON：{"skill_ids":[<string>...],"confidence":<0-1>}。',
-      'skill_ids 必须来自提供的 manifest.id 列表中；最多返回 2 个；不需要使用技能则返回空数组。',
-      '不要输出除 JSON 以外的任何文本。'
+      '你是一个“Skill 路由器”。你的任务是：基于用户最新消息 + 最近对话上下文 + 当前已激活技能，判断本轮是否需要调用 Skill，并选择最合适的 Skill。',
+      '请仅输出严格 JSON：{"skill_ids":[<string>...],"confidence":<0-1>}，不要输出任何其它文本。',
+      'skill_ids 必须来自 skills[].id（manifest）列表；最多返回 2 个；不需要技能则返回空数组。',
+      '当用户的请求显然属于某个 Skill 的范围时，应选择该 Skill；当用户在延续上一轮同一任务（最近对话/active_skills 提示）时，优先保持一致，不要轻易返回空数组。',
+      '只有在“非常确定不需要任何 Skill”时才返回空数组，并把 confidence 设为低于 0.4；若不确定，宁可返回最可能的 1 个 Skill。',
+      '若用户明确表达“不要用/停止/取消 Skill 或换话题”，则返回空数组。'
     ].join('\n');
 
-    const userPrompt = JSON.stringify({ user_message: text, skills: manifest });
+    const normalizeForRouting = (s: any) => String(s || '').replace(/\s+/g, ' ').trim();
+    const MAX_RECENT_MESSAGES = 6;
+    const MAX_MESSAGE_CHARS = 240;
+    const recentMessages = (currentSession?.messages || [])
+      .filter(m => m && (m.role === 'user' || m.role === 'assistant'))
+      .slice(-MAX_RECENT_MESSAGES)
+      .map(m => ({
+        role: m.role,
+        content: normalizeForRouting(m.content).slice(0, MAX_MESSAGE_CHARS)
+      }));
+
+    const prevSkillState = currentSession?.id
+      ? (skillLoadStateRef.current.get(currentSession.id) || { activeSkillIds: [], loadedPaths: [] })
+      : { activeSkillIds: [], loadedPaths: [] };
+    const activeSkills = prevSkillState.activeSkillIds
+      .map(id => manifest.find(s => s.id === id))
+      .filter(Boolean);
+
+    const userPrompt = JSON.stringify({
+      user_message: normalizeForRouting(text),
+      recent_messages: recentMessages,
+      active_skills: activeSkills,
+      skills: manifest
+    });
 
     let apiUrl = '';
     let headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -756,6 +809,16 @@ ${skill.content}
     }
 
     if (!auxModel) return { skillIds: [], confidence: 0 };
+
+    console.log('[SkillRouterDebug] decideSkillsWithLLM request', {
+      roleId: role?.id,
+      roleName: role?.name,
+      roleSkillCount: roleSkillIds.length,
+      enabledSkillCount: enabledSkills.length,
+      model: { id: auxModel.id, provider: auxModel.provider, model: auxModel.model },
+      userMessagePreview: String(text || '').slice(0, 200),
+      manifest
+    });
 
     switch (auxModel.provider) {
       case 'claude': {
@@ -843,8 +906,17 @@ ${skill.content}
       const allow = new Set(manifest.map(m => m.id));
       const skillIds = rawIds.filter(id => allow.has(id)).slice(0, 2);
       const confidence = typeof parsed?.confidence === 'number' ? parsed.confidence : (skillIds.length ? 0.7 : 0.3);
+      console.log('[SkillRouterDebug] decideSkillsWithLLM response', {
+        model: { id: auxModel.id, provider: auxModel.provider, model: auxModel.model },
+        rawTextPreview: String(textOut || '').slice(0, 500),
+        jsonCandidatePreview: String(candidate || '').slice(0, 500),
+        parsed,
+        filteredSkillIds: skillIds,
+        confidence
+      });
       return { skillIds, confidence };
-    } catch {
+    } catch (error) {
+      console.warn('[SkillRouterDebug] decideSkillsWithLLM failed', error);
       return { skillIds: [], confidence: 0 };
     }
   };
@@ -862,8 +934,12 @@ ${skill.content}
       ? requested.map(id => enabledSkills.find((s: any) => s.id === id)).filter(Boolean)
       : enabledSkills;
 
+    const normalizeSkillPath = (p: any) => String(p || '').trim().replace(/^(\.\/|\/)+/, '');
+
     const manifest = usedSkills.map((skill: any) => {
-      const filePaths = Array.isArray(skill.files) ? skill.files.map((f: any) => f.path).filter((p: any) => typeof p === 'string') : [];
+      const filePaths = Array.isArray(skill.files)
+        ? skill.files.map((f: any) => normalizeSkillPath(f?.path)).filter((p: any) => typeof p === 'string' && p)
+        : [];
       return {
         name: skill.name,
         description: skill.description || '',
@@ -902,6 +978,18 @@ ${skill.content}
     }
 
     if (!auxModel) return { paths: [], confidence: 0 };
+
+    console.log('[SkillRouterDebug] decideSkillFilesWithLLM request', {
+      roleId: role?.id,
+      roleName: role?.name,
+      selectedSkillIds: requested,
+      enabledSkillCount: enabledSkills.length,
+      usedSkillCount: usedSkills.length,
+      alreadyLoaded: normalizedLoaded,
+      model: { id: auxModel.id, provider: auxModel.provider, model: auxModel.model },
+      userMessagePreview: String(text || '').slice(0, 200),
+      manifest: manifest.map(m => ({ name: m.name, fileCount: Array.isArray(m.files) ? m.files.length : 0, files: (m.files || []).slice(0, 10) }))
+    });
 
     switch (auxModel.provider) {
       case 'claude': {
@@ -990,8 +1078,17 @@ ${skill.content}
         ? parsed.paths.filter((p: any) => typeof p === 'string').map((p: string) => p.replace(/^(\.\/|\/)/, '')).filter((p: string) => p && !loadedSet.has(p))
         : [];
       const confidence = typeof parsed?.confidence === 'number' ? parsed.confidence : (paths.length ? 0.7 : 0.3);
+      console.log('[SkillRouterDebug] decideSkillFilesWithLLM response', {
+        model: { id: auxModel.id, provider: auxModel.provider, model: auxModel.model },
+        rawTextPreview: String(textOut || '').slice(0, 500),
+        jsonCandidatePreview: String(candidate || '').slice(0, 500),
+        parsed,
+        filteredPaths: paths,
+        confidence
+      });
       return { paths, confidence };
-    } catch {
+    } catch (error) {
+      console.warn('[SkillRouterDebug] decideSkillFilesWithLLM failed', error);
       return { paths: [], confidence: 0 };
     }
   };
@@ -1023,6 +1120,9 @@ ${skill.content}
         const path = String(found.path || req);
         let content = String(found.content || '');
         const originalLength = content.length;
+        if (!originalLength) {
+          console.warn('[SkillLoad] file content empty', { path });
+        }
         if (content.length > MAX_FILE_CHARS) {
           content = content.slice(0, MAX_FILE_CHARS) + '\n\n[TRUNCATED]';
         }
@@ -1355,6 +1455,7 @@ ${skill.content}
       } else {
         console.info('[SkillLoad] no skill selected', { confidence: skillDecision.confidence });
       }
+
       const prevSkillState = skillLoadStateRef.current.get(sessionId) || { activeSkillIds: [], loadedPaths: [] };
       const newlyActivatedSkillIds = skillDecision.skillIds.filter(id => !prevSkillState.activeSkillIds.includes(id));
       const hasRemovedSkills = prevSkillState.activeSkillIds.some(id => !skillDecision.skillIds.includes(id));
@@ -1366,12 +1467,16 @@ ${skill.content}
         if (prevSkillState.activeSkillIds.length > 0 || prevSkillState.loadedPaths.length > 0) {
           console.info('[SkillLoad] reset skill context');
         }
-        skillLoadStateRef.current.set(sessionId, { activeSkillIds: [], loadedPaths: [] });
+        const newState = { activeSkillIds: [], loadedPaths: [] };
+        skillLoadStateRef.current.set(sessionId, newState);
+        updateChatSession(sessionId, { activeSkillIds: newState.activeSkillIds, loadedSkillFiles: newState.loadedPaths });
       } else {
         if (skillsChanged && prevSkillState.loadedPaths.length > 0) {
           console.info('[SkillLoad] skill set changed, cleared loaded files cache', { prevSkillIds: prevSkillState.activeSkillIds, nextSkillIds: skillDecision.skillIds });
         }
-        skillLoadStateRef.current.set(sessionId, { activeSkillIds: [...skillDecision.skillIds], loadedPaths });
+        const newState = { activeSkillIds: [...skillDecision.skillIds], loadedPaths };
+        skillLoadStateRef.current.set(sessionId, newState);
+        updateChatSession(sessionId, { activeSkillIds: newState.activeSkillIds, loadedSkillFiles: newState.loadedPaths });
 
         if (newlyActivatedSkillIds.length > 0) {
           const names = newlyActivatedSkillIds.map(id => agentSkills.find((s: any) => s.id === id)?.name || id);
@@ -1386,7 +1491,9 @@ ${skill.content}
 
           if (newPaths.length > 0) {
             loadedPaths = [...loadedPaths, ...newPaths];
-            skillLoadStateRef.current.set(sessionId, { activeSkillIds: [...skillDecision.skillIds], loadedPaths });
+            const newState = { activeSkillIds: [...skillDecision.skillIds], loadedPaths };
+            skillLoadStateRef.current.set(sessionId, newState);
+            updateChatSession(sessionId, { activeSkillIds: newState.activeSkillIds, loadedSkillFiles: newState.loadedPaths });
             console.info('[SkillLoad] loaded new files', { paths: newPaths });
           } else {
             console.info('[SkillLoad] no new files to load');
@@ -1946,6 +2053,7 @@ ${skill.content}
       } else {
         console.info('[SkillLoad] no skill selected (regenerate)', { confidence: skillDecision.confidence });
       }
+
       const prevSkillState = skillLoadStateRef.current.get(currentSession.id) || { activeSkillIds: [], loadedPaths: [] };
       const newlyActivatedSkillIds = skillDecision.skillIds.filter(id => !prevSkillState.activeSkillIds.includes(id));
       const hasRemovedSkills = prevSkillState.activeSkillIds.some(id => !skillDecision.skillIds.includes(id));
@@ -1957,12 +2065,16 @@ ${skill.content}
         if (prevSkillState.activeSkillIds.length > 0 || prevSkillState.loadedPaths.length > 0) {
           console.info('[SkillLoad] reset skill context (regenerate)');
         }
-        skillLoadStateRef.current.set(currentSession.id, { activeSkillIds: [], loadedPaths: [] });
+        const newState = { activeSkillIds: [], loadedPaths: [] };
+        skillLoadStateRef.current.set(currentSession.id, newState);
+        updateChatSession(currentSession.id, { activeSkillIds: newState.activeSkillIds, loadedSkillFiles: newState.loadedPaths });
       } else {
         if (skillsChanged && prevSkillState.loadedPaths.length > 0) {
           console.info('[SkillLoad] skill set changed, cleared loaded files cache (regenerate)', { prevSkillIds: prevSkillState.activeSkillIds, nextSkillIds: skillDecision.skillIds });
         }
-        skillLoadStateRef.current.set(currentSession.id, { activeSkillIds: [...skillDecision.skillIds], loadedPaths });
+        const newState = { activeSkillIds: [...skillDecision.skillIds], loadedPaths };
+        skillLoadStateRef.current.set(currentSession.id, newState);
+        updateChatSession(currentSession.id, { activeSkillIds: newState.activeSkillIds, loadedSkillFiles: newState.loadedPaths });
 
         if (newlyActivatedSkillIds.length > 0) {
           const names = newlyActivatedSkillIds.map(id => agentSkills.find((s: any) => s.id === id)?.name || id);
@@ -1977,7 +2089,9 @@ ${skill.content}
 
           if (newPaths.length > 0) {
             loadedPaths = [...loadedPaths, ...newPaths];
-            skillLoadStateRef.current.set(currentSession.id, { activeSkillIds: [...skillDecision.skillIds], loadedPaths });
+            const newState = { activeSkillIds: [...skillDecision.skillIds], loadedPaths };
+            skillLoadStateRef.current.set(currentSession.id, newState);
+            updateChatSession(currentSession.id, { activeSkillIds: newState.activeSkillIds, loadedSkillFiles: newState.loadedPaths });
             console.info('[SkillLoad] loaded new files (regenerate)', { paths: newPaths });
           } else {
             console.info('[SkillLoad] no new files to load (regenerate)');

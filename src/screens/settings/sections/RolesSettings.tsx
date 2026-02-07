@@ -29,6 +29,7 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingKnowledgeBaseId, setEditingKnowledgeBaseId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     roleId: string;
@@ -56,13 +57,21 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
     loadKnowledgeBases();
   }, []);
 
-  const handleEdit = (role: AIRole) => {
+  const handleEdit = async (role: AIRole) => {
+    try {
+      const kbId = await KnowledgeService.getRoleKnowledgeBaseId(role.id);
+      setEditingKnowledgeBaseId(kbId);
+    } catch (error) {
+      console.error('加载角色知识库关联失败:', error);
+      setEditingKnowledgeBaseId(null);
+    }
     setEditingId(role.id);
     setIsEditing(true);
   };
 
   const handleAdd = () => {
     setEditingId(null);
+    setEditingKnowledgeBaseId(null);
     setIsEditing(true);
   };
 
@@ -235,6 +244,7 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
         onClose={closeEditModal}
         onConfirm={handleSave}
         initialRole={editingRole}
+        initialKnowledgeBaseId={editingKnowledgeBaseId}
         knowledgeBases={knowledgeBases}
       />
 

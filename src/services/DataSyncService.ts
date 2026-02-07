@@ -374,6 +374,7 @@ export class DataSyncService {
       prompt: data.systemPrompt,
       is_favorite: data.isFavorite || false, // 添加收藏字段
       global_prompt_ids: data.globalPromptIds || [], // 新的多个提示词ID数组
+      skill_ids: data.skillIds || [], // 同步关联的 Skill ID 数组
       settings: {
         description: data.description,
         openingMessages: data.openingMessages,
@@ -730,6 +731,7 @@ export class DataSyncService {
       currentOpeningIndex: item.settings?.currentOpeningIndex || 0,
       globalPromptId: item.settings?.globalPromptId || '', // 保持向后兼容
       globalPromptIds: item.global_prompt_ids || item.settings?.globalPromptIds || [], // 新的多个提示词ID数组
+      skillIds: item.skill_ids || [], // 同步关联的 Skill ID 数组
       voiceModelId: item.settings?.voiceModelId || '',
       createdAt: item.created_at,
       updatedAt: item.updated_at

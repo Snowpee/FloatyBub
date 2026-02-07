@@ -127,7 +127,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'debug/role-modal',
-        element: <RoleModal isOpen={true} onClose={() => {}} onConfirm={async () => {}} initialRole={undefined} knowledgeBases={[]} />
+        element: <RoleModal isOpen={true} onClose={() => {}} onConfirm={async () => {}} initialRole={undefined} knowledgeBases={[]} initialKnowledgeBaseId={null} />
       },
       {
         path: 'debug/config-modal',
