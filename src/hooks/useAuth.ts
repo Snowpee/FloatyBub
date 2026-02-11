@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { useAppStore } from '@/store'
 import { useDataSync } from './useDataSync'
 import { dataSyncService } from '@/services/DataSyncService'
+import { KnowledgeService } from '@/services/knowledgeService'
+import { useKnowledgeStore } from '@/store/knowledgeStore'
 
 const console: Console = { ...globalThis.console, log: () => {} }
 
@@ -144,6 +146,7 @@ export function useAuth(): AuthState & AuthActions {
           ...currentState,
           ...(cloudData.llmConfigs && { llmConfigs: cloudData.llmConfigs }),
           aiRoles: mergedAiRoles,
+          ...(cloudData.agentSkills && { agentSkills: cloudData.agentSkills }),
           ...(cloudData.globalPrompts && { globalPrompts: cloudData.globalPrompts }),
           ...(cloudData.voiceSettings && { voiceSettings: cloudData.voiceSettings }),
           ...(cloudData.userRoles && { userRoles: cloudData.userRoles }),
@@ -151,9 +154,45 @@ export function useAuth(): AuthState & AuthActions {
           ...(gs && (gs.assistantConfig || gs.autoTitleConfig) ? { assistantConfig: gs.assistantConfig || gs.autoTitleConfig } : {}),
           ...(gs && (gs.autoTitleConfig || gs.assistantConfig) ? { autoTitleConfig: gs.autoTitleConfig || gs.assistantConfig } : {}),
           ...(gs && gs.searchConfig ? { searchConfig: gs.searchConfig } : {}),
-          ...(gs && gs.chatStyle ? { chatStyle: gs.chatStyle as 'conversation' | 'document' } : {})
+          ...(gs && gs.chatStyle ? { chatStyle: gs.chatStyle as 'conversation' | 'document' } : {}),
+          ...(gs && gs.defaultRoleId ? { defaultRoleId: gs.defaultRoleId } : {})
         })
         
+        // 知识库同步
+        if (cloudData.knowledgeBases && cloudData.knowledgeEntries) {
+          console.log('📚 [useAuth] 同步 Knowledge Base 数据...')
+          await KnowledgeService.overwriteLocalData(cloudData.knowledgeBases, cloudData.knowledgeEntries)
+          
+          // 智能更新 Store，避免清空当前查看的条目
+          const currentStore = useKnowledgeStore.getState();
+          const sortedBases = [...cloudData.knowledgeBases].sort((a: any, b: any) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+
+          const updatePayload: any = { 
+            knowledgeBases: sortedBases,
+            allKnowledgeEntries: cloudData.knowledgeEntries, // 更新全量缓存
+            loading: false,
+            error: null
+          };
+
+          // 如果当前正在查看某个知识库，尝试从新数据中恢复视图，而不是清空
+          if (currentStore.entriesKnowledgeBaseId) {
+             const currentEntries = cloudData.knowledgeEntries.filter((e: any) => e.knowledge_base_id === currentStore.entriesKnowledgeBaseId);
+             // 按 updated_at 倒序
+             updatePayload.knowledgeEntries = currentEntries.sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+             // 保持当前的 ID 不变
+             updatePayload.entriesKnowledgeBaseId = currentStore.entriesKnowledgeBaseId;
+          } else {
+             // 如果没在查看，重置为空
+             updatePayload.knowledgeEntries = [];
+             updatePayload.entriesKnowledgeBaseId = null;
+          }
+
+          useKnowledgeStore.setState(updatePayload)
+          console.log('✅ [useAuth] Knowledge Base 数据同步完成')
+        }
+
         console.log('✅ [useAuth] 云端数据同步成功')
 
         // 在合并 generalSettings 后触发一次全量推送，确保云端数据完整性
@@ -512,6 +551,11 @@ export function useAuth(): AuthState & AuthActions {
           return // 成功后退出重试循环
           
         } catch (err) {
+          if (err instanceof DOMException && err.name === 'AbortError') {
+             console.log('ℹ️ [useAuth] syncUserProfile 请求被中止')
+             return
+          }
+
           const errorLike = err as { message?: string; code?: string; status?: number }
           const message = err instanceof Error ? err.message : errorLike.message || String(err)
           retryCount++

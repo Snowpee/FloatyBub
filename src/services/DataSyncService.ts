@@ -8,7 +8,8 @@ const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} }
 // 同步项目类型
 export interface SyncItem {
   id: string
-  type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile' | 'user_role' | 'agent_skill'
+  type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile' | 'user_role' | 'agent_skill' | 'knowledge_base' | 'knowledge_entry'
+  op?: 'upsert' | 'delete'
   data: any
   timestamp: number
   retries: number
@@ -91,7 +92,10 @@ export class DataSyncService {
       indexedDBStorage.getItem(this.getLastSyncTimeKey(userId))
     ])
 
-    this.syncQueue = this.safeJsonParse<SyncItem[]>(queueRaw, [])
+    this.syncQueue = this.safeJsonParse<SyncItem[]>(queueRaw, []).map(item => ({
+      ...item,
+      op: item.op || 'upsert'
+    }))
     this.lastSyncTime = lastSyncRaw ? Number(lastSyncRaw) : null
     this.currentUserId = userId
   }
@@ -110,9 +114,10 @@ export class DataSyncService {
     if (!this.isOnline) return true
     if (!navigator.onLine) return true
     if (error instanceof TypeError) return true
+    if (error instanceof DOMException && error.name === 'AbortError') return true
     const message = error instanceof Error ? error.message : String(error)
     const m = message.toLowerCase()
-    return m.includes('failed to fetch') || m.includes('network') || m.includes('connection') || m.includes('timeout')
+    return m.includes('failed to fetch') || m.includes('network') || m.includes('connection') || m.includes('timeout') || m.includes('aborted')
   }
 
   // 添加状态监听器
@@ -148,7 +153,7 @@ export class DataSyncService {
   }
 
   // 添加到同步队列
-  async queueSync(type: SyncItem['type'], data: any): Promise<void> {
+  async queueSync(type: SyncItem['type'], data: any, op: SyncItem['op'] = 'upsert'): Promise<void> {
     await this.ensureInitialized()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -160,7 +165,8 @@ export class DataSyncService {
     const item: SyncItem = {
       id: this.generateId(),
       type,
-      data: { ...data, updated_at: new Date().toISOString() },
+      op,
+      data: op === 'delete' ? { ...data } : { ...data, updated_at: new Date().toISOString() },
       timestamp: Date.now(),
       retries: 0
     }
@@ -226,7 +232,28 @@ export class DataSyncService {
       }
     }
 
-    this.syncQueue = remaining
+    // 智能合并：保留新加入的项，更新失败的项，移除成功的项
+    const snapshotIds = new Set(queueSnapshot.map(i => i.id))
+    const remainingMap = new Map(remaining.map(i => [i.id, i]))
+
+    this.syncQueue = this.syncQueue.filter(item => {
+      // 如果该项在快照中存在
+      if (snapshotIds.has(item.id)) {
+        // 且不在剩余列表中（说明成功处理了），则移除
+        if (!remainingMap.has(item.id)) {
+          return false
+        }
+      }
+      // 其他情况保留（包括新加入的项，和需要重试的项）
+      return true
+    }).map(item => {
+      // 如果该项在剩余列表中（说明需要更新状态，如重试次数），使用剩余列表中的版本
+      if (remainingMap.has(item.id)) {
+        return remainingMap.get(item.id)!
+      }
+      return item
+    })
+
     await this.persistQueue()
 
     if (errors.length > 0) {
@@ -243,6 +270,7 @@ export class DataSyncService {
   // 同步到云端
   private async syncToCloud(item: SyncItem): Promise<void> {
     const { type, data } = item
+    const op = item.op || 'upsert'
 
     // 确保用户已登录
     const { data: { user } } = await supabase.auth.getUser()
@@ -277,6 +305,20 @@ export class DataSyncService {
         break
       case 'agent_skill':
         await this.syncAgentSkill(dataWithUserId)
+        break
+      case 'knowledge_base':
+        if (op === 'delete') {
+          await this.deleteKnowledgeBase(data.id)
+        } else {
+          await this.syncKnowledgeBase(dataWithUserId)
+        }
+        break
+      case 'knowledge_entry':
+        if (op === 'delete') {
+          await this.deleteKnowledgeEntry(data.id)
+        } else {
+          await this.syncKnowledgeEntry(dataWithUserId)
+        }
         break
       default:
         throw new Error(`未知的同步类型: ${type}`)
@@ -511,6 +553,9 @@ export class DataSyncService {
       if (data.chatStyle !== undefined) {
         incomingSettings.chatStyle = data.chatStyle
       }
+      if (data.defaultRoleId !== undefined) {
+        incomingSettings.defaultRoleId = data.defaultRoleId
+      }
     }
 
     // 保持双向兼容：若仅存在其中一个配置，自动补齐另一个
@@ -652,6 +697,151 @@ export class DataSyncService {
     console.log('✅ DataSyncService.syncAgentSkill: 同步成功')
   }
 
+  // 同步 Knowledge Base
+  private async syncKnowledgeBase(data: any): Promise<void> {
+    console.log('🔄 DataSyncService.syncKnowledgeBase: 开始同步 Knowledge Base', data)
+
+    const updatedAt = data.updated_at || new Date().toISOString()
+
+    const updatePayload = {
+      name: data.name,
+      description: data.description || '',
+      updated_at: updatedAt
+    }
+
+    const { data: updatedRows, error: updateError } = await supabase
+      .from('knowledge_bases')
+      .update(updatePayload)
+      .eq('id', data.id)
+      .eq('user_id', data.user_id)
+      .select('id')
+
+    if (updateError) {
+      console.error('❌ DataSyncService.syncKnowledgeBase: 更新失败', updateError)
+      throw new Error(`Knowledge Base 同步失败: ${updateError.message}`)
+    }
+
+    if ((updatedRows || []).length > 0) {
+      console.log('✅ DataSyncService.syncKnowledgeBase: 同步成功')
+      return
+    }
+
+    const insertPayload = {
+      id: data.id,
+      user_id: data.user_id,
+      name: data.name,
+      description: data.description || '',
+      created_at: data.created_at || updatedAt,
+      updated_at: updatedAt
+    }
+
+    const { error: insertError } = await supabase
+      .from('knowledge_bases')
+      .insert(insertPayload)
+
+    if (insertError) {
+      console.error('❌ DataSyncService.syncKnowledgeBase: 插入失败', insertError)
+      throw new Error(`Knowledge Base 同步失败: ${insertError.message}`)
+    }
+
+    console.log('✅ DataSyncService.syncKnowledgeBase: 同步成功')
+  }
+
+  // 同步 Knowledge Entry
+  private async syncKnowledgeEntry(data: any): Promise<void> {
+    console.log('🔄 DataSyncService.syncKnowledgeEntry: 开始同步 Knowledge Entry', data)
+
+    const updatedAt = data.updated_at || new Date().toISOString()
+
+    const updatePayload = {
+      knowledge_base_id: data.knowledge_base_id,
+      name: data.name,
+      keywords: data.keywords || [],
+      explanation: data.explanation || '',
+      updated_at: updatedAt
+    }
+
+    const { data: updatedRows, error: updateError } = await supabase
+      .from('knowledge_entries')
+      .update(updatePayload)
+      .eq('id', data.id)
+      .eq('user_id', data.user_id)
+      .select('id')
+
+    if (updateError) {
+      console.error('❌ DataSyncService.syncKnowledgeEntry: 更新失败', updateError)
+      throw new Error(`Knowledge Entry 同步失败: ${updateError.message}`)
+    }
+
+    if ((updatedRows || []).length > 0) {
+      console.log('✅ DataSyncService.syncKnowledgeEntry: 同步成功')
+      return
+    }
+
+    const insertPayload = {
+      id: data.id,
+      user_id: data.user_id,
+      knowledge_base_id: data.knowledge_base_id,
+      name: data.name,
+      keywords: data.keywords || [],
+      explanation: data.explanation || '',
+      created_at: data.created_at || updatedAt,
+      updated_at: updatedAt
+    }
+
+    const { error: insertError } = await supabase
+      .from('knowledge_entries')
+      .insert(insertPayload)
+
+    if (insertError) {
+      console.error('❌ DataSyncService.syncKnowledgeEntry: 插入失败', insertError)
+      throw new Error(`Knowledge Entry 同步失败: ${insertError.message}`)
+    }
+
+    console.log('✅ DataSyncService.syncKnowledgeEntry: 同步成功')
+  }
+
+  // 删除 Knowledge Base
+  private async deleteKnowledgeBase(id: string): Promise<void> {
+    console.log('🗑️ DataSyncService.deleteKnowledgeBase: 开始删除 Knowledge Base', id)
+
+    // 删除关联的 entries
+    const { error: entriesError } = await supabase.from('knowledge_entries').delete().eq('knowledge_base_id', id)
+    if (entriesError) {
+      console.error('❌ DataSyncService.deleteKnowledgeBase: 删除关联 entries 失败', entriesError)
+      throw new Error(`Knowledge Entries 删除失败: ${entriesError.message}`)
+    }
+
+    const { error } = await supabase
+      .from('knowledge_bases')
+      .delete()
+      .eq('id', id)
+    
+    if (error) {
+      console.error('❌ DataSyncService.deleteKnowledgeBase: 删除失败', error)
+      throw new Error(`Knowledge Base 删除失败: ${error.message}`)
+    }
+    
+    console.log('✅ DataSyncService.deleteKnowledgeBase: 删除成功')
+  }
+
+  // 删除 Knowledge Entry
+  private async deleteKnowledgeEntry(id: string): Promise<void> {
+    console.log('🗑️ DataSyncService.deleteKnowledgeEntry: 开始删除 Knowledge Entry', id)
+
+    const { error } = await supabase
+      .from('knowledge_entries')
+      .delete()
+      .eq('id', id)
+    
+    if (error) {
+      console.error('❌ DataSyncService.deleteKnowledgeEntry: 删除失败', error)
+      throw new Error(`Knowledge Entry 删除失败: ${error.message}`)
+    }
+    
+    console.log('✅ DataSyncService.deleteKnowledgeEntry: 删除成功')
+  }
+
   // 从云端拉取数据
   async pullFromCloud(userParam?: any): Promise<{
     llmConfigs: any[]
@@ -661,6 +851,8 @@ export class DataSyncService {
     generalSettings: any | null
     userRoles: any[]
     agentSkills: any[]
+    knowledgeBases: any[]
+    knowledgeEntries: any[]
   }> {
     await this.ensureInitialized()
 
@@ -675,14 +867,16 @@ export class DataSyncService {
 
     await this.ensureScopeForUser(user.id)
 
-    const [llmConfigsResult, aiRolesResult, globalPromptsResult, voiceSettingsResult, generalSettingsResult, userRolesResult, agentSkillsResult] = await Promise.all([
+    const [llmConfigsResult, aiRolesResult, globalPromptsResult, voiceSettingsResult, generalSettingsResult, userRolesResult, agentSkillsResult, knowledgeBasesResult, knowledgeEntriesResult] = await Promise.all([
       supabase.from('llm_configs').select('*').eq('user_id', user.id),
       supabase.from('ai_roles').select('*').eq('user_id', user.id),
       supabase.from('global_prompts').select('*').eq('user_id', user.id),
       supabase.from('voice_settings').select('*').eq('user_id', user.id).maybeSingle(),
       supabase.from('general_settings').select('*').eq('user_id', user.id).maybeSingle(),
       supabase.from('user_roles').select('*').eq('user_id', user.id),
-      supabase.from('agent_skills').select('*').eq('user_id', user.id)
+      supabase.from('agent_skills').select('*').eq('user_id', user.id),
+      supabase.from('knowledge_bases').select('*').eq('user_id', user.id),
+      supabase.from('knowledge_entries').select('*').eq('user_id', user.id)
     ])
 
     if (llmConfigsResult.error) {
@@ -699,6 +893,12 @@ export class DataSyncService {
     }
     if (agentSkillsResult.error) {
       throw new Error(`拉取 Agent Skills 失败: ${agentSkillsResult.error.message}`)
+    }
+    if (knowledgeBasesResult.error) {
+      throw new Error(`拉取 Knowledge Bases 失败: ${knowledgeBasesResult.error.message}`)
+    }
+    if (knowledgeEntriesResult.error) {
+      throw new Error(`拉取 Knowledge Entries 失败: ${knowledgeEntriesResult.error.message}`)
     }
     // 语音设置可能不存在，不抛出错误
     // 通用设置可能不存在，不抛出错误
@@ -798,6 +998,10 @@ export class DataSyncService {
       }
     }
 
+    // Knowledge Base 和 Entry
+    const knowledgeBases = knowledgeBasesResult.data || []
+    const knowledgeEntries = knowledgeEntriesResult.data || []
+
     return {
       llmConfigs,
       aiRoles,
@@ -805,7 +1009,9 @@ export class DataSyncService {
       voiceSettings,
       generalSettings,
       userRoles,
-      agentSkills
+      agentSkills,
+      knowledgeBases,
+      knowledgeEntries
     }
   }
 

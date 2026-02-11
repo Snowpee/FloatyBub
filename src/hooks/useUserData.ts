@@ -746,7 +746,15 @@ export const useUserData = () => {
   // ================== 队列数据同步 (Settings等) ==================
   
   const queueDataSync = useCallback(async (type: string, data: any) => {
-    await dataSyncService.queueSync(type as any, data);
+    try {
+      await dataSyncService.queueSync(type as any, data);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.log('ℹ️ [useUserData] queueDataSync 请求被中止')
+        return
+      }
+      throw error
+    }
   }, []);
 
   const manualDataSync = useCallback(async () => {

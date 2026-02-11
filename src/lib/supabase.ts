@@ -43,9 +43,16 @@ const fetchWithApikey: typeof fetch = async (input, init) => {
     return m.includes('failed to fetch') || m.includes('network') || m.includes('connection') || m.includes('http2') || m.includes('timeout')
   }
 
+  // 增加默认超时时间，避免过早 AbortError
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 60000) // 60秒超时
+  const signal = init?.signal || controller.signal
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const res = await fetch(input, { ...init, headers })
+      const res = await fetch(input, { ...init, headers, signal })
+      clearTimeout(timeoutId)
+      
       if (attempt < maxRetries && isRetryableStatus(res.status)) {
         try {
           await res.text()
@@ -61,6 +68,7 @@ const fetchWithApikey: typeof fetch = async (input, init) => {
       }
       return res
     } catch (err) {
+      clearTimeout(timeoutId)
       if (attempt < maxRetries && navigator.onLine && isRetryableFetchError(err)) {
         const delay = Math.min(1000 * Math.pow(2, attempt - 1) + jitter(), 4000)
         await sleep(delay)
