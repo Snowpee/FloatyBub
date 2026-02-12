@@ -7,6 +7,7 @@ export interface KnowledgeBase {
   user_id: string;
   created_at: string;
   updated_at: string;
+  pendingUpload?: boolean;
 }
 
 export interface KnowledgeEntry {
@@ -17,33 +18,41 @@ export interface KnowledgeEntry {
   knowledge_base_id: string;
   created_at: string;
   updated_at: string;
+  pendingUpload?: boolean;
 }
 
 // 创建知识库的请求类型
 export interface CreateKnowledgeBaseRequest {
+  id?: string;
   name: string;
   description?: string;
+  user_id?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
-// 更新知识库的请求类型
 export interface UpdateKnowledgeBaseRequest {
   name?: string;
   description?: string;
+  updated_at?: string;
 }
 
-// 创建知识条目的请求类型
 export interface CreateKnowledgeEntryRequest {
+  id?: string;
   name: string;
   keywords: string[];
   explanation: string;
   knowledge_base_id: string;
+  user_id?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
-// 更新知识条目的请求类型
 export interface UpdateKnowledgeEntryRequest {
   name?: string;
   keywords?: string[];
   explanation?: string;
+  updated_at?: string;
 }
 
 // 知识库搜索结果类型

@@ -39,6 +39,7 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
 
   const defaultRoles = [
+    '00000000-0000-4000-8000-000000000001', // AI助手
     'default-assistant',
     'code-expert',
     'creative-writer'
@@ -205,18 +206,20 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
                         编辑
                       </a>
                     </li>
-                    <li>
-                      <a onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDelete(role.id);
-                      }}
-                        className="gap-3 text-error"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        删除
-                      </a>
-                    </li>
+                    {!isDefault && (
+                      <li>
+                        <a onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDelete(role.id);
+                        }}
+                          className="gap-3 text-error"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          删除
+                        </a>
+                      </li>
+                    )}
                   </ul>
                 </div>                
 

@@ -10,13 +10,16 @@ export function cn(...inputs: ClassValue[]) {
 // 优先使用环境变量 VITE_API_BASE_URL；开发环境回退到本地 local-server；
 // 生产环境若未配置则返回空字符串（同源），在 iOS/Capacitor 中请务必配置。
 export function getApiBaseUrl(): string {
+  // 开发环境优先使用本地服务
+  if ((import.meta as any).env?.DEV) {
+    return "http://localhost:3001";
+  }
+  
   const envBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
   if (envBase && envBase.trim()) {
     return envBase.trim().replace(/\/$/, "");
   }
-  if ((import.meta as any).env?.DEV) {
-    return "http://localhost:3001";
-  }
+  
   return "";
 }
 

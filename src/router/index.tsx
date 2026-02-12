@@ -24,6 +24,7 @@ import MobileNavDragTest from '@/screens/_debug/MobileNavDragTest';
 import SupabaseDebugPage from '@/screens/_debug/SupabaseDebugPage';
 import SyncTestPage from '@/screens/_debug/SyncTestPage';
 import InputDemo from '@/screens/_debug/InputDemo';
+import FetchTestPage from '@/screens/_debug/FetchTestPage';
 import RoleModal from '@/screens/settings/sections/RolesModal';
 import ConfigModal from '@/screens/settings/sections/ConfigModal';
 
@@ -124,6 +125,10 @@ export const router = createBrowserRouter([
       {
         path: 'debug/input-demo',
         element: <InputDemo />
+      },
+      {
+        path: 'debug/fetch-test',
+        element: <FetchTestPage />
       },
       {
         path: 'debug/role-modal',

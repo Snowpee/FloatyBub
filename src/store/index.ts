@@ -129,6 +129,7 @@ export interface GlobalPrompt {
   prompt: string;
   createdAt: Date;
   updatedAt: Date;
+  pendingUpload?: boolean; // 标记是否需要同步到云端
 }
 
 export interface AgentSkillFile {
@@ -146,6 +147,7 @@ export interface AgentSkill {
   enabled: boolean;
   createdAt: Date;
   updatedAt: Date;
+  pendingUpload?: boolean; // 标记是否需要同步到云端
 }
 
 // 聊天消息接口
@@ -277,6 +279,8 @@ interface AppState {
   autoTitleConfig: AutoTitleConfig;
   // 助手设置（新）
   assistantConfig: AssistantConfig;
+  // 默认角色ID
+  defaultRoleId: string | null;
   
   // Actions
   // LLM配置相关
@@ -293,14 +297,14 @@ interface AppState {
   getFavoriteRoles: () => AIRole[];
   
   // 全局提示词相关
-  addGlobalPrompt: (prompt: Omit<GlobalPrompt, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateGlobalPrompt: (id: string, prompt: Partial<GlobalPrompt>) => void;
-  deleteGlobalPrompt: (id: string) => Promise<void>;
+  addGlobalPrompt: (prompt: Omit<GlobalPrompt, 'id' | 'createdAt' | 'updatedAt'> & { id?: string, createdAt?: Date, updatedAt?: Date }, options?: { skipSync?: boolean }) => void;
+  updateGlobalPrompt: (id: string, prompt: Partial<GlobalPrompt>, options?: { skipSync?: boolean }) => void;
+  deleteGlobalPrompt: (id: string, options?: { skipSync?: boolean }) => Promise<void>;
 
   // Agent Skills 相关
-  addAgentSkill: (skill: Omit<AgentSkill, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateAgentSkill: (id: string, skill: Partial<AgentSkill>) => void;
-  deleteAgentSkill: (id: string) => Promise<void>;
+  addAgentSkill: (skill: Omit<AgentSkill, 'id' | 'createdAt' | 'updatedAt'> & { id?: string, createdAt?: Date, updatedAt?: Date }, options?: { skipSync?: boolean }) => void;
+  updateAgentSkill: (id: string, skill: Partial<AgentSkill>, options?: { skipSync?: boolean }) => void;
+  deleteAgentSkill: (id: string, options?: { skipSync?: boolean }) => Promise<void>;
   
   // 聊天会话相关
   createChatSession: (roleId: string, modelId: string) => string;
@@ -357,6 +361,8 @@ interface AppState {
   // 助手设置相关（新）
   setAssistantConfig: (config: AssistantConfig) => void;
   updateAssistantConfig: (partial: Partial<AssistantConfig>) => void;
+  // 默认角色设置相关
+  setDefaultRoleId: (roleId: string | null) => void;
   // 全量同步通用设置
   syncGeneralSettingsFull: () => Promise<void>;
   
@@ -550,6 +556,7 @@ export const useAppStore = create<AppState>()(
       searchConfig: defaultSearchConfig,
       autoTitleConfig: defaultAutoTitleConfig,
       assistantConfig: defaultAssistantConfig,
+      defaultRoleId: '00000000-0000-4000-8000-000000000001',
       
       // LLM配置相关actions
       addLLMConfig: (config) => {
@@ -887,37 +894,53 @@ export const useAppStore = create<AppState>()(
         set({ currentUser: user });
       },
       
-      // 全局提示词相关actions
-      addGlobalPrompt: (prompt) => {
+      // 全局提示词相关 actions
+      addGlobalPrompt: (prompt, options?: { skipSync?: boolean }) => {
+        console.log('[PromptSync] ➕ 添加 Prompt:', prompt.title, 'skipSync:', options?.skipSync);
+        
+        // 检查是否存在同名或同ID的 Prompt
+        const state = get();
+        const existingPrompt = state.globalPrompts.find(p => p.id === prompt.id); // 暂只检查ID
+        
+        if (existingPrompt) {
+          console.log('[PromptSync] ⚠️ Prompt 已存在，转为更新:', prompt.title);
+          get().updateGlobalPrompt(prompt.id!, prompt as GlobalPrompt, options);
+          return;
+        }
+
         const newPrompt: GlobalPrompt = {
           ...prompt,
-          id: generateId(),
-          createdAt: new Date(),
-          updatedAt: new Date()
+          id: prompt.id || generateId(),
+          createdAt: prompt.createdAt || new Date(),
+          updatedAt: prompt.updatedAt || new Date(),
+          pendingUpload: !options?.skipSync
         };
         set((state) => ({
           globalPrompts: [...state.globalPrompts, newPrompt]
         }));
-        // 自动同步到云端
-        queueDataSync('global_prompt', newPrompt);
       },
       
-      updateGlobalPrompt: (id, prompt) => {
-        let updatedPrompt: GlobalPrompt | null = null;
+      updateGlobalPrompt: (id, prompt, options?: { skipSync?: boolean }) => {
+        console.log('[PromptSync] ✏️ 更新 Prompt:', id, 'skipSync:', options?.skipSync);
         set((state) => {
           const newPrompts = state.globalPrompts.map(p => {
             if (p.id === id) {
-              updatedPrompt = { ...p, ...prompt, updatedAt: new Date() };
-              return updatedPrompt;
+              // 优化时间戳逻辑
+              const timestamp = prompt.updatedAt 
+                ? prompt.updatedAt 
+                : (options?.skipSync ? p.updatedAt : new Date());
+
+              return { 
+                ...p, 
+                ...prompt, 
+                updatedAt: timestamp,
+                pendingUpload: !options?.skipSync 
+              };
             }
             return p;
           });
           return { globalPrompts: newPrompts };
         });
-        // 自动同步到云端
-        if (updatedPrompt) {
-          queueDataSync('global_prompt', updatedPrompt);
-        }
       },
       
       deleteGlobalPrompt: async (id) => {
@@ -972,39 +995,58 @@ export const useAppStore = create<AppState>()(
       },
 
       // Agent Skills 相关 actions
-      addAgentSkill: (skill) => {
+      addAgentSkill: (skill, options) => {
+        console.log('[SkillSync] ➕ 添加 Skill:', skill.name, 'skipSync:', options?.skipSync)
+        
+        // 检查是否存在同名或同ID的 Skill
+        const state = get();
+        const existingSkill = state.agentSkills.find(s => s.id === skill.id);
+        
+        if (existingSkill) {
+          console.log('[SkillSync] ⚠️ Skill 已存在，转为更新:', skill.name);
+          get().updateAgentSkill(skill.id!, skill as AgentSkill, options);
+          return;
+        }
+
         const newSkill: AgentSkill = {
           ...skill,
-          id: generateId(),
-          createdAt: new Date(),
-          updatedAt: new Date()
+          id: skill.id || generateId(),
+          createdAt: skill.createdAt || new Date(),
+          updatedAt: skill.updatedAt || new Date(),
+          pendingUpload: !options?.skipSync
         };
         set((state) => ({
           agentSkills: [...state.agentSkills, newSkill]
         }));
-        // 自动同步到云端
-        queueDataSync('agent_skill', newSkill);
       },
 
-      updateAgentSkill: (id, skill) => {
-        let updatedSkill: AgentSkill | null = null;
+      updateAgentSkill: (id, skill, options) => {
+        console.log('[SkillSync] ✏️ 更新 Skill:', id, 'skipSync:', options?.skipSync)
         set((state) => {
           const newSkills = state.agentSkills.map(s => {
             if (s.id === id) {
-              updatedSkill = { ...s, ...skill, updatedAt: new Date() };
-              return updatedSkill;
+              // 优化时间戳逻辑：
+              // 1. 如果传入了 updatedAt，直接使用 (Realtime 或明确更新)
+              // 2. 如果是 skipSync (如上传完成清除标记)，保持原有时间不变
+              // 3. 否则 (用户编辑)，更新为当前时间
+              const timestamp = skill.updatedAt 
+                ? skill.updatedAt 
+                : (options?.skipSync ? s.updatedAt : new Date());
+                
+              return { 
+                ...s, 
+                ...skill, 
+                updatedAt: timestamp,
+                pendingUpload: !options?.skipSync
+              };
             }
             return s;
           });
           return { agentSkills: newSkills };
         });
-        // 自动同步到云端
-        if (updatedSkill) {
-          queueDataSync('agent_skill', updatedSkill);
-        }
       },
 
-      deleteAgentSkill: async (id) => {
+      deleteAgentSkill: async (id, options) => {
         // 先保存原始状态，以便在失败时回滚
         const originalState = get();
         const originalSkill = originalState.agentSkills.find(s => s.id === id);
@@ -1018,6 +1060,10 @@ export const useAppStore = create<AppState>()(
           )
         }));
         
+        if (options?.skipSync) {
+          return;
+        }
+
         // 同步删除到数据库
         try {
           const { error } = await supabase
@@ -2219,6 +2265,12 @@ export const useAppStore = create<AppState>()(
         queueDataSync('general_settings', { assistantConfig: newConfig, autoTitleConfig: newConfig });
       },
 
+      // 默认角色设置相关
+      setDefaultRoleId: (roleId) => {
+        set({ defaultRoleId: roleId });
+        queueDataSync('general_settings', { defaultRoleId: roleId });
+      },
+
       // 全量同步：将当前所有通用设置一次性推送云端
       syncGeneralSettingsFull: async () => {
         try {
@@ -2230,7 +2282,8 @@ export const useAppStore = create<AppState>()(
               assistantConfig: state.assistantConfig,
               // 兼容旧客户端：同时提供 autoTitleConfig
               autoTitleConfig: state.autoTitleConfig,
-              searchConfig: state.searchConfig
+              searchConfig: state.searchConfig,
+              defaultRoleId: state.defaultRoleId
             },
             __full: true
           };
@@ -2274,6 +2327,7 @@ export const useAppStore = create<AppState>()(
           voiceSettings: state.voiceSettings,
           assistantConfig: state.assistantConfig,
           autoTitleConfig: state.autoTitleConfig,
+          defaultRoleId: state.defaultRoleId,
           theme: state.theme,
           exportedAt: new Date().toISOString(),
           version: '1.0'
@@ -2349,6 +2403,7 @@ export const useAppStore = create<AppState>()(
             voiceSettings: data.voiceSettings || null,
             assistantConfig: data.assistantConfig || data.autoTitleConfig || defaultAssistantConfig,
             autoTitleConfig: data.autoTitleConfig || data.assistantConfig || defaultAutoTitleConfig,
+            defaultRoleId: data.defaultRoleId || null,
             theme: data.theme || 'light'
           });
           
@@ -2373,13 +2428,14 @@ export const useAppStore = create<AppState>()(
           currentSessionId: null,
           tempSessionId: null,
           theme: 'light',
-          sidebarOpen: true
+          sidebarOpen: true,
+          defaultRoleId: null
         });
       }
     }),
     {
       name: 'ai-chat-storage',
-      version: 11, // 版本11：新增 ChatSession 的 activeSkillIds 和 loadedSkillFiles
+      version: 13, // 版本13：修复日期恢复问题，强制设置默认角色ID
       onRehydrateStorage: () => {
         console.log('🔄 zustand 开始恢复存储数据');
         return (state, error) => {
@@ -2601,7 +2657,14 @@ export const useAppStore = create<AppState>()(
          }));
        }
 
-      return persistedState;
+      // 数据迁移：设置默认角色ID为AI助手
+        if (version < 13) {
+          if (persistedState && !persistedState.defaultRoleId) {
+            persistedState.defaultRoleId = '00000000-0000-4000-8000-000000000001';
+          }
+        }
+
+        return persistedState;
       },
       partialize: (state) => ({
         llmConfigs: state.llmConfigs,
@@ -2622,7 +2685,8 @@ export const useAppStore = create<AppState>()(
         searchConfig: state.searchConfig,
         assistantConfig: state.assistantConfig,
         autoTitleConfig: state.autoTitleConfig,
-        sendMessageShortcut: state.sendMessageShortcut
+        sendMessageShortcut: state.sendMessageShortcut,
+        defaultRoleId: state.defaultRoleId
       }),
       storage: {
         getItem: async (name) => {
@@ -2631,37 +2695,41 @@ export const useAppStore = create<AppState>()(
           try {
             // 🔧 使用自定义反序列化器恢复被保护的 snowflake_id
             const { state } = customDeserializer(str);
+            
+            // 获取实际的状态对象（persist中间件包裹了一层 { state, version }）
+            const actualState = state.state || state;
+            
             // 恢复Date对象
-            if (state.aiRoles) {
-              state.aiRoles = state.aiRoles.map((role: any) => ({
+            if (actualState.aiRoles) {
+              actualState.aiRoles = actualState.aiRoles.map((role: any) => ({
                 ...role,
                 createdAt: new Date(role.createdAt),
                 updatedAt: new Date(role.updatedAt)
               }));
             }
-            if (state.userRoles) {
-              state.userRoles = state.userRoles.map((profile: any) => ({
+            if (actualState.userRoles) {
+              actualState.userRoles = actualState.userRoles.map((profile: any) => ({
                 ...profile,
                 createdAt: new Date(profile.createdAt),
                 updatedAt: new Date(profile.updatedAt)
               }));
             }
-            if (state.globalPrompts) {
-              state.globalPrompts = state.globalPrompts.map((prompt: any) => ({
+            if (actualState.globalPrompts) {
+              actualState.globalPrompts = actualState.globalPrompts.map((prompt: any) => ({
                 ...prompt,
                 createdAt: new Date(prompt.createdAt),
                 updatedAt: new Date(prompt.updatedAt)
               }));
             }
-            if (state.agentSkills) {
-              state.agentSkills = state.agentSkills.map((skill: any) => ({
+            if (actualState.agentSkills) {
+              actualState.agentSkills = actualState.agentSkills.map((skill: any) => ({
                 ...skill,
                 createdAt: new Date(skill.createdAt),
                 updatedAt: new Date(skill.updatedAt)
               }));
             }
-            if (state.chatSessions) {
-              state.chatSessions = state.chatSessions.map((session: any) => ({
+            if (actualState.chatSessions) {
+              actualState.chatSessions = actualState.chatSessions.map((session: any) => ({
                 ...session,
                 createdAt: new Date(session.createdAt),
                 updatedAt: new Date(session.updatedAt),

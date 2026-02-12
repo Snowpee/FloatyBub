@@ -22,6 +22,9 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ onCloseModal, className
     setSendMessageShortcut,
     chatStyle,
     setChatStyle,
+    aiRoles,
+    defaultRoleId,
+    setDefaultRoleId,
     theme,
     setTheme
   } = useAppStore();
@@ -33,6 +36,22 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ onCloseModal, className
   const handleChatStyleChange = (style: ChatStyle) => {
     setChatStyle(style);
   };
+
+  const systemRoleIds = [
+    '00000000-0000-4000-8000-000000000001', // AI助手
+    'default-assistant',
+    'code-expert',
+    'creative-writer'
+  ];
+
+  // 对角色进行排序：系统角色优先
+  const sortedRoles = [...aiRoles].sort((a, b) => {
+    const isASystem = systemRoleIds.includes(a.id);
+    const isBSystem = systemRoleIds.includes(b.id);
+    if (isASystem && !isBSystem) return -1;
+    if (!isASystem && isBSystem) return 1;
+    return 0;
+  });
 
   const pageTitle = '全局设置';
   const pageDescription = '配置全局应用设置和偏好';
@@ -120,6 +139,26 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ onCloseModal, className
                         {c.name || `${c.provider}:${c.model}`}
                       </option>
                     ))}
+                </select>
+              </label>
+            </div>
+
+            {/* 默认角色 */}
+            <div>
+              <label className='bub-select'>
+                <span className="label">默认角色</span>
+                <select
+                  value={defaultRoleId || ''}
+                  onChange={(e) => setDefaultRoleId(e.target.value || null)}
+                >
+                  {sortedRoles.map(role => {
+                    const isSystem = systemRoleIds.includes(role.id);
+                    return (
+                      <option key={role.id} value={role.id}>
+                        {role.name}{isSystem ? ' (系统角色)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </label>
             </div>

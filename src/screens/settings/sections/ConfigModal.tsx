@@ -63,28 +63,6 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
     return nameOk && providerOk && apiKeyOk && modelOk;
   }, [formData.name, formData.provider, formData.apiKey, formData.model]);
 
-  // 初始化表单数据
-  useEffect(() => {
-    if (isOpen && initialConfig) {
-      setFormData(initialConfig);
-      setFetchedModels([]); // 重置模型列表
-    } else if (isOpen && !initialConfig) {
-      // 重置为默认值
-      setFormData({
-        name: '',
-        provider: 'openai',
-        apiKey: '',
-        baseUrl: '',
-        proxyUrl: '',
-        model: '',
-        temperature: 0.7,
-        maxTokens: 2048,
-        enabled: true
-      });
-      setFetchedModels([]);
-    }
-  }, [isOpen, initialConfig]);
-
   const providers = [
     { value: 'openai', label: 'OpenAI', models: ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo'] },
     { value: 'claude', label: 'Claude', models: ['claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus'] },
@@ -122,6 +100,39 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
     ] },
     { value: 'custom', label: '自定义', models: [] }
   ];
+
+  // 初始化表单数据
+  useEffect(() => {
+    if (isOpen && initialConfig) {
+      setFormData(initialConfig);
+      
+      // 检查当前模型是否在静态列表中
+      const provider = initialConfig.provider || 'openai';
+      const staticModels = providers.find(p => p.value === provider)?.models || [];
+      const currentModel = initialConfig.model || '';
+
+      // 如果有模型值，且不在静态列表中，且不是自定义提供商，则将其添加到fetchedModels以确保显示
+      if (provider !== 'custom' && currentModel && !staticModels.includes(currentModel)) {
+        setFetchedModels([currentModel]);
+      } else {
+        setFetchedModels([]); // 重置模型列表
+      }
+    } else if (isOpen && !initialConfig) {
+      // 重置为默认值
+      setFormData({
+        name: '',
+        provider: 'openai',
+        apiKey: '',
+        baseUrl: '',
+        proxyUrl: '',
+        model: '',
+        temperature: 0.7,
+        maxTokens: 2048,
+        enabled: true
+      });
+      setFetchedModels([]);
+    }
+  }, [isOpen, initialConfig]);
 
   // 辅助函数
   // 简化错误消息
@@ -198,7 +209,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
       
       if (response.ok) {
         const data = await response.json();
-        const models = data.data?.map((model: any) => model.id) || [];
+        const models = (data.data?.map((model: any) => model.id) || []).sort((a: string, b: string) => a.localeCompare(b));
         
         if (models.length > 0) {
           setFetchedModels(models);

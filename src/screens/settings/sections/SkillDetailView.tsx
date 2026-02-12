@@ -197,7 +197,7 @@ const SkillDetailView: React.FC<SkillDetailViewProps> = ({
       });
     }
     setActiveTab('info');
-  }, [initialSkill]);
+  }, [initialSkill?.id]);
 
   const handleSaveSkill = async () => {
     if (!formData.name?.trim() || !formData.description?.trim() || !formData.content?.trim()) {
@@ -256,10 +256,8 @@ const SkillDetailView: React.FC<SkillDetailViewProps> = ({
       } else {
         // 新建模式
         if (newFiles.some(f => f.path === file.path)) {
-            // 覆盖还是报错？
-            // 现在的逻辑是覆盖
-             const idx = newFiles.findIndex(f => f.path === file.path);
-             newFiles[idx] = file;
+            toast.error(`文件 "${file.path}" 已存在，请先删除或使用不同名称`);
+            return prev;
         } else {
             newFiles.push(file);
         }

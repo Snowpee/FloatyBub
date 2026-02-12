@@ -4,7 +4,7 @@
 
 <a name="中文"></a>
 
-一个基于 React + TypeScript + Capacitor 的现代化智能对话助手应用，集成了多角色对话、知识库管理、语音交互、数据同步等丰富功能。支持 Web 端及 iOS 移动端原生体验。
+一个基于 React + TypeScript + Capacitor 的现代化智能对话助手应用，集成了多角色对话、知识库管理、技能库、语音交互、数据同步等丰富功能。支持 Web 端及 iOS 移动端原生体验。
 
 > 使用 [TRAE SOLO](https://trae.ai) 开发
 >

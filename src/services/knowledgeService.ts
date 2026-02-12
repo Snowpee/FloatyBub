@@ -474,19 +474,19 @@ export class KnowledgeService {
     const { isLoggedIn, userId, scope } = await getAuthContext()
 
     const newKnowledgeBase: KnowledgeBase = {
-      id: uuidv4(),
+      id: request.id || uuidv4(),
       name: request.name,
       description: request.description || '',
-      user_id: isLoggedIn && userId ? userId : 'local_user',
-      created_at: nowIso(),
-      updated_at: nowIso()
+      user_id: request.user_id || (isLoggedIn && userId ? userId : 'local_user'),
+      created_at: request.created_at || nowIso(),
+      updated_at: request.updated_at || nowIso()
     }
 
     const existingBases = await readJson<KnowledgeBase[]>(keyFor.bases(scope), [])
     await writeJson(keyFor.bases(scope), [newKnowledgeBase, ...existingBases])
 
-    await this.enqueueSync({ entity: 'knowledge_base', op: 'upsert', data: newKnowledgeBase })
-    await this.processSyncQueue()
+    // await this.enqueueSync({ entity: 'knowledge_base', op: 'upsert', data: newKnowledgeBase })
+    // await this.processSyncQueue()
 
     return newKnowledgeBase
   }
@@ -505,15 +505,15 @@ export class KnowledgeService {
       ...bases[index],
       name: request.name !== undefined ? request.name : bases[index].name,
       description: request.description !== undefined ? request.description : bases[index].description,
-      updated_at: nowIso()
+      updated_at: request.updated_at || nowIso()
     }
 
     const next = [...bases]
     next[index] = updatedBase
     await writeJson(keyFor.bases(scope), next)
 
-    await this.enqueueSync({ entity: 'knowledge_base', op: 'upsert', data: updatedBase })
-    await this.processSyncQueue()
+    // await this.enqueueSync({ entity: 'knowledge_base', op: 'upsert', data: updatedBase })
+    // await this.processSyncQueue()
 
     return updatedBase
   }
@@ -544,8 +544,8 @@ export class KnowledgeService {
       writeJson(keyFor.roleMap(scope), nextRoleMap)
     ])
 
-    await this.enqueueSync({ entity: 'knowledge_base', op: 'delete', data: { id } })
-    await this.processSyncQueue()
+    // await this.enqueueSync({ entity: 'knowledge_base', op: 'delete', data: { id } })
+    // await this.processSyncQueue()
   }
 
   static async getKnowledgeEntries(knowledgeBaseId: string): Promise<KnowledgeEntry[]> {
@@ -579,7 +579,8 @@ export class KnowledgeService {
       this.pullFromCloudIfNeeded().catch(() => {})
     }
 
-    return filtered.sort((a, b) => compareIsoDesc(a.created_at, b.created_at))
+    // 按 updated_at 倒序排序
+    return filtered.sort((a, b) => compareIsoDesc(a.updated_at, b.updated_at))
   }
 
   static async createKnowledgeEntry(request: CreateKnowledgeEntryRequest): Promise<KnowledgeEntry> {
@@ -587,20 +588,20 @@ export class KnowledgeService {
     const { isLoggedIn, userId, scope } = await getAuthContext()
 
     const newEntry: KnowledgeEntry = {
-      id: uuidv4(),
+      id: request.id || uuidv4(),
       name: request.name,
       keywords: request.keywords,
       explanation: request.explanation,
       knowledge_base_id: request.knowledge_base_id,
-      created_at: nowIso(),
-      updated_at: nowIso()
+      created_at: request.created_at || nowIso(),
+      updated_at: request.updated_at || nowIso()
     }
 
     const existingEntries = await readJson<KnowledgeEntry[]>(keyFor.entries(scope), [])
     await writeJson(keyFor.entries(scope), [newEntry, ...existingEntries])
 
-    await this.enqueueSync({ entity: 'knowledge_entry', op: 'upsert', data: { ...newEntry, user_id: isLoggedIn && userId ? userId : undefined } })
-    await this.processSyncQueue()
+    // await this.enqueueSync({ entity: 'knowledge_entry', op: 'upsert', data: { ...newEntry, user_id: isLoggedIn && userId ? userId : undefined } })
+    // await this.processSyncQueue()
 
     return newEntry
   }
@@ -620,15 +621,15 @@ export class KnowledgeService {
       name: request.name !== undefined ? request.name : entries[index].name,
       keywords: request.keywords !== undefined ? request.keywords : entries[index].keywords,
       explanation: request.explanation !== undefined ? request.explanation : entries[index].explanation,
-      updated_at: nowIso()
+      updated_at: request.updated_at || nowIso()
     }
 
     const next = [...entries]
     next[index] = updatedEntry
     await writeJson(keyFor.entries(scope), next)
 
-    await this.enqueueSync({ entity: 'knowledge_entry', op: 'upsert', data: updatedEntry })
-    await this.processSyncQueue()
+    // await this.enqueueSync({ entity: 'knowledge_entry', op: 'upsert', data: updatedEntry })
+    // await this.processSyncQueue()
 
     return updatedEntry
   }
@@ -640,8 +641,8 @@ export class KnowledgeService {
     const entries = await readJson<KnowledgeEntry[]>(keyFor.entries(scope), [])
     await writeJson(keyFor.entries(scope), entries.filter(e => e.id !== id))
 
-    await this.enqueueSync({ entity: 'knowledge_entry', op: 'delete', data: { id } })
-    await this.processSyncQueue()
+    // await this.enqueueSync({ entity: 'knowledge_entry', op: 'delete', data: { id } })
+    // await this.processSyncQueue()
   }
 
   static async importKnowledgeEntries(request: ImportKnowledgeEntriesRequest): Promise<KnowledgeEntry[]> {
@@ -661,6 +662,7 @@ export class KnowledgeService {
     const existingEntries = await readJson<KnowledgeEntry[]>(keyFor.entries(scope), [])
     await writeJson(keyFor.entries(scope), [...newEntries, ...existingEntries])
 
+    /*
     if (isLoggedIn && userId && navigator.onLine) {
       try {
         const payload = newEntries.map(e => ({
@@ -687,6 +689,7 @@ export class KnowledgeService {
     }
 
     await this.processSyncQueue()
+    */
 
     return newEntries
   }
@@ -735,6 +738,16 @@ export class KnowledgeService {
     })
 
     return matched.sort((a, b) => compareIsoDesc(a.created_at, b.created_at))
+  }
+
+  static async overwriteLocalData(bases: KnowledgeBase[], entries: KnowledgeEntry[]): Promise<void> {
+    await this.ensureInitialized()
+    const { scope } = await getAuthContext()
+    
+    await Promise.all([
+      writeJson(keyFor.bases(scope), bases),
+      writeJson(keyFor.entries(scope), entries)
+    ])
   }
 
   static async setRoleKnowledgeBase(roleId: string, knowledgeBaseId: string | null): Promise<void> {

@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const cheerio = require('cheerio');
+const puppeteer = require('puppeteer');
 const msgpack = require('msgpack5')();
 require('dotenv').config();
 
@@ -167,6 +169,142 @@ app.get('/api/search', apiKeyAuth, async (req, res) => {
 
     console.error(`[${timestamp}] 服务器内部错误: ${error.message}`);
     return res.status(500).json({ error: '服务器内部错误', details: error.message });
+  }
+});
+
+// 访问页面并提取内容
+app.get('/api/visit-page', apiKeyAuth, async (req, res) => {
+  const timestamp = new Date().toISOString();
+  const clientIP = req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+
+  try {
+    const { url } = req.query;
+
+    if (!url || !url.trim()) {
+      return res.status(400).json({ error: '缺少必需的 url 参数' });
+    }
+
+    console.log(`[${timestamp}] 正在访问 URL: ${url} (IP: ${clientIP})`);
+
+    // CORS 头设置
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    let html;
+    let usedPuppeteer = false;
+
+    // 1. 尝试使用 Axios 获取静态内容
+    try {
+      const response = await axios.get(url, {
+        timeout: 5000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; FloatyBot/1.0; +http://your-site.com)'
+        },
+        maxRedirects: 5
+      });
+      html = response.data;
+    } catch (e) {
+      console.warn(`[${timestamp}] Axios 抓取失败，尝试 Puppeteer: ${e.message}`);
+    }
+
+    // 2. 检查内容质量，决定是否使用 Puppeteer
+    let shouldRunPuppeteer = false;
+    
+    if (!html) {
+      shouldRunPuppeteer = true;
+    } else {
+       // 检查原始 HTML 长度
+       if (html.length < 1000) shouldRunPuppeteer = true;
+       // 检查关键字
+       else if (html.includes('enable JavaScript') || html.includes('You need to enable JavaScript')) shouldRunPuppeteer = true;
+       else {
+         // 检查提取后的文本长度（针对 SPA）
+         const $temp = cheerio.load(html);
+         $temp('script, style, noscript, iframe, svg, header, footer, nav').remove();
+         const tempText = $temp('body').text().replace(/\s+/g, ' ').trim();
+         if (tempText.length < 200) {
+           console.log(`[${timestamp}] 静态内容提取文本过短 (${tempText.length} chars)，判定为需要 JS 渲染`);
+           shouldRunPuppeteer = true;
+         }
+       }
+    }
+
+    if (shouldRunPuppeteer) {
+      console.log(`[${timestamp}] 启用 Puppeteer 进行 JS 渲染...`);
+      const browser = await puppeteer.launch({
+        headless: "new",
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      const page = await browser.newPage();
+      
+      // 设置 User-Agent 模拟真实浏览器
+      await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      
+      try {
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+        html = await page.content();
+        usedPuppeteer = true;
+      } catch (e) {
+        console.error(`[${timestamp}] Puppeteer 渲染失败:`, e.message);
+        if (!html) throw e; // 如果之前也没有内容，则抛出错误
+      } finally {
+        await browser.close();
+      }
+    }
+
+    const $ = cheerio.load(html);
+
+    // 移除无关元素
+    $('script').remove();
+    $('style').remove();
+    $('noscript').remove();
+    $('iframe').remove();
+    $('svg').remove();
+    $('header').remove();
+    $('footer').remove();
+    $('nav').remove();
+    $('.nav').remove();
+    $('.menu').remove();
+    $('.ads').remove();
+    $('.sidebar').remove();
+
+    const title = $('title').text().trim();
+    
+    // 提取主要文本
+    let text = $('body').text();
+    
+    // 清理文本
+    text = text.replace(/\s+/g, ' ').trim();
+    
+    // 简单的长度限制
+    const maxLength = 20000;
+    if (text.length > maxLength) {
+      text = text.substring(0, maxLength) + '... (content truncated)';
+    }
+
+    console.log(`[${timestamp}] 页面访问成功: ${title}, 长度: ${text.length} (Puppeteer: ${usedPuppeteer})`);
+
+    return res.status(200).json({
+      url,
+      title,
+      content: text || '无法提取到有效内容',
+      length: text.length,
+      usedPuppeteer
+    });
+
+  } catch (error) {
+    console.error(`[${timestamp}] 页面访问失败:`, error.message);
+    
+    const status = error.response ? error.response.status : 500;
+    const message = error.response ? error.response.statusText : error.message;
+
+    return res.status(status).json({
+      error: '访问页面失败',
+      details: message,
+      url: req.query.url
+    });
   }
 });
 
