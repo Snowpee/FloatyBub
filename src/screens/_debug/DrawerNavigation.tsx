@@ -5,7 +5,7 @@ const DrawerNavigation = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [translateX, setTranslateX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragDirection, setDragDirection] = useState(null); // 'horizontal' 或 'vertical'
+  const [dragDirection, setDragDirection] = useState<'horizontal' | 'vertical' | null>(null); // 'horizontal' 或 'vertical'
   const startXRef = useRef(0);
   const startYRef = useRef(0);
   const currentXRef = useRef(0);
@@ -23,7 +23,7 @@ const DrawerNavigation = () => {
     { icon: Settings, label: '设置', path: '/settings' },
   ];
 
-  const handleTouchStart = (e) => {
+  const handleTouchStart = (e: React.TouchEvent) => {
     startXRef.current = e.touches[0].clientX;
     startYRef.current = e.touches[0].clientY;
     currentXRef.current = e.touches[0].clientX;
@@ -31,7 +31,7 @@ const DrawerNavigation = () => {
     setDragDirection(null);
   };
 
-  const handleTouchMove = (e) => {
+  const handleTouchMove = (e: React.TouchEvent) => {
     currentXRef.current = e.touches[0].clientX;
     currentYRef.current = e.touches[0].clientY;
     

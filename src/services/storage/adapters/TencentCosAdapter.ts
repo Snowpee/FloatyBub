@@ -2,7 +2,7 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import type { StorageAdapter, StorageConfig, UploadOptions, UploadResult } from '../types';
+import type { StorageAdapter, StorageConfig, UploadOptions, UploadResult } from '@/services/storage/types';
 
 export class TencentCosAdapter implements StorageAdapter {
   private client: S3Client;

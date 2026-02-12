@@ -37,8 +37,8 @@ export const LongPressMenu: React.FC<LongPressMenuProps> = ({
   const guardTimerRef = useRef<number | null>(null)
   const startPosRef = useRef<{ x: number, y: number } | null>(null)
   const guardOkRef = useRef<boolean>(true)
-  const docTouchMoveHandlerRef = useRef<(e: TouchEvent) => void | null>(null)
-  const docTouchEndHandlerRef = useRef<(e: TouchEvent) => void | null>(null)
+  const docTouchMoveHandlerRef = useRef<((e: TouchEvent) => void) | null>(null)
+  const docTouchEndHandlerRef = useRef<((e: TouchEvent) => void) | null>(null)
   const openDelayTimerRef = useRef<number | null>(null)
   
   // 🔥🔥 新增：标记长按是否已经成功触发

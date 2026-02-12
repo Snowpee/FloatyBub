@@ -11,7 +11,7 @@ import { InputProvider } from '@/components/InputProvider';
 import { useAppStore, AIRole } from '@/store';
 import { toast } from '@/hooks/useToast';
 import BottomSheetModal from '@/components/BottomSheetModal';
-import RoleAvatarUpload from '../components/RoleAvatarUpload';
+import RoleAvatarUpload from '@/screens/settings/components/RoleAvatarUpload';
 import { generateRandomLocalAvatar } from '@/utils/avatarUtils';
 import type { KnowledgeBase } from '@/types/knowledge';
 
@@ -92,7 +92,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
           systemPrompt: initialRole.systemPrompt,
           openingMessages: initialRole.openingMessages || [''],
           currentOpeningIndex: initialRole.currentOpeningIndex || 0,
-          avatar: initialRole.avatar,
+          avatar: initialRole.avatar || '',
           globalPromptId: initialRole.globalPromptId || '',
           globalPromptIds: globalPromptIds,
           skillIds: initialRole.skillIds || [],
@@ -192,7 +192,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
         <RoleAvatarUpload
           name={formData.name || '新角色'}
           currentAvatar={formData.avatar}
-          onAvatarChange={(avatar) => setFormData({ ...formData, avatar })}
+          onAvatarChange={(avatar) => setFormData({ ...formData, avatar: avatar || '' })}
           className="self-center pb-4"
         />
         <div>
@@ -520,7 +520,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
             <span className="label">语音模型</span>
             <select
               value={formData.voiceModelId || ''}
-              onChange={(e) => setFormData({ ...formData, voiceModelId: e.target.value || undefined })}
+              onChange={(e) => setFormData({ ...formData, voiceModelId: e.target.value || '' })}
             >
               <option value="">默认</option>
               {voiceSettings?.customModels?.map((model) => (

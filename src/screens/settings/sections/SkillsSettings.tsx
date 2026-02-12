@@ -14,7 +14,7 @@ import EmptyState from '@/components/EmptyState';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import SkillDetailView, { SkillFormData } from './SkillDetailView';
 import { NavLink, BackButton } from '@/components/navigation/MobileNav';
-import { DragContext } from '../SettingsContext';
+import { DragContext } from '@/screens/settings/SettingsContext';
 
 interface SkillsSettingsProps {
   onCloseModal?: () => void;

@@ -124,7 +124,7 @@ export default function DaisyUIForm() {
     message: ''
   });
 
-  const handleChange = (field) => (e) => {
+  const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData(prev => ({
       ...prev,
       [field]: e.target.value

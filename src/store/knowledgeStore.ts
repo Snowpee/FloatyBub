@@ -1,7 +1,8 @@
 // 知识库状态管理
 
 import { create } from 'zustand';
-import { devtools, persist } from 'zustand/middleware';
+import { devtools, persist, createJSONStorage } from 'zustand/middleware';
+import { indexedDBStorage } from './storage';
 import { KnowledgeService } from '@/services/knowledgeService';
 import type {
   KnowledgeBase,
@@ -15,7 +16,7 @@ import type {
   ImportKnowledgeEntry,
   KnowledgeManagementState,
   KnowledgeActionType
-} from '../types/knowledge';
+} from '@/types/knowledge';
 
 const sortKnowledgeBasesByCreatedAtDesc = (bases: KnowledgeBase[]) =>
   [...bases].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -507,6 +508,7 @@ export const useKnowledgeStore = create<KnowledgeStore>()(devtools(
     }),
     {
       name: 'knowledge-store-persist',
+      storage: createJSONStorage(() => indexedDBStorage),
       partialize: (state) => ({
         knowledgeBases: state.knowledgeBases,
         knowledgeEntries: state.knowledgeEntries,

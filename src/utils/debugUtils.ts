@@ -398,7 +398,7 @@ export const testWasmSegment = async (text: string) => {
     // 直接调用全局测试函数
     if (typeof (window as any).testWasmSegment === 'function') {
       const startTime = performance.now();
-      const result = await (window as any).testWasmSegment(text);
+      const result = await (window as any).testWasmSegment(text) as string[];
       const endTime = performance.now();
       
       console.log('⏱️ [测试] 分词耗时:', (endTime - startTime).toFixed(2) + 'ms');
@@ -476,7 +476,7 @@ export const getWasmStatus = async () => {
     }
   } catch (error) {
     console.error('❌ [状态] 获取 WASM 状态失败:', error);
-    return { error: error.message };
+    return { error: (error as Error).message };
   }
 };
 

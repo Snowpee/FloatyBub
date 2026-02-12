@@ -10,7 +10,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import type { KnowledgeBase } from '@/types/knowledge';
 import { NavLink, BackButton } from '@/components/navigation/MobileNav';
 import { cn } from '@/lib/utils';
-import { DragContext } from '../SettingsContext';
+import { DragContext } from '@/screens/settings/SettingsContext';
 
 interface KnowledgeSettingsProps {
   onCloseModal?: () => void;
@@ -390,7 +390,7 @@ const KBEntryManagerPage: React.FC<{ kb: KnowledgeBase; onCloseModal?: () => voi
       </div>
       <div className="flex-1 overflow-y-scroll overscroll-contain">
         <div className='h-[calc(100vh-var(--height-header-m)-env(safe-area-inset-top)-env(safe-area-inset-bottom)+1px)]'>
-          <KnowledgeEntryManager knowledgeBase={kb} onClose={onCloseModal} />
+          <KnowledgeEntryManager knowledgeBase={kb} onClose={onCloseModal || (() => {})} />
         </div>
       </div>
     </div>

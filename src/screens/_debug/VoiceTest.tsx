@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Play, Square, Download, Volume2, Trash2, Settings, RefreshCw } from 'lucide-react';
 import { toast } from '@/hooks/useToast';
 import { clearAllCache } from '@/utils/voiceUtils';
+import { indexedDBStorage } from '@/store/storage';
 
 interface TTSRequest {
   text: string;
@@ -75,7 +76,7 @@ const VoiceTest: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // 从本地存储加载设置
-  const loadVoiceSettings = () => {
+  const loadVoiceSettings = async () => {
     // 预置的央视配音模型
     const presetModels = [
       {
@@ -86,7 +87,7 @@ const VoiceTest: React.FC = () => {
       }
     ];
 
-    const savedSettings = localStorage.getItem('voiceSettings');
+    const savedSettings = await indexedDBStorage.getItem('voiceSettings');
     if (savedSettings) {
       try {
         const parsed = JSON.parse(savedSettings);
@@ -101,14 +102,14 @@ const VoiceTest: React.FC = () => {
         });
         
         setCustomModels(allModels);
-        setFishApiKey(parsed.apiKey || '');
+        if (parsed.apiKey) {
+          setFishApiKey(parsed.apiKey);
+        }
       } catch (error) {
         console.error('加载语音设置失败:', error);
-        // 如果解析失败，至少加载预置模型
         setCustomModels(presetModels);
       }
     } else {
-      // 如果没有保存的设置，使用预置模型
       setCustomModels(presetModels);
     }
   };
@@ -252,7 +253,7 @@ const VoiceTest: React.FC = () => {
         customModels: updatedModels,
         apiKey: fishApiKey
       };
-      localStorage.setItem('voiceSettings', JSON.stringify(voiceSettings));
+      indexedDBStorage.setItem('voiceSettings', JSON.stringify(voiceSettings));
       
       setNewModelInput('');
       setNewModelNote('');
@@ -279,7 +280,7 @@ const VoiceTest: React.FC = () => {
       customModels: updatedModels,
       apiKey: fishApiKey
     };
-    localStorage.setItem('voiceSettings', JSON.stringify(voiceSettings));
+    indexedDBStorage.setItem('voiceSettings', JSON.stringify(voiceSettings));
     
     if (selectedModelId === modelId && updatedModels.length > 0) {
       setSelectedModelId(updatedModels[0].id);
@@ -445,7 +446,7 @@ const VoiceTest: React.FC = () => {
         customModels,
         apiKey: fishApiKey
       };
-      localStorage.setItem('voiceSettings', JSON.stringify(voiceSettings));
+      indexedDBStorage.setItem('voiceSettings', JSON.stringify(voiceSettings));
     }
   }, [fishApiKey, customModels]);
 

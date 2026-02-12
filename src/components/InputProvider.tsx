@@ -4,16 +4,17 @@ import { createContext, useContext, useEffect, useRef } from 'react';
 // contexts/InputContext.jsx
 const InputContext = createContext(undefined);
 
-export function InputProvider({ children }) {
-  const containerRef = useRef(null);
+export function InputProvider({ children }: { children: React.ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     // 自动给所有 input/textarea 添加属性
     const observer = new MutationObserver(() => {
+      if (!containerRef.current) return;
       const elements = containerRef.current.querySelectorAll('input, textarea, select');
-      elements.forEach(el => {
+      elements.forEach((el: Element) => {
         if (!el.hasAttribute('data-1p-ignore')) {
           el.setAttribute('data-1p-ignore', '');
           el.setAttribute('data-lpignore', 'true');

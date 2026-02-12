@@ -136,7 +136,7 @@ export function useAuth(): AuthState & AuthActions {
         if (cloudData.aiRoles && cloudData.aiRoles.length > 0) {
           const defaultRoleIds = ['default-assistant', 'code-expert', 'creative-writer']
           const defaultRoles = currentState.aiRoles.filter(role => defaultRoleIds.includes(role.id))
-          const cloudCustomRoles = cloudData.aiRoles.filter(role => !defaultRoleIds.includes(role.id))
+          const cloudCustomRoles = cloudData.aiRoles.filter((role: any) => !defaultRoleIds.includes(role.id))
           mergedAiRoles = [...defaultRoles, ...cloudCustomRoles]
         }
         

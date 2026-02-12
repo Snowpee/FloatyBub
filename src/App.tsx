@@ -5,7 +5,7 @@ import { databaseConnectionTester } from './utils/databaseConnectionTest';
 
 const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} };
 
-function App() {
+export function App() {
   console.log('🚀 [App] App 组件渲染');
   
   useEffect(() => {
@@ -42,4 +42,3 @@ function App() {
   );
 }
 
-export default App;

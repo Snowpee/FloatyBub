@@ -31,9 +31,9 @@ const VirtualScrollContainer = React.forwardRef<VirtualScrollHandle, VirtualScro
   className = '',
   onScroll,
   scrollMaskRef
-}: VirtualScrollContainerProps<T>, ref) {
+}: VirtualScrollContainerProps<T>, ref: React.Ref<VirtualScrollHandle>) {
   const [scrollTop, setScrollTop] = useState(0);
-  const scrollElementRef = useRef<HTMLDivElement>(null);
+  const scrollElementRef = useRef<HTMLDivElement | null>(null);
   
   // 使用 useResizeObserver 监听容器高度变化
   const [containerRef, containerDimensions] = useResizeObserver<HTMLDivElement>({ debounceMs: 100 });
@@ -136,6 +136,7 @@ const VirtualScrollContainer = React.forwardRef<VirtualScrollHandle, VirtualScro
   // 合并 refs
   const setRefs = useCallback((node: HTMLDivElement | null) => {
     scrollElementRef.current = node;
+    // @ts-ignore
     containerRef.current = node;
     // 如果传入了 scrollMaskRef，也将其指向滚动容器
     if (scrollMaskRef) {

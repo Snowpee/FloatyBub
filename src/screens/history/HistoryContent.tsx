@@ -20,12 +20,13 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import Avatar from '@/components/Avatar';
+import { getLastActiveTime } from '@/utils/dateUtils';
 
 interface HistoryPageProps {
   onCloseModal?: () => void;
 }
 
-const HistoryContent: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
+const HistoryContent = ({ onCloseModal }: HistoryPageProps) => {
   const {
     chatSessions,
     aiRoles,
@@ -50,20 +51,6 @@ const HistoryContent: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
   const modalRef = useRef<HTMLDialogElement>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
-
-  // 获取会话的最后活跃时间（最后消息时间或更新时间）
-  const getLastActiveTime = (session: any) => {
-    if (session.messages && session.messages.length > 0) {
-      const lastMessage = session.messages[session.messages.length - 1];
-      const messageTime = lastMessage.message_timestamp || lastMessage.timestamp;
-      if (messageTime) {
-        const t = new Date(messageTime).getTime();
-        return isNaN(t) ? 0 : t;
-      }
-    }
-    const ut = new Date(session.updatedAt).getTime();
-    return isNaN(ut) ? 0 : ut;
-  };
 
   // 过滤和排序会话
   const filteredAndSortedSessions = useMemo(() => {
@@ -194,10 +181,11 @@ const HistoryContent: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
       return '今天';
     } else if (days === 1) {
       return '昨天';
-    } else if (days < 7) {
-      return `${days}天前`;
+    // } else if (days < 7) {
+    //   return `${days}天前`;
     } else {
-      return d.toLocaleDateString();
+      // 使用 YYYY-MM-DD 格式
+      return d.toLocaleDateString('en-CA');
     }
   };
 
@@ -372,7 +360,7 @@ const HistoryContent: React.FC<HistoryPageProps> = ({ onCloseModal }) => {
                       </span>
                       <span className="flex items-center text-base-content/60">
                         <Calendar className="h-3 w-3 mr-1" />
-                        {formatDate(session.updatedAt)}
+                        {formatDate(getLastActiveTime(session))}
                       </span>
                     </div>
                   </div>

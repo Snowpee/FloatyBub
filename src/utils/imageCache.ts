@@ -116,7 +116,7 @@ class ImageCache {
         resolve({
           width: img.naturalWidth,
           height: img.naturalHeight,
-          format: this.getImageFormat(url)
+          format: this.getImageFormat(url) || undefined
         });
       };
       

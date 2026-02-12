@@ -39,7 +39,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
     // 验证文件
     const validation = validateImageFile(file);
     if (!validation.valid) {
-      toast.error(validation.error);
+      toast.error(validation.error || '上传失败');
       return;
     }
 

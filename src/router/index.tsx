@@ -1,5 +1,5 @@
 import { createBrowserRouter } from 'react-router-dom';
-import App from '@/App';
+import { App } from '@/App';
 import ChatPage from '@/screens/chats/Chats';
 import RoleListPage from '@/screens/RoleListPage';
 import Home from '@/screens/Home';
@@ -132,7 +132,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'debug/role-modal',
-        element: <RoleModal isOpen={true} onClose={() => {}} onConfirm={async () => {}} initialRole={undefined} knowledgeBases={[]} initialKnowledgeBaseId={null} />
+        element: <RoleModal isOpen={true} onClose={() => {}} onConfirm={async () => {}} initialRole={null} knowledgeBases={[]} initialKnowledgeBaseId={null} />
       },
       {
         path: 'debug/config-modal',

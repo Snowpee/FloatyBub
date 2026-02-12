@@ -500,9 +500,9 @@ dialog .modal-box {
   will-change: transform;
 }
 
-.alert {
+/* .alert {
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1), 0 0 0 var(--border) color-mix(in oklab, var(--color-base-content) 5%, #0000);
-}
+} */
 /* 设置模态：触摸设备禁用 hover，保留 active 反馈 */
 @media (hover: none), (any-hover: none) {
   .settings-modal .btn:hover,

@@ -86,8 +86,8 @@ export class DataIntegrityChecker {
             const inconsistency = {
               messageId: message.id,
               sessionId: session.id,
-              localSnowflakeId: localSnowflakeIdStr,
-              cloudSnowflakeId: cloudSnowflakeId,
+              localSnowflakeId: localSnowflakeIdStr || undefined,
+              cloudSnowflakeId: cloudSnowflakeId || undefined,
               issue: 'Snowflake ID 不一致'
             };
 

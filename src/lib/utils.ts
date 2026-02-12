@@ -32,3 +32,7 @@ export function isCapacitorIOS(): boolean {
     return false;
   }
 }
+
+export function isMobile(): boolean {
+  return window.innerWidth < 1024;
+}

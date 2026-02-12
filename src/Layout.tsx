@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import ConfirmDialog from './components/ConfirmDialog';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useAppStore } from './store';
-import { toast } from './hooks/useToast';
+import { useAppStore } from '@/store';
+import { toast } from '@/hooks/useToast';
 import {
-  MessageCircle,
-  Settings,
   Menu,
   Plus,
   Trash2,
@@ -13,36 +10,28 @@ import {
   Pin,
   PinOff,
   EyeOff,
-  LogIn,
-  User,
   Save,
   X,
-  Search,
-
 } from 'lucide-react';
-import { Sparkles } from 'lucide-react';
-import { cn, isCapacitorIOS } from './lib/utils';
+import { cn, isCapacitorIOS } from '@/lib/utils';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import Popconfirm from './components/Popconfirm';
-import SettingsModal from './screens/settings/Settings';
-import { useAuth } from './hooks/useAuth';
-import { UserAvatar } from './components/auth/UserAvatar';
-import { AuthModal } from './components/auth/AuthModal';
-import HistoryModal from './screens/history/HistoryModal';
-import { SessionItem } from './screens/chats';
-import VirtualScrollContainer from './components/VirtualScrollContainer';
-import AvatarUpload from './components/AvatarUpload';
-import { useUserData } from './hooks/useUserData';
-import { supabase } from './lib/supabase';
-import { avatarCache } from './utils/imageCache';
-import { useScrollMask } from './hooks/useScrollMask';
+import Popconfirm from '@/components/Popconfirm';
+import SettingsModal from '@/screens/settings/Settings';
+import { useAuth } from '@/hooks/useAuth';
+import { AuthModal } from '@/components/auth/AuthModal';
+import HistoryModal from '@/screens/history/HistoryModal';
+import AvatarUpload from '@/components/AvatarUpload';
+import { useUserData } from '@/hooks/useUserData';
+import { supabase } from '@/lib/supabase';
+import { avatarCache } from '@/utils/imageCache';
+import Sidebar from '@/components/layout/Sidebar';
 
 const console: Console = { ...globalThis.console, log: (..._args: any[]) => { } };
 
 type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'knowledge' | 'search';
 
 
-const Layout: React.FC = () => {
+const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, setTheme, currentUser, setCurrentUser, updateUserProfile } = useAppStore();
@@ -58,32 +47,19 @@ const Layout: React.FC = () => {
   const drawerWidthRef = useRef<number>(280);
   const dropdownRefs = useRef<Record<string, React.RefObject<HTMLButtonElement>>>({});
 
-  // 虚拟滚动配置
-  const ITEM_HEIGHT = 44; // 每个聊天项目的固定高度（px）
   const {
     sidebarOpen,
     toggleSidebar,
     chatSessions,
-    setCurrentSession,
     deleteChatSession,
-    updateChatSession,
     hideSession,
     pinSession,
     unpinSession,
     createTempSession,
-    aiRoles,
     currentModelId,
     tempSessionId,
     tempSession
   } = useAppStore();
-
-  // 使用智能滚动遮罩 Hook
-  const { scrollContainerRef: scrollMaskRef, scrollMaskClasses } = useScrollMask({
-    gradientPadding: '1rem'
-  });
-
-  // 功能开关
-  const isUserSystemEnabled = import.meta.env.VITE_ENABLE_USER_SYSTEM === 'true';
 
   // 认证相关
   const { user, loading: authLoading } = useAuth();
@@ -109,18 +85,8 @@ const Layout: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const userProfileDialogRef = useRef<HTMLDialogElement>(null);
 
-  // 重命名状态
-  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
-  const [renamingTitle, setRenamingTitle] = useState('');
+  // 删除状态 (Header Dropdown)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
-  const [iosConfirmOpen, setIosConfirmOpen] = useState(false);
-  const [iosConfirmTitle, setIosConfirmTitle] = useState('');
-  const [iosConfirmMessage, setIosConfirmMessage] = useState<React.ReactNode>('');
-  const [iosConfirmConfirmText, setIosConfirmConfirmText] = useState('确认');
-  const [iosConfirmCancelText, setIosConfirmCancelText] = useState('取消');
-  const [iosConfirmVariant, setIosConfirmVariant] = useState<'danger' | 'warning' | 'info'>('warning');
-  const [iosConfirmType, setIosConfirmType] = useState<'rename' | 'trash' | null>(null);
-  const [iosConfirmSessionId, setIosConfirmSessionId] = useState<string | null>(null);
   const [popconfirmAnchorEl, setPopconfirmAnchorEl] = useState<HTMLElement | null>(null);
 
   // 从URL中获取当前对话ID
@@ -392,57 +358,6 @@ const Layout: React.FC = () => {
       });
     }
   }, [currentUser, user]);
-
-  // 移除navigation数组，不再需要
-
-  // 获取会话的最后活跃时间（最后消息时间或更新时间）
-  const getLastActiveTime = (session: any) => {
-    if (session.messages && session.messages.length > 0) {
-      const lastMessage = session.messages[session.messages.length - 1];
-      // 优先使用 message_timestamp，其次是 timestamp，最后是 updatedAt
-      const messageTime = lastMessage.message_timestamp || lastMessage.timestamp;
-      if (messageTime) {
-        const time = new Date(messageTime).getTime();
-        return time;
-      }
-    }
-    // 如果没有消息或消息没有时间戳，使用会话的更新时间
-    const time = new Date(session.updatedAt).getTime();
-    return time;
-  };
-
-  // 过滤会话数据
-  const filteredSessions = chatSessions
-    .filter(session => {
-      // 过滤掉隐藏的对话
-      if (session.isHidden) {
-        return false;
-      }
-      // 临时会话现在存储在tempSession字段中，不在chatSessions数组里，所以不需要过滤
-      // 只显示包含至少一条用户消息的对话
-      const hasUserMessage = session.messages.some(message => message.role === 'user');
-      return hasUserMessage;
-    })
-    .sort((a, b) => {
-      // 首先按置顶状态排序，置顶的在前面
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-
-      // 获取最后活跃时间作为主要排序依据
-      const aTime = getLastActiveTime(a);
-      const bTime = getLastActiveTime(b);
-
-      // 按最后活跃时间降序排序（最近活跃的在前）
-      return bTime - aTime;
-    });
-
-  // 所有会话数据，用于虚拟滚动
-  const allSessions = filteredSessions;
-
-  // 根据roleId获取AI角色信息
-  const getAIRole = useCallback((roleId: string) => {
-    return aiRoles.find(role => role.id === roleId);
-  }, [aiRoles]);
 
   const deleteSession = async (sessionId: string) => {
     try {
@@ -746,80 +661,6 @@ const Layout: React.FC = () => {
     handleTouchEndOverlay();
   };
 
-
-
-  const handleSessionSelect = useCallback((id: string) => {
-    setCurrentSession(id);
-    closeSidebarOnNonDesktop();
-  }, [setCurrentSession, closeSidebarOnNonDesktop]);
-
-  const handleSessionHide = useCallback((id: string) => {
-    hideSession(id);
-    toast.success('对话已从列表中隐藏');
-  }, [hideSession]);
-
-  const handleSessionRename = useCallback((id: string, title: string, anchorEl: HTMLElement | null) => {
-    setRenamingSessionId(id);
-    setRenamingTitle(title);
-    setPopconfirmAnchorEl(anchorEl);
-  }, []);
-
-  const handleSessionDelete = useCallback((id: string, anchorEl: HTMLElement | null) => {
-    setDeletingSessionId(id);
-    setPopconfirmAnchorEl(anchorEl);
-  }, []);
-
-  const handleIOSRename = useCallback((id: string, title: string) => {
-    setIosConfirmTitle('重命名对话');
-    setIosConfirmSessionId(id);
-    setRenamingTitle(title || '');
-    setIosConfirmType('rename');
-    setIosConfirmMessage('');
-    setIosConfirmConfirmText('重命名');
-    setIosConfirmCancelText('取消');
-    setIosConfirmVariant('info');
-    setIosConfirmOpen(true);
-  }, []);
-
-  const handleIOSTrash = useCallback((id: string) => {
-    setIosConfirmTitle('移至回收站');
-    setIosConfirmMessage('对话将移至回收站，不会立即永久删除。');
-    setIosConfirmConfirmText('移至回收站');
-    setIosConfirmCancelText('取消');
-    setIosConfirmVariant('warning');
-    setIosConfirmSessionId(id);
-    setIosConfirmType('trash');
-    setIosConfirmOpen(true);
-  }, []);
-
-  const renderSessionItem = useCallback((session: any) => {
-    return (
-      <SessionItem
-        session={session}
-        isActive={session.id === currentSessionId}
-        role={getAIRole(session.roleId)}
-        isIOSCap={isCapacitorIOS()}
-        itemHeight={ITEM_HEIGHT}
-        onSelect={handleSessionSelect}
-        onPin={pinSession}
-        onUnpin={unpinSession}
-        onHide={handleSessionHide}
-        onRename={handleSessionRename}
-        onDelete={handleSessionDelete}
-        isActionOpen={renamingSessionId === session.id || deletingSessionId === session.id}
-        onIOSRename={handleIOSRename}
-        onIOSTrash={handleIOSTrash}
-      />
-    );
-  }, [currentSessionId, getAIRole, ITEM_HEIGHT, handleSessionSelect, pinSession, unpinSession, handleSessionHide, handleSessionRename, handleSessionDelete, renamingSessionId, deletingSessionId, handleIOSRename, handleIOSTrash]);
-
-  const handleNewChat = () => {
-    // 导航到聊天页面，让用户选择角色
-    navigate('/chat');
-    // 在移动端自动关闭侧边栏
-    closeSidebarOnNonDesktop();
-  };
-
   const handleNewSession = () => {
     // 优先使用当前对话的角色和模型
     const currentSession = chatSessions.find(s => s.id === currentSessionId);
@@ -844,9 +685,16 @@ const Layout: React.FC = () => {
   return (
     <div className="min-h-screen bg-base-200 flex overflow-y-scroll overflow-x-hidden">
       {/* 侧边栏 */}
-      <div
+      <Sidebar
+        sidebarRef={sidebarRef}
+        onOpenSettings={() => {
+          window.location.hash = '#setting';
+        }}
+        onOpenHistory={() => setIsHistoryModalOpen(true)}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenProfile={handleOpenUserProfileModal}
+        onCloseSidebar={closeSidebarOnNonDesktop}
         className={cn(
-          'w-70 md:w-64 bg-base-100 border-base-300/50 border-r-[length:var(--border)]  transition-transform duration-200 ease-in-out flex-shrink-0',
           // 移动端：固定定位
           'fixed lg:fixed z-40 h-full lg:h-screen',
           // PWA 安全区
@@ -854,170 +702,12 @@ const Layout: React.FC = () => {
           // 显示控制：移动端和桌面端都根据sidebarOpen状态控制
           isMobile() ? 'translate-x-0' : (sidebarOpen ? 'translate-x-0' : '-translate-x-full')
         )}
-        ref={sidebarRef}
         style={isMobile() ? {
           width: sidebarRef.current?.offsetWidth,
           transform: `translateX(${mobileTranslateX - (sidebarRef.current?.offsetWidth || drawerWidthRef.current)}px)`,
           transition: mobileDragging ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         } : undefined}
-      >
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center justify-between h-16 px-4 box-content flex-shrink-0">
-            <a href="/" className="flex items-center">
-              <h1 className="text-xl font-bold text-base-content">Floaty Bub</h1>
-            </a>
-          </div>
-
-          {/* 新建聊天按钮 */}
-          <div className="p-4 pb-0">
-            <button
-              onClick={handleNewChat}
-              className="btn border-none p-3 flex items-center justify-start flex-1 min-w-0 gap-2 w-full"
-            >
-              <div className="flex items-center flex-1 min-w-0 gap-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center">
-                  <Plus className="h-4 w-4" />
-                </span>
-                <h4 className="text-sm text-base-content truncate">
-                  新建对话
-                </h4>
-              </div>
-            </button>
-            {/* 发现智能体入口 */}
-            <div className="mt-2">
-              <button
-                onClick={() => { navigate('/roles'); closeSidebarOnNonDesktop(); }}
-                className="btn btn-ghost border-none p-3 flex items-center justify-start flex-1 min-w-0 gap-2 w-full"
-              >
-                <div className="flex items-center flex-1 min-w-0 gap-2">
-                  <span className="w-6 h-6 rounded-full flex items-center justify-center">
-                    <Sparkles className="h-4 w-4" />
-                  </span>
-                  <h4 className="text-sm text-base-content font-normal truncate">
-                    发现智能体
-                  </h4>
-                </div>
-              </button>
-            </div>
-            {/* {isMobile() && isCapacitorIOS() && (
-            <div className="mt-2">
-              <button
-                onClick={() => { navigate('/tests/mobile-nav-drag'); closeSidebarOnNonDesktop(); }}
-                className="btn btn-ghost border-none p-3 flex items-center justify-start flex-1 min-w-0 gap-2 w-full"
-              >
-                <div className="flex items-center flex-1 min-w-0 gap-2">
-                  <span className="w-6 h-6 rounded-full flex items-center justify-center">
-                    <Menu className="h-4 w-4" />
-                  </span>
-                  <h4 className="text-sm text-base-content font-normal truncate">
-                    MobileNav 测试
-                  </h4>
-                </div>
-              </button>
-            </div>
-          )} */}
-          </div>
-
-          {/* 导航菜单已移除，保留新建聊天按钮作为主要入口 */}
-
-
-          {/* 历史对话列表 - 虚拟滚动 */}
-          <div className="chat-lists flex-1 overflow-y-auto">
-            {allSessions.length === 0 ? (
-              <div className="text-center py-8">
-                <MessageCircle className="h-8 w-8 text-base-content/40 mx-auto mb-2" />
-                <p className="text-xs text-base-content/60">
-                  还没有对话记录
-                </p>
-              </div>
-            ) : (
-              <VirtualScrollContainer
-                items={allSessions.map(session => ({ ...session, id: session.id }))}
-                itemHeight={ITEM_HEIGHT}
-                renderItem={renderSessionItem}
-                overscan={5}
-                scrollMaskRef={scrollMaskRef}
-                className={cn(
-                  'rounded-lg h-full',
-                  scrollMaskClasses
-                )}
-              />
-            )}
-
-
-          </div>
-
-          {/* 底部操作区 */}
-          <div className="p-4 pt-0 flex-shrink-0">
-            <div className="grid grid-cols-1 gap-4">
-
-              <div className="flex justify-between gap-2">
-                {isUserSystemEnabled ? (
-                  (user || currentUser) ? (
-                    <UserAvatar
-                      onOpenSettings={() => {
-                        window.location.hash = '#setting';
-                      }}
-                      onOpenProfileModal={handleOpenUserProfileModal}
-                      className='grow'
-                    />
-                  ) : (
-                    <div className="dropdown dropdown-top dropdown-start grow">
-                      <button
-                        className="btn btn-ghost btn-md"
-                        tabIndex={0}
-                      >
-                        <User className="h-5 w-5" />
-                        访客模式
-                      </button>
-                      <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 w-48">
-                        <span className="text-sm text-base-content/40 px-3 py-2">登录以同步</span>
-
-                        <li
-                          className="mb-2"
-                        >
-                          <button
-                            onClick={() => setIsAuthModalOpen(true)}
-                            className="btn btn-md btn-primary"
-                            disabled={authLoading}
-                          >
-                            <LogIn className="h-5 w-5" />
-                            {authLoading ? '加载中...' : '登录'}
-                          </button>
-                        </li>
-                      </ul>
-                    </div>
-                  )
-                ) : (
-                  ''
-                )}
-
-                <div className="tooltip" data-tip="搜索对话">
-                  <button
-                    type="button"
-                    className='btn btn-circle btn-ghost btn-base'
-                    onClick={() => setIsHistoryModalOpen(true)}
-                    title="历史记录"
-                  >
-                    <Search className="h-5 w-5" />
-                  </button>
-                </div>
-                <div>
-                  <button
-                    onClick={() => {
-                      window.location.hash = '#setting';
-                    }}
-                    className="btn btn-ghost btn-circle"
-                  >
-                    <Settings className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      />
 
       {/* 主内容区域 */}
       <div
@@ -1170,47 +860,6 @@ const Layout: React.FC = () => {
         })}>
           <Outlet context={{ className: "" }} />
         </main>
-        <ConfirmDialog
-          key={`confirm-${iosConfirmType || 'none'}-${renamingSessionId || 'na'}`}
-          isOpen={iosConfirmOpen}
-          onClose={() => { setIosConfirmOpen(false); setRenamingSessionId(null); setRenamingTitle(''); setIosConfirmType(null); setIosConfirmSessionId(null); }}
-          onConfirm={() => {
-            if (iosConfirmType === 'rename' && iosConfirmSessionId) {
-              const trimmed = (renamingTitle || '').trim();
-              if (trimmed) {
-                updateChatSession(iosConfirmSessionId, { title: trimmed });
-                toast.success('对话已重命名');
-              }
-              setRenamingSessionId(null);
-              setRenamingTitle('');
-            } else if (iosConfirmType === 'trash' && iosConfirmSessionId) {
-              deleteSession(iosConfirmSessionId);
-            }
-            setIosConfirmOpen(false);
-            setIosConfirmType(null);
-            setIosConfirmSessionId(null);
-          }}
-          title={iosConfirmTitle}
-          confirmText={iosConfirmConfirmText}
-          cancelText={iosConfirmCancelText}
-          variant={iosConfirmVariant}
-        >
-          {iosConfirmType === 'rename' ? (
-            <div className="space-y-2">
-              <div className="text-sm text-base-content/70">输入新的对话标题</div>
-              <input
-                type="text"
-                className="input w-full p-2 text-sm"
-                value={renamingTitle}
-                onChange={(e) => setRenamingTitle(e.target.value)}
-                autoFocus
-                placeholder="输入新的对话标题..."
-              />
-            </div>
-          ) : (
-            iosConfirmMessage
-          )}
-        </ConfirmDialog>
       </div>
 
       {/* 移动端遮罩：抽屉开启时显示半透明黑色遮罩，点击可关闭，拦截底部交互 */}
@@ -1328,62 +977,7 @@ const Layout: React.FC = () => {
         </div>
       </dialog>
 
-      {/* 重命名弹窗 */}
-      <Popconfirm
-        open={!!renamingSessionId}
-        anchorEl={popconfirmAnchorEl}
-        placement="bottom"
-        title="重命名对话"
-        description={
-          <div className="">
-            <input
-              type="text"
-              value={renamingTitle}
-              onChange={(e) => setRenamingTitle(e.target.value)}
-              className="input w-full p-2 text-sm"
-              placeholder="输入新的对话标题..."
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  if (renamingTitle.trim() && renamingSessionId) {
-                    updateChatSession(renamingSessionId, { title: renamingTitle.trim() });
-                    toast.success('对话已重命名');
-                    setRenamingSessionId(null);
-                    setRenamingTitle('');
-                    setPopconfirmAnchorEl(null);
-                  }
-                }
-              }}
-            />
-          </div>
-        }
-        onOpenChange={(next) => {
-          if (!next) {
-            setRenamingSessionId(null);
-            setRenamingTitle('');
-            setPopconfirmAnchorEl(null);
-          }
-        }}
-        onConfirm={() => {
-          if (renamingTitle.trim() && renamingSessionId) {
-            updateChatSession(renamingSessionId, { title: renamingTitle.trim() });
-            toast.success('对话已重命名');
-            setRenamingSessionId(null);
-            setRenamingTitle('');
-            setPopconfirmAnchorEl(null);
-          }
-        }}
-        onCancel={() => {
-          setRenamingSessionId(null);
-          setRenamingTitle('');
-          setPopconfirmAnchorEl(null);
-        }}
-        okText="确认"
-        cancelText="取消"
-      />
-
-      {/* 删除确认弹窗 */}
+      {/* 删除确认弹窗 (Header Dropdown) */}
       <Popconfirm
         open={!!deletingSessionId}
         anchorEl={popconfirmAnchorEl}

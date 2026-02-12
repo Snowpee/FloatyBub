@@ -95,32 +95,26 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
     
     // 优先从store获取语音设置
     if (voiceSettings) {
-      loadedSettings = { ...voiceSettings, modelVersion: voiceSettings.modelVersion || 'speech-1.6' };
-    } else {
-      // 如果store中没有，尝试从localStorage加载
-      const savedSettings = localStorage.getItem('voiceSettingsPage');
-      if (savedSettings) {
-        try {
-          const parsed = JSON.parse(savedSettings);
-          const customModels = parsed.customModels || [];
-          const allModels = [...presetModels, ...customModels.filter((m: VoiceModel) => !m.isPreset)];
-          loadedSettings = { ...settings, ...parsed, customModels: allModels, modelVersion: parsed.modelVersion || 'speech-1.6' };
-          // 同步到store
-          setVoiceSettings(loadedSettings);
-        } catch (error) {
-          console.error('加载语音设置失败:', error);
-          loadedSettings = { ...settings, customModels: presetModels, modelVersion: 'speech-1.6' };
-        setVoiceSettings(loadedSettings);
-        }
-      } else {
-        // 使用默认设置
-        loadedSettings = { ...settings, customModels: presetModels, modelVersion: 'speech-1.6' };
+      // 如果已有设置，检查是否需要补充默认值
+      const needsUpdate = !voiceSettings.modelVersion;
+      loadedSettings = { 
+        ...voiceSettings, 
+        modelVersion: voiceSettings.modelVersion || 'speech-1.6' 
+      };
+      
+      // 仅当确实需要更新时才写回 store，避免无限循环
+      if (needsUpdate) {
         setVoiceSettings(loadedSettings);
       }
+    } else {
+      // 使用默认设置
+      loadedSettings = { ...settings, customModels: presetModels, modelVersion: 'speech-1.6' };
+      setVoiceSettings(loadedSettings);
     }
     
     setSettings(loadedSettings);
     refreshCacheStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceSettings]);
 
   // 解析模型ID或网址
@@ -133,10 +127,9 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
     return input;
   };
 
-  // 保存设置到store和localStorage
+  // 保存设置到store
   const saveSettings = (newSettings: VoiceSettings) => {
     try {
-      localStorage.setItem('voiceSettingsPage', JSON.stringify(newSettings));
       setSettings(newSettings);
       setVoiceSettings(newSettings);
     } catch (error) {

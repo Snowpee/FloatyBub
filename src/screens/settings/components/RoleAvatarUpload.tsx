@@ -34,7 +34,7 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
     // 验证文件
     const validation = validateImageFile(file);
     if (!validation.valid) {
-      toast.error(validation.error);
+      toast.error(validation.error || 'Invalid file');
       return;
     }
 

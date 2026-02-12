@@ -33,7 +33,7 @@ async function loadWasmJieba(): Promise<void> {
     console.info('🔄 [WASM分词] 开始加载 browser-wasm-jieba...');
     
     // 动态导入本地的 jieba WASM 模块
-    const { default: init, cut } = await import('../wasm/jieba_rs_wasm.js');
+    const { default: init, cut } = await import('@/wasm/jieba_rs_wasm.js');
     
     // 初始化 WASM 模块，指定 WASM 文件路径
     await init(new URL('../wasm/jieba_rs_wasm_bg.wasm', import.meta.url));
