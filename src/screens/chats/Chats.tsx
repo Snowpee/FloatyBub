@@ -20,6 +20,7 @@ import { ChatEnhancementService } from '@/services/chatEnhancementService';
 import { useKnowledgeStore } from '@/store/knowledgeStore';
 import { useScrollMask } from '@/hooks/useScrollMask';
 import { usePageContext } from '@/hooks/usePageContext';
+import { executeWebSearch, executeVisitPage, getToolsForProvider } from '@/tools';
 
 const Chats: React.FC = () => {
   const { className: pageClassName } = usePageContext();
@@ -34,16 +35,10 @@ const Chats: React.FC = () => {
   const [viewingFile, setViewingFile] = useState<{ path: string; content: string } | null>(null);
   const [visibleActionButtons, setVisibleActionButtons] = useState<string | null>(null);
   const [voicePlayingState, setVoicePlayingState] = useState(getVoiceState());
-  const [isUserScrolling, setIsUserScrolling] = useState(false);
   // 聊天样式由全局 store 管理
-  // 联网搜索阶段指示
-  const [isWebSearching, setIsWebSearching] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const prevSessionIdRef = useRef<string | null>(null);
-  const prevMessageCountRef = useRef<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingMessageRef = useRef<string | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const skillLoadStateRef = useRef(new Map<string, { activeSkillIds: string[]; loadedPaths: string[] }>());
@@ -1164,146 +1159,8 @@ ${skill.content}
     }
 
     try {
-      // ⚙️ [联网搜索] 通过 LLM 进行意图识别（结构化 JSON 输出）
-      const decideWebSearchWithLLM = async (text: string): Promise<{ need: boolean; queries: string[]; confidence: number }> => {
-        const classificationSystemPrompt = [
-          '你是一个“联网搜索判定助手”。你的任务是判断用户消息是否需要联网搜索才能得到准确回答。',
-          '请仅输出严格的 JSON：{"need_search": <true|false>, "confidence": <0-1>, "queries": [<string>...] }。',
-          '判定为需要搜索的典型情况：涉及最新/最近/今天/新闻/发布/价格/汇率/天气/比分/股票/币价/下载地址/官网/文档/动态数据等。',
-          '如果需要搜索，请给出最多2条简洁的搜索查询（queries），尽量贴近信息源检索习惯；否则 queries 输出空数组。',
-          '不要输出除 JSON 以外的任何文本。'
-        ].join('\n');
+      // [Refactored] Web Search Intent Recognition removed in favor of native tool calls
 
-        // 构造跨提供商的最小化请求体（不使用流式）
-        let apiUrl = '';
-        let headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        let body: any = {};
-
-        // 选择用于判定的“全局辅助模型”
-        let auxModel = currentModel;
-        if (effectiveAssistantConfig?.strategy === 'custom' && effectiveAssistantConfig?.modelId) {
-          const custom = llmConfigs.find(m => m.id === effectiveAssistantConfig.modelId);
-          if (custom) auxModel = custom;
-        } else {
-          const followModelId = currentSession?.modelId || currentModelId || auxModel?.id;
-          const followed = llmConfigs.find(m => m.id === followModelId);
-          if (followed) auxModel = followed;
-        }
-
-        if (!auxModel) {
-          console.warn('⚠️ [联网搜索] 未找到可用的辅助模型，回退不触发搜索');
-          return { need: false, queries: [], confidence: 0.0 };
-        }
-
-        switch (auxModel.provider) {
-          case 'claude': {
-            apiUrl = auxModel.baseUrl || getDefaultBaseUrl('claude');
-            if (!apiUrl.endsWith('/v1/messages')) apiUrl = apiUrl.replace(/\/$/, '') + '/v1/messages';
-            headers['x-api-key'] = auxModel.apiKey;
-            headers['anthropic-version'] = '2023-06-01';
-            body = {
-              model: auxModel.model,
-              max_tokens: 128,
-              temperature: 0,
-              stream: false,
-              messages: [{ role: 'user', content: text }]
-            };
-            // Claude 将系统提示放到 system 字段
-            body.system = classificationSystemPrompt;
-            break;
-          }
-          case 'gemini': {
-            // 如果是 OpenRouter 的 Gemini，走 OpenAI 兼容格式；否则回退启发式
-            const isOpenRouter = auxModel.baseUrl?.includes('openrouter');
-            if (isOpenRouter) {
-              apiUrl = auxModel.baseUrl || getDefaultBaseUrl(auxModel.provider);
-              if (!apiUrl.endsWith('/v1/chat/completions')) apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
-              headers['Authorization'] = `Bearer ${auxModel.apiKey}`;
-              body = {
-                model: auxModel.model,
-                temperature: 0,
-                max_tokens: 128,
-                stream: false,
-                messages: [
-                  { role: 'system', content: classificationSystemPrompt },
-                  { role: 'user', content: text }
-                ]
-              };
-            } else {
-              // 原生 Gemini 接口适配较复杂，暂时回退为启发式
-              console.log('ℹ️ [联网搜索] 原生 Gemini 暂回退为启发式判定');
-              return { need: false, queries: [], confidence: 0.0 };
-            }
-            break;
-          }
-          default: {
-            // OpenAI兼容：openai, deepseek, kimi, custom, openrouter等
-            apiUrl = auxModel.baseUrl || getDefaultBaseUrl(auxModel.provider);
-            if (!apiUrl.endsWith('/v1/chat/completions')) apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
-            headers['Authorization'] = `Bearer ${auxModel.apiKey}`;
-            body = {
-              model: auxModel.model,
-              temperature: 0,
-              max_tokens: 128,
-              stream: false,
-              messages: [
-                { role: 'system', content: classificationSystemPrompt },
-                { role: 'user', content: text }
-              ]
-            };
-          }
-        }
-
-        const resp = await fetch(apiUrl, { method: 'POST', headers, body: JSON.stringify(body) });
-        if (!resp.ok) {
-          const errText = await resp.text().catch(() => '');
-          console.warn('⚠️ [联网搜索] LLM判定接口非200，回退启发式:', resp.status, errText);
-          return { need: false, queries: [], confidence: 0.0 };
-        }
-        const json = await resp.json();
-
-        // 解析不同提供商的文本内容
-        let textOut = '';
-        if (auxModel.provider === 'claude') {
-          try {
-            const blocks = json?.content || [];
-            const firstText = blocks.find((b: any) => b?.type === 'text')?.text || '';
-            textOut = String(firstText || '');
-          } catch (_) {}
-        } else if (auxModel.provider === 'gemini' && auxModel.baseUrl?.includes('openrouter')) {
-          textOut = json?.choices?.[0]?.message?.content || '';
-        } else {
-          textOut = json?.choices?.[0]?.message?.content || '';
-        }
-
-        // 规范化提取可能的 JSON（剥离 Markdown 代码块、截取首尾花括号）
-        const tryExtractJson = (s: string) => {
-          const trimmed = (s || '').trim();
-          const fenceJson = trimmed.match(/```json\s*([\s\S]*?)\s*```/i);
-          if (fenceJson && fenceJson[1]) return fenceJson[1].trim();
-          const fenceAny = trimmed.match(/```\s*([\s\S]*?)\s*```/);
-          if (fenceAny && fenceAny[1]) return fenceAny[1].trim();
-          const start = trimmed.indexOf('{');
-          const end = trimmed.lastIndexOf('}');
-          if (start !== -1 && end !== -1 && end > start) {
-            return trimmed.slice(start, end + 1).trim();
-          }
-          return trimmed;
-        };
-
-        const candidate = tryExtractJson(String(textOut || ''));
-        try {
-          const parsed = JSON.parse(candidate);
-          const need = !!parsed?.need_search;
-          const queries = Array.isArray(parsed?.queries) ? parsed.queries.filter((s: any) => typeof s === 'string') : [];
-          const confidence = typeof parsed?.confidence === 'number' ? parsed.confidence : (need ? 0.7 : 0.5);
-          console.log('✅ [联网搜索] LLM 判定结果:', { need, confidence, queries, raw: textOut, json: candidate });
-          return { need, queries, confidence };
-        } catch (e) {
-          console.warn('⚠️ [联网搜索] LLM 输出无法解析为JSON，回退不搜索:', e, { raw: textOut, candidate });
-          return { need: false, queries: [], confidence: 0.0 };
-        }
-      };
 
       // 🔍 [知识库增强] 检查当前角色是否配置了知识库
       console.log('🔍 [知识库增强] 开始检查角色知识库关联:', { roleId: currentRole.id });
@@ -1363,90 +1220,8 @@ ${skill.content}
         console.log('ℹ️ [知识库增强] 当前角色未配置知识库');
       }
 
-      // 🌐 [联网搜索] 根据开关 + LLM意图识别决定是否检索网络信息
-      let webSearchContext = '';
-      if (searchConfig?.enabled) {
-        // 1) 先让 LLM 判定是否需要搜索，并给出建议查询词
-        let needSearch = false;
-        let queryToUse = userMessage;
-        try {
-          const decision = await decideWebSearchWithLLM(userMessage);
-          needSearch = decision.need;
-          if (decision.queries && decision.queries.length > 0) {
-            queryToUse = decision.queries[0];
-          }
-        } catch (e) {
-          console.warn('⚠️ [联网搜索] LLM判定失败，回退不触发搜索:', e);
-          needSearch = false;
-        }
+      // [Refactored] Web Search manual execution removed in favor of native tool calls
 
-        if (needSearch) {
-          console.log('🌐 [联网搜索] LLM判定需要搜索，准备执行搜索');
-          // 开始显示联网搜索指示
-          setIsWebSearching(true);
-        try {
-          const apiBaseUrl = getApiBaseUrl();
-          const params = new URLSearchParams();
-          // 关键词：优先使用 LLM 给出的查询词（由后端统一处理编码）
-          params.set('q', queryToUse);
-          // 数量与安全搜索配置
-          if (searchConfig?.maxResults) params.set('num', String(searchConfig.maxResults));
-          if (searchConfig?.safeSearch) params.set('safe', searchConfig.safeSearch);
-          // 语言与国家（如果提供）
-          if (searchConfig?.language) params.set('hl', searchConfig.language);
-          if (searchConfig?.country) params.set('gl', searchConfig.country);
-          // 请求返回日期信息（包含可选 Last-Modified 回退）
-          params.set('withDate', '1');
-          // 可选：前端透传自定义 key/cx（若用户手动配置）
-          if (searchConfig?.apiKey?.trim()) params.set('key', searchConfig.apiKey.trim());
-          if (searchConfig?.engineId?.trim()) params.set('cx', searchConfig.engineId.trim());
-
-          const searchUrl = `${apiBaseUrl}/api/search?${params.toString()}`;
-          const res = await fetch(searchUrl, {
-            headers: {
-              // 后端会校验此密钥（开发环境可为空字符串）
-              'x-api-key': import.meta.env.VITE_API_SECRET || ''
-            }
-          });
-          if (!res.ok) {
-            const errText = await res.text().catch(() => '');
-            console.warn('⚠️ [联网搜索] 搜索接口返回非200:', res.status, errText);
-          } else {
-            const data = await res.json();
-            const items = Array.isArray(data?.items) ? data.items : [];
-            if (items.length > 0) {
-              const topItems = items.slice(0, searchConfig?.maxResults || 5);
-              const formatted = topItems.map((it: any, idx: number) => {
-                const title = (it?.title || it?.link || '').toString();
-                const link = (it?.link || '').toString();
-                const snippetRaw = (it?.snippet || it?.htmlSnippet || '') as string;
-                const snippet = snippetRaw.replace(/\s+/g, ' ').trim();
-                const dateTxt = it?.date ? (() => {
-                  try { return new Date(it.date).toISOString().slice(0, 10); } catch { return String(it.date).slice(0, 10); }
-                })() : '未知';
-                return `${idx + 1}. ${title}\n链接：${link}\n日期：${dateTxt}\n摘要：${snippet}`;
-              }).join('\n\n');
-              webSearchContext = `[联网搜索结果]\n${formatted}\n[/联网搜索结果]`;
-              console.log('✅ [联网搜索] 成功获取并格式化搜索结果:', {
-                count: items.length,
-                usedCount: topItems.length
-              });
-            } else {
-              console.log('ℹ️ [联网搜索] 未返回有效搜索结果');
-            }
-          }
-        } catch (searchErr) {
-          console.warn('⚠️ [联网搜索] 搜索流程出现异常，不影响对话生成:', searchErr);
-        } finally {
-          // 结束联网搜索指示
-          setIsWebSearching(false);
-        }
-        } else {
-          console.log('ℹ️ [联网搜索] LLM 判定不需要搜索，已跳过');
-        }
-      } else {
-        console.log('ℹ️ [联网搜索] 智能联网已关闭，跳过搜索');
-      }
 
       const skillDecision = await decideSkillsWithLLM(userMessage, currentRole);
       if (skillDecision.skillIds.length > 0) {
@@ -1480,8 +1255,15 @@ ${skill.content}
 
         if (newlyActivatedSkillIds.length > 0) {
           const names = newlyActivatedSkillIds.map(id => agentSkills.find((s: any) => s.id === id)?.name || id);
-          console.info('[SkillLoad] newly activated, skip file injection this turn', { skillIds: newlyActivatedSkillIds, names });
-        } else {
+          console.info('[SkillLoad] newly activated', { skillIds: newlyActivatedSkillIds, names });
+        }
+
+        const hasSkillFiles = skillDecision.skillIds.some(id => {
+          const skill = agentSkills.find((s: any) => s.id === id);
+          return !!(skill && Array.isArray(skill.files) && skill.files.length > 0);
+        });
+
+        if (hasSkillFiles) {
           const skillFileDecision = await decideSkillFilesWithLLM(userMessage, currentRole, skillDecision.skillIds, loadedPaths);
           console.info('[SkillLoad] selected file paths', { paths: skillFileDecision.paths, confidence: skillFileDecision.confidence });
 
@@ -1498,6 +1280,8 @@ ${skill.content}
           } else {
             console.info('[SkillLoad] no new files to load');
           }
+        } else {
+          console.info('[SkillLoad] no skill files available');
         }
       }
 
@@ -1517,10 +1301,7 @@ ${skill.content}
         systemMessages.push({ role: 'system', content: dateContext });
       } catch {}
 
-      // 将联网搜索上下文作为独立的system消息追加（若有）
-      if (webSearchContext && webSearchContext.trim()) {
-        systemMessages.push({ role: 'system', content: webSearchContext });
-      }
+
       
       // 构建消息历史
       const messages = [];
@@ -1529,10 +1310,17 @@ ${skill.content}
       messages.push(...systemMessages);
       
       // 添加历史消息
-      messages.push(...currentSession!.messages.filter(m => m.role !== 'assistant' || !m.isStreaming).map(m => ({
-        role: m.role,
-        content: m.content
-      })));
+      messages.push(...currentSession!.messages.filter(m => m.role !== 'assistant' || !m.isStreaming).map(m => {
+        const msg: any = {
+          role: m.role,
+          content: m.content
+        };
+        // DeepSeek等模型需要保留 reasoning_content
+        if (m.reasoningContent) {
+          msg.reasoning_content = m.reasoningContent;
+        }
+        return msg;
+      }));
       
       // 添加当前用户消息
       messages.push({
@@ -1566,418 +1354,426 @@ ${skill.content}
       }, null, 2));
 
       // API调用准备
-
-      // 根据不同的provider调用相应的API
-      let apiUrl = '';
-      let headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      };
-      let body: any = {};
-
-
-
-      switch (currentModel.provider) {
-        case 'claude':
-          // Claude使用特殊的API格式
-          apiUrl = currentModel.baseUrl || getDefaultBaseUrl('claude');
-          if (!apiUrl.endsWith('/v1/messages')) {
-            apiUrl = apiUrl.replace(/\/$/, '') + '/v1/messages';
-          }
-          headers['x-api-key'] = currentModel.apiKey;
-          headers['anthropic-version'] = '2023-06-01';
-          body = {
-            model: currentModel.model,
-            messages: messages.filter(m => m.role !== 'system'),
-            max_tokens: currentModel.maxTokens,
-            temperature: currentModel.temperature,
-            stream: true
-          };
-          // Claude需要将多个系统消息合并为单个系统提示词
-          const claudeSystemMessages = messages.filter(m => m.role === 'system');
-          if (claudeSystemMessages.length > 0) {
-            body.system = claudeSystemMessages.map(m => m.content).join('\n\n');
-          }
-          break;
-
-        case 'gemini':
-          // 只有真正的Google Gemini API才使用原生格式
-          // OpenRouter的Gemini模型应该使用OpenAI兼容格式
-          if (currentModel.provider === 'gemini' && !currentModel.baseUrl?.includes('openrouter')) {
-            apiUrl = currentModel.baseUrl || getDefaultBaseUrl('gemini');
-            if (!apiUrl.includes('/v1beta/models/')) {
-              apiUrl = apiUrl.replace(/\/$/, '') + `/v1beta/models/${currentModel.model}:streamGenerateContent?key=${currentModel.apiKey}`;
-            }
-            body = {
-              contents: messages.filter(m => m.role !== 'system').map(m => ({
-                role: m.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: m.content }]
-              })),
-              generationConfig: {
-                temperature: currentModel.temperature,
-                maxOutputTokens: currentModel.maxTokens
-              }
-            };
-            // Gemini需要将多个系统消息合并为单个系统指令
-            const geminiSystemMessages = messages.filter(m => m.role === 'system');
-            if (geminiSystemMessages.length > 0) {
-              body.systemInstruction = {
-                parts: [{ text: geminiSystemMessages.map(m => m.content).join('\n\n') }]
-              };
-            }
-          } else {
-            // OpenRouter的Gemini模型使用OpenAI兼容格式
-            apiUrl = currentModel.baseUrl || getDefaultBaseUrl(currentModel.provider);
-            if (!apiUrl.endsWith('/v1/chat/completions')) {
-              apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
-            }
-            headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
-            body = {
-              model: currentModel.model,
-              messages,
-              temperature: currentModel.temperature,
-              max_tokens: currentModel.maxTokens,
-              stream: true
-            };
-          }
-          break;
-
-        default:
-          // 默认使用OpenAI兼容格式 (适用于 openai, kimi, deepseek, custom 等)
-          apiUrl = currentModel.baseUrl || getDefaultBaseUrl(currentModel.provider);
-          if (!apiUrl.endsWith('/v1/chat/completions')) {
-            apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
-          }
-          headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
-          body = {
-            model: currentModel.model,
-            messages,
-            temperature: currentModel.temperature,
-            max_tokens: currentModel.maxTokens,
-            stream: true
-          };
-      }
-
-      // 如果配置了代理URL，使用代理
-      if (currentModel.proxyUrl) {
-        apiUrl = currentModel.proxyUrl;
-      }
-
-      // 🔍 [调试] 输出 API 请求体结构
-      console.log('🚀 [API请求] 发送给 LLM 提供商的请求结构:', JSON.stringify({
-        timestamp: new Date().toISOString(),
-        provider: currentModel.provider,
-        apiUrl,
-        headers: Object.keys(headers).reduce((acc, key) => {
-          // 隐藏敏感信息，只显示键名
-          acc[key] = key.toLowerCase().includes('key') || key.toLowerCase().includes('authorization') 
-            ? '[HIDDEN]' 
-            : headers[key];
-          return acc;
-        }, {} as Record<string, string>),
-        requestBody: body
-      }, null, 2));
-
-      // API请求准备完成
-
+      
+      // 准备工具定义 (如果启用搜索)
+      const tools = searchConfig?.enabled ? getToolsForProvider(currentModel.provider) : undefined;
+      
+      // 工具调用循环控制
+      let currentTurnMessages = [...messages];
+      let turnCount = 0;
+      const MAX_TURNS = 5;
+      
       // 清理之前的请求并创建新的 AbortController
       cleanupRequest();
       abortControllerRef.current = new AbortController();
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-        signal: abortControllerRef.current.signal // 移除固定超时，允许长时间响应
-      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API请求失败: ${response.status} ${errorText}`);
-      }
+      let finalContent = '';
+      let finalReasoning = '';
+      let finalImages: string[] = [];
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('无法读取响应流');
-      }
+      while (turnCount < MAX_TURNS) {
+          turnCount++;
+          console.log(`🔄 [LLM Loop] Turn ${turnCount}/${MAX_TURNS}`);
 
-      const decoder = new TextDecoder();
-      let currentContent = '';
-      let currentReasoningContent = '';
-      let currentImages: string[] = [];
+          // 根据不同的provider调用相应的API
+          let apiUrl = '';
+          let headers: Record<string, string> = {
+            'Content-Type': 'application/json'
+          };
+          let body: any = {};
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim();
-              if (data === '[DONE]') continue;
-
-              try {
-                const parsed = JSON.parse(data);
-                let content = '';
-                let reasoningContent = '';
-                let images: string[] = [];
-
-                // 简化的API响应日志
-
-                // 根据不同provider解析响应
-                if (currentModel.provider === 'openai' || currentModel.provider === 'custom' || currentModel.provider === 'openrouter') {
-                  content = parsed.choices?.[0]?.delta?.content || '';
-                  // 检查是否是DeepSeek的reasoning模型响应
-                  reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || '';
-                  
-                  // 处理图片数据
-                  if (parsed.choices?.[0]?.delta?.images) {
-                    const rawImages = parsed.choices[0].delta.images;
-
-                    
-                    // 处理不同格式的图片数据
-                    if (Array.isArray(rawImages)) {
-                      images = rawImages.map((img: any) => {
-                        if (typeof img === 'string') {
-                          // 如果是字符串，直接使用
-                          return img;
-                        } else if (img && typeof img === 'object') {
-                          // 如果是对象，尝试提取URL
-                          if (img.image_url && img.image_url.url) {
-                            return img.image_url.url;
-                          } else if (img.url) {
-                            return img.url;
-                          }
-                        }
-                        return null;
-                      }).filter(Boolean);
-                    } else {
-                      images = [rawImages];
-                    }
-                    
-
-                  }
-                  
-                  // OpenAI/Custom解析结果
-                } else if (currentModel.provider === 'kimi') {
-                  content = parsed.choices?.[0]?.delta?.content || '';
-                  
-                  // 处理图片数据
-                  if (parsed.choices?.[0]?.delta?.images) {
-                    const rawImages = parsed.choices[0].delta.images;
-
-                    
-                    // 处理不同格式的图片数据
-                    if (Array.isArray(rawImages)) {
-                      images = rawImages.map((img: any) => {
-                        if (typeof img === 'string') {
-                          return img;
-                        } else if (img && typeof img === 'object') {
-                          if (img.image_url && img.image_url.url) {
-                            return img.image_url.url;
-                          } else if (img.url) {
-                            return img.url;
-                          }
-                        }
-                        return null;
-                      }).filter(Boolean);
-                    } else {
-                      images = [rawImages];
-                    }
-                    
-
-                  }
-                  
-                  // Kimi解析结果
-                } else if (currentModel.provider === 'deepseek') {
-                  content = parsed.choices?.[0]?.delta?.content || '';
-                  // 检查是否是DeepSeek的reasoning模型响应
-                  reasoningContent = parsed.choices?.[0]?.delta?.reasoning_content || '';
-                  
-                  // 处理图片数据
-                  if (parsed.choices?.[0]?.delta?.images) {
-                    const rawImages = parsed.choices[0].delta.images;
-
-                    
-                    // 处理不同格式的图片数据
-                    if (Array.isArray(rawImages)) {
-                      images = rawImages.map((img: any) => {
-                        if (typeof img === 'string') {
-                          return img;
-                        } else if (img && typeof img === 'object') {
-                          if (img.image_url && img.image_url.url) {
-                            return img.image_url.url;
-                          } else if (img.url) {
-                            return img.url;
-                          }
-                        }
-                        return null;
-                      }).filter(Boolean);
-                    } else {
-                      images = [rawImages];
-                    }
-                    
-
-                  }
-                  
-                  // DeepSeek解析结果
-                } else if (currentModel.provider === 'claude') {
-                  if (parsed.type === 'content_block_delta') {
-                    content = parsed.delta?.text || '';
-                  }
-                  
-                  // 处理图片数据
-                  if (parsed.delta?.images) {
-                    const rawImages = parsed.delta.images;
-
-                    
-                    // 处理不同格式的图片数据
-                    if (Array.isArray(rawImages)) {
-                      images = rawImages.map((img: any) => {
-                        if (typeof img === 'string') {
-                          return img;
-                        } else if (img && typeof img === 'object') {
-                          if (img.image_url && img.image_url.url) {
-                            return img.image_url.url;
-                          } else if (img.url) {
-                            return img.url;
-                          }
-                        }
-                        return null;
-                      }).filter(Boolean);
-                    } else {
-                      images = [rawImages];
-                    }
-                    
-
-                  }
-                  
-                  // Claude解析结果
-                } else if (currentModel.provider === 'gemini') {
-                  content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                  
-                  // 处理图片数据
-                  if (parsed.candidates?.[0]?.content?.parts) {
-                    const parts = parsed.candidates[0].content.parts;
-                    const imageParts = parts.filter((part: any) => part.inline_data);
-                    if (imageParts.length > 0) {
-
-                      images = imageParts.map((part: any) => {
-                        if (part.inline_data && part.inline_data.data) {
-                          return `data:${part.inline_data.mime_type};base64,${part.inline_data.data}`;
-                        }
-                        return null;
-                      }).filter(Boolean);
-
-                    }
-                  }
-                  
-                  // Gemini解析结果
-                }
-
-
-
-                // 累积图片数据
-                if (images && images.length > 0) {
-
-                  
-                  currentImages = [...currentImages, ...images];
-                  
-
-                }
-
-                // 更新消息内容
-                if (content || reasoningContent || (images && images.length > 0)) {
-                  const beforeContent = currentContent;
-                  const beforeReasoning = currentReasoningContent;
-                  
-                  // 检测到正文内容开始时，立即标记思考过程完成
-                  const isFirstContent = content && !currentContent;
-                  
-                  if (content) {
-                    currentContent += content;
-                  }
-                  if (reasoningContent) {
-                    currentReasoningContent += reasoningContent;
-                  }
-                  
-                  updateMessageWithReasoning(
-                    sessionId, 
-                    messageId, 
-                    currentContent || undefined,
-                    currentReasoningContent || undefined,
-                    true,
-                    isFirstContent, // 如果是第一次收到正文内容，立即标记思考过程完成
-                    currentImages.length > 0 ? currentImages : undefined
-                  );
-                }
-              } catch (e) {
-                // 忽略JSON解析错误
+          switch (currentModel.provider) {
+            case 'claude':
+              // Claude使用特殊的API格式
+              apiUrl = currentModel.baseUrl || getDefaultBaseUrl('claude');
+              if (!apiUrl.endsWith('/v1/messages')) {
+                apiUrl = apiUrl.replace(/\/$/, '') + '/v1/messages';
               }
+              headers['x-api-key'] = currentModel.apiKey;
+              headers['anthropic-version'] = '2023-06-01';
+              
+              body = {
+                model: currentModel.model,
+                messages: currentTurnMessages.filter(m => m.role !== 'system'),
+                max_tokens: currentModel.maxTokens,
+                temperature: currentModel.temperature,
+                stream: true
+              };
+              
+              if (tools && tools.length > 0) {
+                body.tools = tools;
+              }
+
+              // Claude需要将多个系统消息合并为单个系统提示词
+              const claudeSystemMessages = currentTurnMessages.filter(m => m.role === 'system');
+              if (claudeSystemMessages.length > 0) {
+                body.system = claudeSystemMessages.map(m => m.content).join('\n\n');
+              }
+              break;
+
+            case 'gemini':
+              // 只有真正的Google Gemini API才使用原生格式
+              // OpenRouter的Gemini模型应该使用OpenAI兼容格式
+              if (currentModel.provider === 'gemini' && !currentModel.baseUrl?.includes('openrouter')) {
+                apiUrl = currentModel.baseUrl || getDefaultBaseUrl('gemini');
+                if (!apiUrl.includes('/v1beta/models/')) {
+                  apiUrl = apiUrl.replace(/\/$/, '') + `/v1beta/models/${currentModel.model}:streamGenerateContent?key=${currentModel.apiKey}`;
+                }
+                body = {
+                  contents: currentTurnMessages.filter(m => m.role !== 'system').map(m => ({
+                    role: m.role === 'assistant' ? 'model' : 'user',
+                    parts: [{ text: m.content }]
+                  })),
+                  generationConfig: {
+                    temperature: currentModel.temperature,
+                    maxOutputTokens: currentModel.maxTokens
+                  }
+                };
+                
+                if (tools && tools.length > 0) {
+                   // Gemini native tools format
+                   body.tools = [{ function_declarations: tools }];
+                }
+
+                // Gemini需要将多个系统消息合并为单个系统指令
+                const geminiSystemMessages = currentTurnMessages.filter(m => m.role === 'system');
+                if (geminiSystemMessages.length > 0) {
+                  body.systemInstruction = {
+                    parts: [{ text: geminiSystemMessages.map(m => m.content).join('\n\n') }]
+                  };
+                }
+              } else {
+                // OpenRouter的Gemini模型使用OpenAI兼容格式
+                apiUrl = currentModel.baseUrl || getDefaultBaseUrl(currentModel.provider);
+                if (!apiUrl.endsWith('/v1/chat/completions')) {
+                  apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+                }
+                headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
+                body = {
+                  model: currentModel.model,
+                  messages: currentTurnMessages,
+                  temperature: currentModel.temperature,
+                  max_tokens: currentModel.maxTokens,
+                  stream: true
+                };
+                if (tools && tools.length > 0) {
+                  body.tools = tools;
+                  body.tool_choice = 'auto';
+                }
+              }
+              break;
+
+            default:
+              // 默认使用OpenAI兼容格式 (适用于 openai, kimi, deepseek, custom 等)
+              apiUrl = currentModel.baseUrl || getDefaultBaseUrl(currentModel.provider);
+              if (!apiUrl.endsWith('/v1/chat/completions')) {
+                apiUrl = apiUrl.replace(/\/$/, '') + '/v1/chat/completions';
+              }
+              headers['Authorization'] = `Bearer ${currentModel.apiKey}`;
+              body = {
+                model: currentModel.model,
+                messages: currentTurnMessages,
+                temperature: currentModel.temperature,
+                max_tokens: currentModel.maxTokens,
+                stream: true
+              };
+              if (tools && tools.length > 0) {
+                body.tools = tools;
+                body.tool_choice = 'auto';
+              }
+          }
+
+          // 如果配置了代理URL，使用代理
+          if (currentModel.proxyUrl) {
+            apiUrl = currentModel.proxyUrl;
+          }
+
+          // 🔍 [调试] 输出 API 请求体结构
+          console.log('🚀 [API请求] 发送给 LLM 提供商的请求结构:', JSON.stringify({
+            timestamp: new Date().toISOString(),
+            provider: currentModel.provider,
+            apiUrl,
+            headers: Object.keys(headers).reduce((acc, key) => {
+              // 隐藏敏感信息，只显示键名
+              acc[key] = key.toLowerCase().includes('key') || key.toLowerCase().includes('authorization') 
+                ? '[HIDDEN]' 
+                : headers[key];
+              return acc;
+            }, {} as Record<string, string>),
+            requestBody: body
+          }, null, 2));
+
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            signal: abortControllerRef.current.signal // 使用同一个 signal
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API请求失败: ${response.status} ${errorText}`);
+          }
+
+          const reader = response.body?.getReader();
+          if (!reader) {
+            throw new Error('无法读取响应流');
+          }
+
+          const decoder = new TextDecoder();
+          let currentContent = '';
+          let currentReasoningContent = '';
+          let currentImages: string[] = [];
+          
+          // Tool Call Accumulators
+          let toolCallAccumulator: any[] = []; // For OpenAI/Claude/Gemini
+
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split('\n');
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6).trim();
+                  if (data === '[DONE]') continue;
+
+                  try {
+                    const parsed = JSON.parse(data);
+                    let content = '';
+                    let reasoningContent = '';
+                    let images: string[] = [];
+
+                    // 根据不同provider解析响应
+                    if (currentModel.provider === 'openai' || currentModel.provider === 'custom' || currentModel.provider === 'openrouter' || currentModel.provider === 'deepseek' || currentModel.provider === 'kimi') {
+                      const delta = parsed.choices?.[0]?.delta;
+                      content = delta?.content || '';
+                      reasoningContent = delta?.reasoning_content || '';
+                      
+                      // Handle Tool Calls (OpenAI format)
+                      if (delta?.tool_calls) {
+                         const toolCalls = delta.tool_calls;
+                         for (const tc of toolCalls) {
+                           const index = tc.index;
+                           if (!toolCallAccumulator[index]) {
+                             toolCallAccumulator[index] = { id: tc.id, type: tc.type, function: { name: '', arguments: '' } };
+                           }
+                           if (tc.id) toolCallAccumulator[index].id = tc.id;
+                           if (tc.type) toolCallAccumulator[index].type = tc.type;
+                           if (tc.function) {
+                             if (tc.function.name) toolCallAccumulator[index].function.name += tc.function.name;
+                             if (tc.function.arguments) toolCallAccumulator[index].function.arguments += tc.function.arguments;
+                           }
+                         }
+                      }
+
+                      // Handle Images
+                      if (delta?.images) {
+                        const rawImages = delta.images;
+                        if (Array.isArray(rawImages)) {
+                          images = rawImages.map((img: any) => {
+                             if (typeof img === 'string') return img;
+                             if (img?.image_url?.url) return img.image_url.url;
+                             if (img?.url) return img.url;
+                             return null;
+                          }).filter(Boolean);
+                        } else {
+                          images = [rawImages];
+                        }
+                      }
+                    } else if (currentModel.provider === 'claude') {
+                      if (parsed.type === 'content_block_delta') {
+                        content = parsed.delta?.text || '';
+                      }
+                      // Claude Tool Use handling is more complex (omitted for brevity, focusing on OpenAI compat first)
+                      // TODO: Add full Claude tool support
+                    } else if (currentModel.provider === 'gemini') {
+                      // Gemini Stream Parsing
+                      content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                      
+                      // Gemini Tool Call Parsing
+                      const parts = parsed.candidates?.[0]?.content?.parts || [];
+                      for (const part of parts) {
+                         if (part.functionCall) {
+                           // Gemini usually returns full functionCall object in the stream
+                           const fc = part.functionCall;
+                           const callId = 'call_' + Math.random().toString(36).slice(2, 11);
+                           
+                           // Add to accumulator (assuming one-shot delivery for Gemini tool calls in stream)
+                           toolCallAccumulator.push({
+                             id: callId,
+                             type: 'function',
+                             function: {
+                               name: fc.name,
+                               arguments: JSON.stringify(fc.args)
+                             }
+                           });
+                         }
+                      }
+                    } 
+                    
+                    // Update local accumulators
+                    if (content) currentContent += content;
+                    if (reasoningContent) currentReasoningContent += reasoningContent;
+                    if (images.length > 0) currentImages = [...currentImages, ...images];
+
+                    // Only update UI if we have content or reasoning (hide tool calls)
+                    if (content || reasoningContent || images.length > 0) {
+                       const isFirstContent = content && !finalContent && !currentContent;
+                       
+                       updateMessageWithReasoning(
+                          sessionId,
+                          messageId,
+                          (finalContent || '') + currentContent,
+                          currentReasoningContent,
+                          true, // isStreaming
+                          isFirstContent, // isReasoningComplete
+                          currentImages.length > 0 ? currentImages : undefined
+                        );
+                    }
+
+                  } catch (e) {
+                    // Ignore parse errors for incomplete chunks
+                  }
+                }
+              }
+            }
+          } finally {
+            reader.releaseLock();
+          }
+
+          // Loop decision
+          const validToolCalls = toolCallAccumulator.filter(tc => tc.id && tc.function?.name);
+          
+          // Capture content for final update (in case of break or max turns)
+          finalContent = currentContent;
+          finalReasoning = currentReasoningContent;
+          finalImages = currentImages;
+          
+          if (validToolCalls.length > 0) {
+             console.log('🛠️ [Tool Calls] Detected:', validToolCalls);
+             
+             // Notify UI (optional: show "Searching...")
+             if (!currentContent) {
+                const isVisiting = validToolCalls.some(tc => tc.function.name === 'visit_page');
+                const isSearching = validToolCalls.some(tc => tc.function.name === 'web_search');
+                
+                let statusMsg = '正在处理...';
+                if (isVisiting) statusMsg = '正在访问链接...';
+                else if (isSearching) statusMsg = '正在搜索网络...';
+                
+                updateMessage(sessionId, messageId, statusMsg, true);
+             }
+             
+             // Execute Tools
+             const toolResults = await Promise.all(validToolCalls.map(async (tc: any) => {
+                const name = tc.function.name;
+                const argsStr = tc.function.arguments;
+                let args: any = {};
+                try { args = JSON.parse(argsStr); } catch (e) { console.error('Failed to parse tool args', e); }
+                
+                if (name === 'web_search') {
+                   const result = await executeWebSearch(args.query, searchConfig, args.count);
+                   return {
+                     tool_call_id: tc.id,
+                     role: 'tool',
+                     name: name,
+                     content: result
+                   };
+                } else if (name === 'visit_page') {
+                   const result = await executeVisitPage(args.url);
+                   return {
+                     tool_call_id: tc.id,
+                     role: 'tool',
+                     name: name,
+                     content: result
+                   };
+                }
+                return {
+                   tool_call_id: tc.id,
+                   role: 'tool',
+                   name: name,
+                   content: 'Unknown tool'
+                };
+             }));
+             
+             // Update currentTurnMessages
+             // 1. Add Assistant Message with Tool Calls
+             currentTurnMessages.push({
+               role: 'assistant',
+               content: currentContent || null, // OpenAi requires null if only tool_calls
+               tool_calls: validToolCalls,
+               reasoning_content: currentReasoningContent || undefined
+             } as any);
+             
+             // 2. Add Tool Results
+             currentTurnMessages.push(...toolResults);
+             
+             // Continue Loop
+             continue;
+          } else {
+             // No tool calls, we are done
+             break;
+          }
+        } // End while loop
+
+        // Final UI update
+        updateMessageWithReasoning(
+          sessionId, 
+          messageId, 
+          finalContent || undefined,
+          finalReasoning || undefined,
+          false,
+          true,
+          finalImages.length > 0 ? finalImages : undefined
+        );
+        
+        // 强制触发数据同步，确保AI回复保存到数据库
+        try {
+          console.log('🚀 AI回复完成，强制触发数据同步');
+          await syncToCloud();
+          console.log('✅ AI回复同步完成');
+        } catch (syncError) {
+          console.error('❌ AI回复同步失败:', syncError);
+          // 同步失败不影响UI流程，但记录错误
+        }
+        
+        // 检查是否需要生成标题，并根据配置选择模型
+        if (checkSessionNeedsTitle(sessionId)) {
+          if (!effectiveAssistantConfig?.enabled) {
+            // 若已关闭自动标题，则清除标记
+            removeSessionNeedsTitle(sessionId);
+          } else {
+            let titleModelConfig = currentModel;
+            if (effectiveAssistantConfig?.strategy === 'custom' && effectiveAssistantConfig?.modelId) {
+              titleModelConfig = llmConfigs.find(m => m.id === effectiveAssistantConfig.modelId) || titleModelConfig;
+            } else {
+              const followModelId = currentSession?.modelId || currentModelId || titleModelConfig?.id;
+              titleModelConfig = llmConfigs.find(m => m.id === followModelId) || titleModelConfig;
+            }
+
+            if (titleModelConfig) {
+              generateSessionTitle(sessionId, titleModelConfig)
+                .then(() => {
+                  removeSessionNeedsTitle(sessionId);
+                })
+                .catch(() => {
+                  // 即使失败也要清除标记，避免重复尝试
+                  removeSessionNeedsTitle(sessionId);
+                });
+            } else {
+              // 找不到模型也清除标记，避免卡住
+              removeSessionNeedsTitle(sessionId);
             }
           }
         }
-      } finally {
-        reader.releaseLock();
-      }
-
-
-      
-      updateMessageWithReasoning(
-        sessionId, 
-        messageId, 
-        currentContent || undefined,
-        currentReasoningContent || undefined,
-        false,
-        true,
-        currentImages.length > 0 ? currentImages : undefined
-      );
-      
-      // 强制触发数据同步，确保AI回复保存到数据库
-      try {
-        console.log('🚀 AI回复完成，强制触发数据同步');
-        await syncToCloud();
-        console.log('✅ AI回复同步完成');
-      } catch (syncError) {
-        console.error('❌ AI回复同步失败:', syncError);
-        // 同步失败不影响UI流程，但记录错误
-      }
-      
-      // 检查是否需要生成标题，并根据配置选择模型
-      if (checkSessionNeedsTitle(sessionId)) {
-        if (!effectiveAssistantConfig?.enabled) {
-          // 若已关闭自动标题，则清除标记
-          removeSessionNeedsTitle(sessionId);
-        } else {
-          let titleModelConfig = currentModel;
-          if (effectiveAssistantConfig?.strategy === 'custom' && effectiveAssistantConfig?.modelId) {
-            titleModelConfig = llmConfigs.find(m => m.id === effectiveAssistantConfig.modelId) || titleModelConfig;
-          } else {
-            const followModelId = currentSession?.modelId || currentModelId || titleModelConfig?.id;
-            titleModelConfig = llmConfigs.find(m => m.id === followModelId) || titleModelConfig;
-          }
-
-          if (titleModelConfig) {
-            generateSessionTitle(sessionId, titleModelConfig)
-              .then(() => {
-                removeSessionNeedsTitle(sessionId);
-              })
-              .catch(() => {
-                // 即使失败也要清除标记，避免重复尝试
-                removeSessionNeedsTitle(sessionId);
-              });
-          } else {
-            // 找不到模型也清除标记，避免卡住
-            removeSessionNeedsTitle(sessionId);
-          }
-        }
-      }
-      
-      // 请求完成后清理 AbortController
-      abortControllerRef.current = null;
-      setIsGenerating(false);
+        
+        // 请求完成后清理 AbortController
+        abortControllerRef.current = null;
+        setIsGenerating(false);
 
     } catch (error) {
       
@@ -2078,8 +1874,15 @@ ${skill.content}
 
         if (newlyActivatedSkillIds.length > 0) {
           const names = newlyActivatedSkillIds.map(id => agentSkills.find((s: any) => s.id === id)?.name || id);
-          console.info('[SkillLoad] newly activated, skip file injection this turn (regenerate)', { skillIds: newlyActivatedSkillIds, names });
-        } else {
+          console.info('[SkillLoad] newly activated (regenerate)', { skillIds: newlyActivatedSkillIds, names });
+        }
+
+        const hasSkillFiles = skillDecision.skillIds.some(id => {
+          const skill = agentSkills.find((s: any) => s.id === id);
+          return !!(skill && Array.isArray(skill.files) && skill.files.length > 0);
+        });
+
+        if (hasSkillFiles) {
           const decision = await decideSkillFilesWithLLM(lastUserMessage.content, currentRole, skillDecision.skillIds, loadedPaths);
           console.info('[SkillLoad] selected file paths (regenerate)', { paths: decision.paths, confidence: decision.confidence });
 
@@ -2096,6 +1899,8 @@ ${skill.content}
           } else {
             console.info('[SkillLoad] no new files to load (regenerate)');
           }
+        } else {
+          console.info('[SkillLoad] no skill files available (regenerate)');
         }
       }
 
@@ -3121,14 +2926,6 @@ ${skill.content}
                      />
                    )}
 
-                  {/* 联网搜索进度指示：当助手消息占位符正在生成且触发了联网搜索时，显示在气泡内 */}
-                  {msg.role === 'assistant' && msg.isStreaming && isWebSearching && (
-                    <div className="mb-2 flex items-center gap-2 text-xs text-base-content/70">
-                      <Loader2 className="w-3 h-3 animate-spin text-primary" />
-                      <span>正在联网搜索…</span>
-                      <progress className="progress progress-primary w-24" />
-                    </div>
-                  )}
                   
                   {(() => {
                     const skillMatch = msg.content.match(/<use_skill\s+name="([^"]+)"\s*\/?>/);
@@ -3175,7 +2972,7 @@ ${skill.content}
                     </div>
                   )}
                   
-                  {msg.isStreaming && !isWebSearching && (
+                  {msg.isStreaming && (
                     <Loader2 className="h-4 w-4 animate-spin mt-2" />
                   )}
                 </div>
