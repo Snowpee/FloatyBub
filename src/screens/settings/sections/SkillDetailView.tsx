@@ -278,16 +278,18 @@ const SkillDetailView: React.FC<SkillDetailViewProps> = ({
     <InputProvider>
       <div className={cn("flex flex-col h-full bg-base-200", className)}>
         {/* 顶部操作栏 - 仅在移动端或需要时显示额外的保存按钮 */}
-        <div className="flex justify-between items-center mb-4 px-1">
-             <div className="tabs tabs-boxed bg-base-100 p-1">
+        <div className="flex justify-between items-center mb-4">
+             <div role="tablist" className="tabs tabs-box tabs-sm border border-base-300 bg-base-100">
                 <a 
-                    className={cn("tab transition-all", activeTab === 'info' && "tab-active bg-base-200 shadow-sm")}
+                    role="tab"
+                    className={cn("tab", activeTab === 'info' && "tab-active bg-base-300")}
                     onClick={() => setActiveTab('info')}
                 >
                     基本信息
                 </a>
                 <a 
-                    className={cn("tab transition-all", activeTab === 'files' && "tab-active bg-base-200 shadow-sm")}
+                    role="tab"
+                    className={cn("tab", activeTab === 'files' && "tab-active bg-base-300")}
                     onClick={() => setActiveTab('files')}
                 >
                     资源文件 ({formData.files.length})
@@ -302,7 +304,7 @@ const SkillDetailView: React.FC<SkillDetailViewProps> = ({
 
         <div className="flex-1 overflow-hidden">
           {activeTab === 'info' ? (
-            <div className="flex flex-col gap-6 h-full overflow-y-auto pb-4 px-1">
+            <div className="flex flex-col gap-6 h-full overflow-y-auto pb-4">
               <fieldset className='bub-fieldset'>
                 <div>
                   <label className='bub-input'>
@@ -356,7 +358,7 @@ const SkillDetailView: React.FC<SkillDetailViewProps> = ({
               </div>
               
               {formData.files.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-base-content/50 border-2 border-dashed border-base-300 rounded-lg p-8 bg-base-100/50">
+                <div className="flex-1 flex flex-col items-center justify-center text-base-content/50 border-2 border-dashed border-base-300 rounded-[var(--radius-box)] p-8 bg-base-100/50">
                   <FolderOpen className="h-12 w-12 mb-2 opacity-50" />
                   <p>暂无附加文件</p>
                   <p className="text-xs mt-1">支持添加脚本、引用文档或模板资源</p>
@@ -364,7 +366,7 @@ const SkillDetailView: React.FC<SkillDetailViewProps> = ({
               ) : (
                 <div className="flex-1 overflow-y-auto space-y-2">
                   {formData.files.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-base-100 rounded-lg border border-base-300 hover:border-primary/50 transition-colors group">
+                    <div key={index} className="flex items-center justify-between p-3 bg-base-100 rounded-[var(--radius-box)] border border-base-300 hover:border-primary/50 transition-colors group">
                       <div 
                         className="flex items-center gap-3 flex-1 cursor-pointer"
                         onClick={() => handleEditFile(file)}

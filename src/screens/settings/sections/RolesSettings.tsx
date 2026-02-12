@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore, AIRole } from '@/store';
 import {
   Plus,
@@ -37,6 +37,7 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
   }>({ isOpen: false, roleId: '', roleName: '' });
   
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const activeRoleIdRef = useRef<string | null>(null);
 
   const defaultRoles = [
     '00000000-0000-4000-8000-000000000001', // AI助手
@@ -58,22 +59,33 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
     loadKnowledgeBases();
   }, []);
 
-  const handleEdit = async (role: AIRole) => {
-    try {
-      const kbId = await KnowledgeService.getRoleKnowledgeBaseId(role.id);
-      setEditingKnowledgeBaseId(kbId);
-    } catch (error) {
-      console.error('加载角色知识库关联失败:', error);
-      setEditingKnowledgeBaseId(null);
-    }
+  const handleEdit = (role: AIRole) => {
+    // 立即响应用户操作
     setEditingId(role.id);
     setIsEditing(true);
+    setEditingKnowledgeBaseId(null);
+    activeRoleIdRef.current = role.id;
+
+    // 异步加载知识库关联
+    KnowledgeService.getRoleKnowledgeBaseId(role.id)
+      .then(kbId => {
+        if (activeRoleIdRef.current === role.id) {
+          setEditingKnowledgeBaseId(kbId);
+        }
+      })
+      .catch(error => {
+        console.error('加载角色知识库关联失败:', error);
+        if (activeRoleIdRef.current === role.id) {
+          setEditingKnowledgeBaseId(null);
+        }
+      });
   };
 
   const handleAdd = () => {
     setEditingId(null);
     setEditingKnowledgeBaseId(null);
     setIsEditing(true);
+    activeRoleIdRef.current = null;
   };
 
   const handleSave = async (formData: RoleFormData) => {
@@ -109,6 +121,7 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
   const closeEditModal = () => {
     setIsEditing(false);
     setEditingId(null);
+    activeRoleIdRef.current = null;
   };
 
   const handleDelete = (id: string) => {

@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore, generateId } from '@/store';
-import { Bot, Send, Square, Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, Users, User, Cpu, Plus, Edit3, Globe, SlidersHorizontal, X, Zap } from 'lucide-react';
+import { Bot, Send, Square, Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, Users, User, Cpu, Plus, Edit3, Globe, SlidersHorizontal, X, Zap, Copy, MoreHorizontal } from 'lucide-react';
 import { cn, getApiBaseUrl } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import ThinkingProcess from './components/ThinkingProcess';
 import Avatar from '@/components/Avatar';
-import Popconfirm from '@/components/Popconfirm';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import AudioWaveform from '@/components/AudioWaveform';
 import { replaceTemplateVariables } from '@/utils/templateUtils';
 import { useAnimatedText } from '@/components/AnimatedText';
@@ -32,6 +32,7 @@ const Chats: React.FC = () => {
   const [editingContent, setEditingContent] = useState('');
   const editDialogRef = useRef<HTMLDialogElement>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [confirmDeleteDialog, setConfirmDeleteDialog] = useState<{ isOpen: boolean; messageId: string | null }>({ isOpen: false, messageId: null });
   const [viewingFile, setViewingFile] = useState<{ path: string; content: string } | null>(null);
   const [visibleActionButtons, setVisibleActionButtons] = useState<string | null>(null);
   const [voicePlayingState, setVoicePlayingState] = useState(getVoiceState());
@@ -42,6 +43,7 @@ const Chats: React.FC = () => {
   const pendingMessageRef = useRef<string | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const skillLoadStateRef = useRef(new Map<string, { activeSkillIds: string[]; loadedPaths: string[] }>());
+  const blurTimeoutsRef = useRef(new Map<string, NodeJS.Timeout>());
   
   // 获取数据同步功能
   const { syncToCloud } = useUserData();
@@ -2907,6 +2909,25 @@ ${skill.content}
                   setVisibleActionButtons(visibleActionButtons === msg.id ? null : msg.id);
                 }
               }}
+              onMouseEnter={() => {
+                const timeout = blurTimeoutsRef.current.get(msg.id);
+                if (timeout) {
+                  clearTimeout(timeout);
+                  blurTimeoutsRef.current.delete(msg.id);
+                }
+              }}
+              onMouseLeave={(e) => {
+                // 鼠标移出时，如果有获得焦点的元素在当前气泡内（如打开的下拉菜单），则延迟移除焦点以关闭菜单
+                const activeElement = document.activeElement;
+                if (activeElement instanceof HTMLElement && e.currentTarget.contains(activeElement)) {
+                  // 设置延迟关闭，以便用户有机会重新进入
+                  const timeout = setTimeout(() => {
+                    activeElement.blur();
+                    blurTimeoutsRef.current.delete(msg.id);
+                  }, 300); // 300ms 延迟
+                  blurTimeoutsRef.current.set(msg.id, timeout);
+                }
+              }}
                 >
                   {/* 音频波纹 - 仅在AI消息播放时显示在右上角 */}
                   {msg.role === 'assistant' && voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id && (
@@ -2975,10 +2996,14 @@ ${skill.content}
                   {msg.isStreaming && (
                     <Loader2 className="h-4 w-4 animate-spin mt-2" />
                   )}
-                </div>
                 {/* 操作按钮组 - hover时显示或移动端点击显示 */}
-                <div className={cn(
+                <div onClick={(e) => e.stopPropagation()} className={cn(
                   'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-[var(--radius-box)] transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm pointer-events-auto',
+                  // 桌面端 hover 延迟逻辑：默认有延迟，hover 时立即显示
+                  'delay-300 group-hover:delay-0',
+                  // 移动端/点击激活逻辑：如果是通过点击激活的（visibleActionButtons），则移除延迟
+                  visibleActionButtons === msg.id ? 'delay-0' : '',
+                  
                   'opacity-0 group-hover:opacity-100', // 桌面端hover显示
                   'md:opacity-0 md:group-hover:opacity-100', // 桌面端确保hover效果
                   visibleActionButtons === msg.id ? 'opacity-100' : '', // 移动端点击显示
@@ -3015,40 +3040,23 @@ ${skill.content}
                     ) : null;
                   })()}
                   
-                  {/* 编辑按钮 */}
+                  {/* 复制按钮 */}
                   <button
                     className="btn btn-sm btn-circle btn-ghost h-7 w-7"
-                    title="编辑"
-                    onClick={() => {
-                      setEditingMessageId(msg.id);
-                      setEditingContent(msg.content);
-                      setIsEditModalOpen(true);
-                    }}
-                  >
-                    <Edit3 className="h-4 w-4 " />
-                  </button>
-                  
-                  {/* 删除按钮 */}
-                  <Popconfirm
-                    title="确定将此消息移至回收站？"
-                    onConfirm={async () => {
+                    title="复制"
+                    onClick={async () => {
                       try {
-                        await deleteMessage(currentSession!.id, msg.id);
-                        toast.success('消息已移至回收站');
-                      } catch (error) {
-                        console.error('删除消息失败:', error);
-                        toast.error('删除消息失败，请重试');
+                        await navigator.clipboard.writeText(msg.content);
+                        toast.success('已复制到剪贴板');
+                      } catch (err) {
+                        console.error('复制失败:', err);
+                        toast.error('复制失败');
                       }
                     }}
                   >
-                    <button
-                      className="btn btn-sm btn-circle btn-ghost h-7 w-7"
-                      title="移至回收站"
-                    >
-                      <Trash2 className="h-4 w-4 " />
-                    </button>
-                  </Popconfirm>
-                  
+                    <Copy className="h-4 w-4" />
+                  </button>
+
                   {/* 朗读按钮 - 仅对AI消息显示 */}
                   {msg.role === 'assistant' && (
                     <button
@@ -3073,7 +3081,7 @@ ${skill.content}
                         }
                         try {
                           await handleReadMessage(msg.id, msg.content, messageRole);
-                        } catch (error) {
+                        } catch {
                           // 错误已在handleReadMessage中处理
                         }
                       }}
@@ -3142,9 +3150,40 @@ ${skill.content}
                       </>
                     ) : null;
                   })()}
+
+                  {/* 更多操作 */}
+                  <div className={cn("dropdown", msg.role === 'user' ? "dropdown-end" : "dropdown-bottom")}>
+                    <div tabIndex={0} role="button" className="btn btn-sm btn-circle btn-ghost h-7 w-7" title="更多">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </div>
+                    <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-32">
+                      <li>
+                        <a onClick={() => {
+                          setEditingMessageId(msg.id);
+                          setEditingContent(msg.content);
+                          setIsEditModalOpen(true);
+                          if (document.activeElement instanceof HTMLElement) {
+                            document.activeElement.blur();
+                          }
+                        }}>
+                          <Edit3 className="h-4 w-4" /> 编辑
+                        </a>
+                      </li>
+                      <li>
+                        <a className="text-error" onClick={() => {
+                          setConfirmDeleteDialog({ isOpen: true, messageId: msg.id });
+                          if (document.activeElement instanceof HTMLElement) {
+                            document.activeElement.blur();
+                          }
+                        }}>
+                          <Trash2 className="h-4 w-4" /> 删除
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
                 {/* 版本切换按钮组 - hover时显示或移动端点击显示 */}
-                <div className={cn(
+                <div onClick={(e) => e.stopPropagation()} className={cn(
                   'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-[var(--radius-box)] transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm',
                   'opacity-0 group-hover:opacity-100', // 桌面端hover显示
                   'md:opacity-0 md:group-hover:opacity-100', // 桌面端确保hover效果
@@ -3188,6 +3227,7 @@ ${skill.content}
                     </>
                   )}
                   </div>
+                </div>
                 </div>
                 
 
@@ -3451,6 +3491,28 @@ ${skill.content}
       </dialog>
 
       {/* 收藏助手快捷按钮已移除：改为 tips 中的内联角色选择器 */}
+      
+      {/* 删除确认弹窗 */}
+      <ConfirmDialog
+        isOpen={confirmDeleteDialog.isOpen}
+        onClose={() => setConfirmDeleteDialog({ isOpen: false, messageId: null })}
+        onConfirm={async () => {
+          if (confirmDeleteDialog.messageId) {
+            try {
+              await deleteMessage(currentSession!.id, confirmDeleteDialog.messageId);
+              toast.success('消息已移至回收站');
+            } catch (error) {
+              console.error('删除消息失败:', error);
+              toast.error('删除消息失败，请重试');
+            }
+            setConfirmDeleteDialog({ isOpen: false, messageId: null });
+          }
+        }}
+        title="移至回收站"
+        message="确定将此消息移至回收站？"
+        confirmText="确定"
+        cancelText="取消"
+      />
       </div>
     </div>
   );

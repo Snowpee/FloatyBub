@@ -35,7 +35,7 @@ const addToast = (toast: Omit<ToastMessage, 'id'>) => {
   const id = generateId();
   const newToast: ToastMessage = {
     id,
-    duration: 4000,
+    duration: 2000,
     position: 'top-end',
     ...toast
   };

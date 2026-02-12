@@ -13,9 +13,7 @@ import { toast } from '@/hooks/useToast';
 import BottomSheetModal from '@/components/BottomSheetModal';
 import RoleAvatarUpload from '../components/RoleAvatarUpload';
 import { generateRandomLocalAvatar } from '@/utils/avatarUtils';
-import { KnowledgeService } from '@/services/knowledgeService';
 import type { KnowledgeBase } from '@/types/knowledge';
-import { cn } from '@/lib/utils';
 
 export interface RoleFormData {
   name: string;
@@ -87,7 +85,8 @@ const RolesModal: React.FC<RolesModalProps> = ({
         // 编辑模式
         const globalPromptIds = initialRole.globalPromptIds || (initialRole.globalPromptId ? [initialRole.globalPromptId] : []);
         
-        setFormData({
+        setFormData(prev => ({
+          ...prev,
           name: initialRole.name,
           description: initialRole.description,
           systemPrompt: initialRole.systemPrompt,
@@ -99,7 +98,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
           skillIds: initialRole.skillIds || [],
           voiceModelId: initialRole.voiceModelId || '',
           knowledgeBaseId: initialKnowledgeBaseId || ''
-        });
+        }));
         setIsEditLoading(false);
       } else {
         // 创建模式
@@ -120,7 +119,17 @@ const RolesModal: React.FC<RolesModalProps> = ({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, initialRole?.id, initialKnowledgeBaseId]);
+  }, [isOpen, initialRole?.id]);
+
+  // 监听知识库ID变化
+  useEffect(() => {
+    if (isOpen && initialRole) {
+      setFormData(prev => ({
+        ...prev,
+        knowledgeBaseId: initialKnowledgeBaseId || ''
+      }));
+    }
+  }, [isOpen, initialKnowledgeBaseId, initialRole]);
 
   const handleSave = async () => {
     if (!formData.name?.trim()) {
