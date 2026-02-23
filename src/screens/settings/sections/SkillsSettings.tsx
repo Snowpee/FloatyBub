@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
+import { safeFormatDate } from '@/utils/dateUtils';
 import EmptyState from '@/components/EmptyState';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import SkillDetailView, { SkillFormData } from './SkillDetailView';
@@ -182,7 +183,7 @@ const SkillsSettings: React.FC<SkillsSettingsProps> = ({ onCloseModal, className
                             {skill.name}
                           </h3>
                           <div className="flex items-center gap-2 text-sm text-base-content/30 mt-1">
-                            <span>创建于 {new Date(skill.createdAt).toLocaleDateString()}</span>
+                            <span>创建于 {safeFormatDate(skill.createdAt)}</span>
                           </div>
                         </div>
                       </div>

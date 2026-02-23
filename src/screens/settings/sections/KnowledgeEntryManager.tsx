@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, Search, Edit, Trash2, Tag, FileText, Calendar } from '
 import { useKnowledgeStore } from '@/store/knowledgeStore';
 import KnowledgeEntryModal from './KnowledgeEntryModal';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import { safeFormatDate } from '@/utils/dateUtils';
 import type { KnowledgeBase, KnowledgeEntry } from '@/types/knowledge';
 import { toast } from '@/hooks/useToast';
 import { KnowledgeService } from '@/services/knowledgeService';
@@ -31,13 +32,7 @@ const KnowledgeEntryCard: React.FC<KnowledgeEntryCardProps> = ({
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return safeFormatDate(dateString);
   };
 
   return (

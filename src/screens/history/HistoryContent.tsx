@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import Avatar from '@/components/Avatar';
-import { getLastActiveTime } from '@/utils/dateUtils';
+import { getLastActiveTime, safeFormatDate } from '@/utils/dateUtils';
 
 interface HistoryPageProps {
   onCloseModal?: () => void;
@@ -167,26 +167,7 @@ const HistoryContent = ({ onCloseModal }: HistoryPageProps) => {
   };
 
   const formatDate = (date: Date | string | number) => {
-    if (!date) return '未知日期';
-    let d = date instanceof Date ? date : new Date(date as any);
-    if (isNaN(d.getTime()) && typeof date === 'string') {
-      const normalized = (date as string).replace(' ', 'T');
-      d = new Date(normalized);
-    }
-    if (isNaN(d.getTime())) return '未知日期';
-    const now = new Date();
-    const diff = now.getTime() - d.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days === 0) {
-      return '今天';
-    } else if (days === 1) {
-      return '昨天';
-    // } else if (days < 7) {
-    //   return `${days}天前`;
-    } else {
-      // 使用 YYYY-MM-DD 格式
-      return d.toLocaleDateString('en-CA');
-    }
+    return safeFormatDate(date);
   };
 
   const getMessagePreview = (messages: any[]) => {

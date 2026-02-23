@@ -23,7 +23,7 @@ interface GlobalPromptsModalProps {
   initialPrompt: GlobalPrompt | null;
 }
 
-const GlobalPromptsModal: React.FC<GlobalPromptsModalProps> = ({
+export const GlobalPromptsModal: React.FC<GlobalPromptsModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
@@ -171,7 +171,7 @@ const GlobalPromptsModal: React.FC<GlobalPromptsModalProps> = ({
   }
 
   // 移动端渲染
-  return createPortal(
+  return (
     <BottomSheetModal
       isOpen={isOpen}
       onOpenChange={(open) => {
@@ -208,8 +208,7 @@ const GlobalPromptsModal: React.FC<GlobalPromptsModalProps> = ({
           {FormContent}
         </div>
       </div>
-    </BottomSheetModal>,
-    document.body
+    </BottomSheetModal>
   );
 };
 

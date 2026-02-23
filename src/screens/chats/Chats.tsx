@@ -129,6 +129,16 @@ const Chats: React.FC = () => {
   }, [currentSession, aiRoles, selectedRoleId]);
   const currentModel = currentSession ? llmConfigs.find(m => m.id === currentSession.modelId) : llmConfigs.find(m => m.id === currentModelId);
 
+  // 计算最后一条消息的长度，用于驱动滚动 hook
+  const lastMessage = currentSession?.messages?.[currentSession.messages.length - 1];
+  const lastMessageContentLength = useMemo(() => {
+    if (!lastMessage) return 0;
+    // 综合考虑正文、思考内容和图片
+    return (lastMessage.content?.length || 0) + 
+           (lastMessage.reasoningContent?.length || 0) + 
+           (lastMessage.images?.length || 0);
+  }, [lastMessage]);
+
   // 智能滚动逻辑 extracted to hook
   const { 
     scrollRef: scrollMaskRef, 
@@ -137,7 +147,8 @@ const Chats: React.FC = () => {
     currentSessionId: currentSession?.id,
     messagesLength: currentSession?.messages?.length || 0,
     isGenerating,
-    isLoading
+    isLoading,
+    lastMessageContentLength
   });
 
   // Skill router hook

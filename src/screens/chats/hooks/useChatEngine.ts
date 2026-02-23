@@ -87,7 +87,7 @@ export const useChatEngine = ({
     
     let currentTurnMessages = [...initialMessages];
     let turnCount = 0;
-    const MAX_TURNS = 5;
+    const MAX_TURNS = 15;
     
     cleanupRequest();
     abortControllerRef.current = new AbortController();
@@ -391,6 +391,15 @@ export const useChatEngine = ({
           } else {
              break;
           }
+      }
+
+      if (turnCount >= MAX_TURNS) {
+        const warning = '\n\n[系统提示] 由于任务步骤过多，已停止继续生成。';
+        finalContent = (finalContent || '') + warning;
+        // 如果最后一次是工具调用且没有内容，确保用户能看到提示
+        if (!finalContent.trim()) {
+           finalContent = warning;
+        }
       }
 
       updateMessageWithReasoning(

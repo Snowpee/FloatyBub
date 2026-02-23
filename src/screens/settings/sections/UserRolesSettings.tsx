@@ -3,9 +3,10 @@ import { Plus, Edit, Trash2, User, CheckCircle, MoreHorizontal } from 'lucide-re
 import { cn } from '@/lib/utils';
 import { useAppStore, UserProfile } from '@/store';
 import EmptyState from '@/components/EmptyState';
-import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from '@/hooks/useToast';
 import UserRolesModal, { UserRoleFormData } from './UserRolesModal';
+import { safeFormatDate } from '@/utils/dateUtils';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 
 interface UserRolesSettingsProps {
@@ -172,7 +173,7 @@ const UserRolesSettings: React.FC<UserRolesSettingsProps> = ({ onCloseModal, cla
                       <p className="text-sm text-base-content/60 mt-1 line-clamp-2">{profile.description}</p>
                     )}
                     <p className="text-xs text-base-content/40 mt-2">
-                      创建于 {new Date(profile.createdAt).toLocaleDateString()}
+                      创建于 {safeFormatDate(profile.createdAt)}
                     </p>
                   </div>
                 </div>

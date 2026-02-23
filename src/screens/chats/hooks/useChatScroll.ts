@@ -6,13 +6,16 @@ interface UseChatScrollProps {
   messagesLength: number;
   isGenerating: boolean;
   isLoading: boolean;
+  // 新增：用于检测最后一条消息内容变化的触发器
+  lastMessageContentLength?: number;
 }
 
 export const useChatScroll = ({
   currentSessionId,
   messagesLength,
   isGenerating,
-  isLoading
+  isLoading,
+  lastMessageContentLength = 0
 }: UseChatScrollProps) => {
   // 智能滚动遮罩
   const { scrollContainerRef, scrollMaskClasses } = useScrollMask({
@@ -26,20 +29,37 @@ export const useChatScroll = ({
   // 自动滚动到底部
   const scrollToBottom = (smooth = true) => {
     if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({
-        top: scrollContainerRef.current.scrollHeight,
-        behavior: smooth ? 'smooth' : 'auto'
-      });
-      setUserHasScrolled(false); // 重置用户滚动状态
+      // 检查当前是否在底部
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+
+      // 如果正在生成内容，强制滚动（除非用户明确向上滚动了）
+      if (isGenerating && !userHasScrolled) {
+        scrollContainerRef.current.scrollTo({
+          top: scrollContainerRef.current.scrollHeight,
+          behavior: 'auto' // 流式输出时必须用 auto，否则 smooth 会导致跟不上
+        });
+      } else if (!isGenerating) {
+        // 非生成状态下（如页面加载），正常滚动
+        scrollContainerRef.current.scrollTo({
+          top: scrollContainerRef.current.scrollHeight,
+          behavior: smooth ? 'smooth' : 'auto'
+        });
+        setUserHasScrolled(false);
+      }
     }
   };
 
-  // 监听流式输出并自动滚动
+  // 监听内容变化（针对流式输出的文本长度变化）
   useEffect(() => {
     if (isGenerating && !userHasScrolled) {
-      scrollToBottom(false); // 流式输出时使用即时滚动，避免卡顿
+      // 使用 requestAnimationFrame 确保在渲染后滚动
+      requestAnimationFrame(() => {
+        scrollToBottom(false);
+      });
     }
-  }, [messagesLength, isGenerating, userHasScrolled]);
+  }, [messagesLength, isGenerating, userHasScrolled, lastMessageContentLength]);
+
 
   // 监听滚动事件，检测用户是否手动向上滚动
   useEffect(() => {

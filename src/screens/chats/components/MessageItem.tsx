@@ -206,7 +206,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
           {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
             <ThinkingProcess 
               content={msg.reasoningContent}
-              isComplete={msg.isReasoningComplete ?? (!!msg.content || !msg.isStreaming)}
+              isComplete={msg.isReasoningComplete || (!!msg.content && msg.content.length > 0)}
             />
           )}
 

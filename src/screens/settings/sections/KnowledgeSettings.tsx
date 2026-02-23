@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect, useContext } from 'react';
 import { Plus, Search, BookOpen, Upload, FileText, Calendar, Edit, Trash2, Download, X, ArrowLeft, ChevronLeft } from 'lucide-react';
+import { safeFormatDate } from '@/utils/dateUtils';
+import { toast } from '@/hooks/useToast';
 import { useKnowledgeStore } from '@/store/knowledgeStore';
 import KnowledgeBaseModal from './KnowledgeBaseModal';
 import KnowledgeBulkImportModal from './KnowledgeBulkImportModal';
 import { KnowledgeEntryManager } from './KnowledgeEntryManager';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import type { KnowledgeBase } from '@/types/knowledge';
+import { KnowledgeBase, CreateKnowledgeBaseRequest, UpdateKnowledgeBaseRequest, KnowledgeEntry } from '@/types/knowledge';
 import { NavLink, BackButton } from '@/components/navigation/MobileNav';
 import { cn } from '@/lib/utils';
 import { DragContext } from '@/screens/settings/SettingsContext';
@@ -109,11 +111,7 @@ const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, cla
 
   // 格式化日期
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    return safeFormatDate(dateString);
   };
 
   // 关闭所有弹窗

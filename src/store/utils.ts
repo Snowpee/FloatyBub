@@ -211,43 +211,50 @@ export const defaultRoles: AIRole[] = [
 export const hydrateState = (state: any) => {
   if (!state) return state;
 
+  // 辅助函数：安全地转换日期字符串为 Date 对象
+  const safeDate = (dateStr: any) => {
+    if (!dateStr) return new Date(); // 或者返回一个默认日期
+    const date = new Date(dateStr);
+    return isNaN(date.getTime()) ? new Date() : date; // 如果无效，返回当前时间或其他默认值
+  };
+
   // 恢复Date对象
   if (state.aiRoles) {
     state.aiRoles = state.aiRoles.map((role: any) => ({
       ...role,
-      createdAt: new Date(role.createdAt),
-      updatedAt: new Date(role.updatedAt)
+      createdAt: safeDate(role.createdAt),
+      updatedAt: safeDate(role.updatedAt)
     }));
   }
   if (state.userRoles) {
     state.userRoles = state.userRoles.map((profile: any) => ({
       ...profile,
-      createdAt: new Date(profile.createdAt),
-      updatedAt: new Date(profile.updatedAt)
+      createdAt: safeDate(profile.createdAt),
+      updatedAt: safeDate(profile.updatedAt)
     }));
   }
   if (state.globalPrompts) {
     state.globalPrompts = state.globalPrompts.map((prompt: any) => ({
       ...prompt,
-      createdAt: new Date(prompt.createdAt),
-      updatedAt: new Date(prompt.updatedAt)
+      createdAt: safeDate(prompt.createdAt),
+      updatedAt: safeDate(prompt.updatedAt)
     }));
   }
   if (state.agentSkills) {
     state.agentSkills = state.agentSkills.map((skill: any) => ({
       ...skill,
-      createdAt: new Date(skill.createdAt),
-      updatedAt: new Date(skill.updatedAt)
+      createdAt: safeDate(skill.createdAt),
+      updatedAt: safeDate(skill.updatedAt)
     }));
   }
   if (state.chatSessions) {
     state.chatSessions = state.chatSessions.map((session: any) => ({
       ...session,
-      createdAt: new Date(session.createdAt),
-      updatedAt: new Date(session.updatedAt),
+      createdAt: safeDate(session.createdAt),
+      updatedAt: safeDate(session.updatedAt),
       messages: session.messages.map((msg: any) => ({
         ...msg,
-        timestamp: new Date(msg.timestamp),
+        timestamp: safeDate(msg.timestamp),
         // 🔒 确保 snowflake_id 保持字符串类型，防止精度丢失
         snowflake_id: msg.snowflake_id ? ensureSnowflakeIdString(msg.snowflake_id) : msg.snowflake_id
       }))

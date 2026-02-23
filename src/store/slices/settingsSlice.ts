@@ -280,7 +280,7 @@ export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> 
         assistantConfig: data.assistantConfig || data.autoTitleConfig || defaultAssistantConfig,
         autoTitleConfig: data.autoTitleConfig || data.assistantConfig || defaultAutoTitleConfig,
         defaultRoleId: data.defaultRoleId || null,
-        theme: data.theme || 'light'
+        theme: data.theme || 'floaty'
       });
       
       return true;
@@ -304,7 +304,7 @@ export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> 
       tempSessionId: null,
       tempSession: null,
       sessionsNeedingTitle: new Set(),
-      theme: 'light',
+      theme: 'floaty',
       sidebarOpen: true,
       defaultRoleId: null
     });

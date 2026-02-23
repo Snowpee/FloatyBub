@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { safeFormatDate } from '@/utils/dateUtils'
 import { Cloud, CloudOff, RefreshCw, CheckCircle, AlertCircle, Wifi, WifiOff, Database } from 'lucide-react'
 import { dataSyncService, type SyncStatus } from '@/services/DataSyncService'
 import { useUserData } from '@/hooks/useUserData'
@@ -181,7 +182,7 @@ export function SyncStatusIndicator({
     } else if (diff < 86400000) { // 小于1天
       return `${Math.floor(diff / 3600000)}小时前`
     } else {
-      return new Date(timestamp).toLocaleDateString()
+      return safeFormatDate(timestamp)
     }
   }
 

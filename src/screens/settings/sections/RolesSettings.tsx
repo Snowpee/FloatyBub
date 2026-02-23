@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore, AIRole } from '@/store';
 import {
+  Settings,
   Plus,
   Edit,
   Trash2,
+  MoreVertical,
+  Search,
+  MessageSquare,
+  AlertCircle,
+  Copy,
   MoreHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { safeFormatDate } from '@/utils/dateUtils';
 import { toast } from '@/hooks/useToast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import Avatar from '@/components/Avatar';
@@ -245,7 +252,7 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
                 </p>
               </div>
               <div className="text-xs text-base-content/30 mt-auto">
-                创建于 {new Date(role.createdAt).toLocaleDateString()}
+                创建于 {safeFormatDate(role.createdAt)}
               </div>
               {/* 创建时间和当前角色toggle */}
               </div>

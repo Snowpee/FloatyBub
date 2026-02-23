@@ -662,23 +662,8 @@ const Layout = () => {
   };
 
   const handleNewSession = () => {
-    // 优先使用当前对话的角色和模型
-    const currentSession = chatSessions.find(s => s.id === currentSessionId);
-    const roleId = currentSession?.roleId;
-    const modelId = currentSession?.modelId || currentModelId;
-
-    if (!roleId || !modelId) {
-      // 如果没有当前对话或缺少角色/模型信息，导航到角色选择页面
-      navigate('/chat');
-      closeSidebarOnNonDesktop();
-      return;
-    }
-
-    // 创建新的临时对话，使用当前对话的角色和模型
-    const newSessionId = createTempSession(roleId, modelId);
-
-    // 导航到新对话页面
-    navigate(`/chat/${newSessionId}`);
+    // 导航到 /chat 根路由，进入新会话准备状态
+    navigate('/chat');
     closeSidebarOnNonDesktop();
   };
 

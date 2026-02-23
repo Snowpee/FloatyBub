@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Brain } from 'lucide-react';
 
 interface ThinkingProcessProps {
@@ -12,160 +12,39 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({
   isComplete = false, 
   className = '' 
 }) => {
-  const [displayedContent, setDisplayedContent] = useState('');
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isTyping, setIsTyping] = useState(false);
-  const [hasStartedAnimation, setHasStartedAnimation] = useState(false);
   
-  // 使用 ref 来跟踪状态，避免闭包问题
-  const animationRef = useRef<NodeJS.Timeout | null>(null);
-  const currentIndexRef = useRef(0);
-  const lastProcessedContentRef = useRef('');
-  const isAnimatingRef = useRef(false);
-  const contentRef = useRef(content); // 用于在动画中获取最新的content
+  // 思考状态：只要未完成，就在思考中
+  const isThinking = !isComplete;
+  
+  // 准备状态：未完成且无内容
+  const isPreparingToThink = !content && !isComplete;
 
-  // 更新content ref
+  // 当思考完成时，自动收起
   useEffect(() => {
-    contentRef.current = content;
-  }, [content]);
-
-  // 简化的内容显示逻辑
-  useEffect(() => {
-    // 如果内容为空且未完成，重置所有状态（重新生成时的情况）
-    if (!content && !isComplete) {
-      if (animationRef.current) {
-        clearTimeout(animationRef.current);
-        animationRef.current = null;
-      }
-      isAnimatingRef.current = false;
-      setIsTyping(false);
-      setDisplayedContent('');
-      setHasStartedAnimation(false);
-      currentIndexRef.current = 0;
-      console.log('🔄 思考状态重置，准备新的思考过程');
-      return;
-    }
-
-    // 如果已经完成，立即停止动画并显示完整内容
     if (isComplete) {
-      if (animationRef.current) {
-        clearTimeout(animationRef.current);
-        animationRef.current = null;
-      }
-      isAnimatingRef.current = false;
-      setIsTyping(false);
-      setDisplayedContent(content);
-      console.log('✅ 思考完成，立即显示完整内容');
-      return;
-    }
-
-    // 如果有内容且还未完成，开始或继续动画
-    if (content && content.trim()) {
-      // 如果还没开始动画，开始动画
-      if (!hasStartedAnimation) {
-        console.log('⌨️ 思考动画开始');
-        setHasStartedAnimation(true);
-        isAnimatingRef.current = true;
-        setIsTyping(true);
-        currentIndexRef.current = 0;
-        setDisplayedContent('');
-        setIsExpanded(true); // 确保思考框展开
-      }
-
-      // 确保动画正在运行
-      if (!animationRef.current && isAnimatingRef.current) {
-        const animate = () => {
-          // 检查是否应该停止动画（完成状态或动画被停止）
-          if (!isAnimatingRef.current || isComplete) {
-            if (isComplete) {
-              // 立即显示完整内容并停止动画
-              isAnimatingRef.current = false;
-              setIsTyping(false);
-              setDisplayedContent(content);
-              console.log('⚡ 思考过程立即完成');
-            }
-            return;
-          }
-
-          const currentIndex = currentIndexRef.current;
-          const currentContent = content;
-          
-          // 如果已经显示完所有内容，等待更多内容或完成
-          if (currentIndex >= currentContent.length) {
-            if (isComplete) {
-              isAnimatingRef.current = false;
-              setIsTyping(false);
-              setDisplayedContent(currentContent);
-              console.log('✅ 思考动画结束');
-              return;
-            } else {
-              // 等待更多内容
-              animationRef.current = setTimeout(animate, 100);
-              return;
-            }
-          }
-
-          // 显示下一个字符
-          const newDisplayed = currentContent.slice(0, currentIndex + 1);
-          setDisplayedContent(newDisplayed);
-          currentIndexRef.current = currentIndex + 1;
-
-          animationRef.current = setTimeout(animate, 30);
-        };
-        
-        animate();
+      // 稍微延迟一点收起，让用户看到最后的思考内容（哪怕一瞬间）
+      // 或者直接收起，原逻辑是动画结束后收起。
+      // 这里没有动画了，直接收起可能太快？
+      // 用户说“不写代码回答：...”，然后说“那我们删除这种动画”。
+      // 之前的逻辑是：动画播完 -> isTyping变false -> 触发useEffect -> 收起。
+      // 现在：isComplete变true -> 立即收起。
+      const timer = setTimeout(() => {
+        console.log('📦 思考完成，自动收起');
+        setIsExpanded(false);
+      }, 500); // 给个500ms的延迟，体验更好
+      return () => clearTimeout(timer);
+    } else {
+      // 如果重新开始思考（isComplete变false），且有内容，则展开
+      if (content) {
+        setIsExpanded(true);
       }
     }
-
-    // 清理函数
-    return () => {
-      if (animationRef.current) {
-        clearTimeout(animationRef.current);
-        animationRef.current = null;
-      }
-    };
-  }, [content, isComplete, hasStartedAnimation]);
-
-  // 监听isComplete变化，立即停止动画
-  useEffect(() => {
-    if (isComplete && isAnimatingRef.current) {
-      // 立即停止动画并显示完整内容
-      if (animationRef.current) {
-        clearTimeout(animationRef.current);
-        animationRef.current = null;
-      }
-      isAnimatingRef.current = false;
-      setIsTyping(false);
-      setDisplayedContent(content);
-      console.log('🚀 检测到完成状态，立即停止打字动画');
-    }
-  }, [isComplete, content]);
-
-  // 组件卸载时清理
-  useEffect(() => {
-    return () => {
-      if (animationRef.current) {
-        clearTimeout(animationRef.current);
-        animationRef.current = null;
-      }
-      isAnimatingRef.current = false;
-    };
-  }, []);
-
-  // 当内容完成且动画结束时，立即折叠
-  useEffect(() => {
-    if (isComplete && !isTyping) {
-      console.log('📦 思考块收起');
-      setIsExpanded(false);
-    }
-  }, [isComplete, isTyping]);
+  }, [isComplete, content ? true : false]);
 
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
   };
-
-  // 如果没有内容但正在准备思考，显示准备状态
-  const isPreparingToThink = !content && !isComplete;
   
   // 如果既没有内容也已经完成，则不显示组件
   if (!content && isComplete) {
@@ -186,16 +65,16 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({
               <Brain className="w-4 h-4 text-base-content/50" />
             </div>
             <span className="text-sm font-medium text-base-content/50">
-              {isPreparingToThink ? '准备思考中...' : isTyping ? '思考中...' : '思考过程'}
+              {isPreparingToThink ? '准备思考中...' : isThinking ? '思考中...' : '思考过程'}
             </span>
-            {isComplete && !isTyping && (
+            {isComplete && (
               <div className="badge badge-soft badge-sm gap-1">
                 完成
               </div>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {isTyping && (
+            {isThinking && (
               <span className="loading loading-dots loading-xs text-accent"></span>
             )}
             {isExpanded ? (
@@ -218,25 +97,24 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({
                   </span>
                 ) : (
                   <>
-                    {/* 优先显示动画内容，如果动画内容为空则显示原始内容作为回退 */}
-                    {hasStartedAnimation ? (displayedContent || content) : content}
-                    {isTyping && (
-                      <span className="inline-block w-2 h-4 bg-accent animate-pulse ml-1" />
+                    {/* 直接显示内容，无动画 */}
+                    {content}
+                    {/* 思考中（未完成）显示光标 */}
+                    {isThinking && (
+                      <span className="inline-block w-2 h-4 bg-accent animate-pulse ml-1 align-middle" />
                     )}
                   </>
                 )}
               </pre>
               
               {/* 渐变遮罩效果 - 仅在内容过长时显示 */}
-              {isExpanded && displayedContent.length > 1000 && (
+              {isExpanded && content.length > 1000 && (
                 <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-base-200/50 to-transparent pointer-events-none" />
               )}
             </div>
           </div>
         </div>
       </div>
-
-
     </div>
   );
 };

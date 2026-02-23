@@ -189,18 +189,7 @@ const Sidebar = ({
   }, [currentSessionId, tempSessionId, getAIRole, handleSessionSelect, handleSessionRename, handleSessionDelete, handleSessionHide, pinSession, unpinSession, handleIOSRename, handleIOSTrash, renamingSessionId, deletingSessionId]);
 
   const handleNewSession = () => {
-    const currentSession = chatSessions.find(s => s.id === currentSessionId);
-    const roleId = currentSession?.roleId;
-    const modelId = currentSession?.modelId || currentModelId;
-
-    if (!roleId || !modelId) {
-      navigate('/chat');
-      onCloseSidebar?.();
-      return;
-    }
-
-    const newSessionId = createTempSession(roleId, modelId);
-    navigate(`/chat/${newSessionId}`);
+    navigate('/chat');
     onCloseSidebar?.();
   };
 
@@ -239,7 +228,7 @@ const Sidebar = ({
   return (
     <div
       className={cn(
-        'w-70 md:w-64 bg-base-100 border-base-300/50 border-r-[length:var(--border)] transition-transform duration-200 ease-in-out flex-shrink-0',
+        'w-70 md:w-64 bg-base-100 border-base-300/50 border-r-[length:var(--border)] transition-transform duration-300 ease-in-out flex-shrink-0',
         'fixed lg:fixed z-40 h-full lg:h-screen',
         'pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]',
         className

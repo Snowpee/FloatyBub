@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
 import { useAppStore, GlobalPrompt } from '@/store';
 import {
+  Settings,
   Plus,
+  FileText,
   Edit,
   Trash2,
-  FileText,
-  MoreVertical
+  MoreVertical,
+  Search,
+  MessageSquare,
+  AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { safeFormatDate } from '@/utils/dateUtils';
 import { toast } from '@/hooks/useToast';
 import EmptyState from '@/components/EmptyState';
+import { GlobalPromptsModal, GlobalPromptFormData } from './GlobalPromptsModal';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import GlobalPromptsModal, { GlobalPromptFormData } from './GlobalPromptsModal';
 
 
 interface GlobalPromptsSettingsProps {
@@ -156,7 +161,7 @@ const GlobalPromptsSettings: React.FC<GlobalPromptsSettingsProps> = ({ onCloseMo
                 {/* 创建时间和按钮组 */}
                 <div className="mt-auto">
                   <div className="mt-3 pt-3 border-t border-base-300 text-xs text-base-content/50 mb-3">
-                    创建于 {new Date(prompt.createdAt).toLocaleDateString()}
+                    创建于 {safeFormatDate(prompt.createdAt)}
                   </div>
 
                 </div>

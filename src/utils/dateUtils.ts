@@ -35,3 +35,25 @@ export const getLastActiveTime = (session: any) => {
   
   return 0;
 };
+
+/**
+ * 安全地格式化日期
+ * @param date 日期对象、时间戳或日期字符串
+ * @returns 格式化后的日期字符串 (YYYY/M/D) 或 '未知日期'
+ */
+export const safeFormatDate = (date: Date | string | number | null | undefined): string => {
+  if (!date) return '未知日期';
+  
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '未知日期';
+    
+    // 统一格式为 YYYY/MM/DD
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    return `${year}/${month}/${day}`;
+  } catch (e) {
+    return '未知日期';
+  }
+};

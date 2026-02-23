@@ -1,5 +1,6 @@
 import type { SearchConfig } from '@/store';
 import { getApiBaseUrl } from '@/lib/utils';
+import { safeFormatDate } from '@/utils/dateUtils';
 
 // Tool Definitions
 export const webSearchToolDefinition = {
@@ -121,9 +122,7 @@ export async function executeWebSearch(
       const link = (it?.link || '').toString();
       const snippetRaw = (it?.snippet || it?.htmlSnippet || '') as string;
       const snippet = snippetRaw.replace(/\s+/g, ' ').trim();
-      const dateTxt = it?.date ? (() => {
-        try { return new Date(it.date).toISOString().slice(0, 10); } catch { return String(it.date).slice(0, 10); }
-      })() : 'Unknown Date';
+      const dateTxt = safeFormatDate(it?.date);
       return `[${idx + 1}] ${title}\nLink: ${link}\nDate: ${dateTxt}\nSnippet: ${snippet}`;
     }).join('\n\n');
 
@@ -164,7 +163,13 @@ export async function executeVisitPage(url: string): Promise<string> {
     const content = data.content || 'No content extracted.';
     const title = data.title || 'No Title';
 
-    return `Page Title: ${title}\nURL: ${url}\n\nContent:\n${content}`;
+    // Truncate content to prevent context window overflow
+    const MAX_CONTENT_LENGTH = 12000;
+    const truncatedContent = content.length > MAX_CONTENT_LENGTH 
+      ? content.slice(0, MAX_CONTENT_LENGTH) + `\n...[Content truncated, original length: ${content.length} chars]`
+      : content;
+
+    return `Page Title: ${title}\nURL: ${url}\n\nContent:\n${truncatedContent}`;
 
   } catch (error: any) {
     console.error('💥 [Tool:VisitPage] Exception:', error);
