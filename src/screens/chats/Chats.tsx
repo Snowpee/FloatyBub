@@ -7,6 +7,7 @@ import { toast } from '@/hooks/useToast';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { replaceTemplateVariables } from '@/utils/templateUtils';
+import { isDeepSeekThinkingEnabled } from '@/utils/deepseekUtils';
 import { playVoiceStreaming, stopCurrentVoice, addVoiceStateListener, getVoiceState } from '@/utils/voiceUtils';
 import { useAuth } from '@/hooks/useAuth';
 import { 
@@ -231,7 +232,8 @@ const Chats: React.FC = () => {
 
         const aiMessageId = generateId();
         console.warn('CHAT_PAGE_AI_PLACEHOLDER', { sessionId: currentSession.id, aiMessageId, at: new Date().toISOString() });
-        const supportsReasoning = currentModel?.model?.includes('deepseek-reasoner') || 
+        const supportsReasoning = isDeepSeekThinkingEnabled(currentModel) ||
+                                 currentModel?.model?.includes('deepseek-reasoner') || 
                                  currentModel?.model?.includes('o1') ||
                                  currentModel?.name?.toLowerCase().includes('reasoning');
 
@@ -420,7 +422,8 @@ const Chats: React.FC = () => {
     const aiMessageId = generateId();
     
     // 检查当前模型是否支持思考过程
-    const supportsReasoning = currentModel?.model?.includes('deepseek-reasoner') || 
+    const supportsReasoning = isDeepSeekThinkingEnabled(currentModel) ||
+                             currentModel?.model?.includes('deepseek-reasoner') || 
                              currentModel?.model?.includes('o1') ||
                              currentModel?.name?.toLowerCase().includes('reasoning');
     

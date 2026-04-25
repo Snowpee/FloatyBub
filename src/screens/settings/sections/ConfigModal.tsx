@@ -48,6 +48,8 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
     model: '',
     temperature: 0.7,
     maxTokens: 2048,
+    deepseekThinkingMode: 'default',
+    deepseekReasoningEffort: 'high',
     enabled: true
   });
 
@@ -86,7 +88,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
       // 思考模型
       'kimi-thinking-preview'
     ] },
-    { value: 'deepseek', label: 'DeepSeek', models: ['deepseek-chat', 'deepseek-reasoner'] },
+    { value: 'deepseek', label: 'DeepSeek', models: ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner'] },
     { value: 'openrouter', label: 'OpenRouter', models: [
       'openai/gpt-4o',
       'openai/gpt-4o-mini',
@@ -104,7 +106,11 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
   // 初始化表单数据
   useEffect(() => {
     if (isOpen && initialConfig) {
-      setFormData(initialConfig);
+      setFormData({
+        deepseekThinkingMode: 'default',
+        deepseekReasoningEffort: 'high',
+        ...initialConfig
+      });
       
       // 检查当前模型是否在静态列表中
       const provider = initialConfig.provider || 'openai';
@@ -128,6 +134,8 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
         model: '',
         temperature: 0.7,
         maxTokens: 2048,
+        deepseekThinkingMode: 'default',
+        deepseekReasoningEffort: 'high',
         enabled: true
       });
       setFetchedModels([]);
@@ -271,7 +279,9 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
                     ...formData,
                     provider: newProvider,
                     model: '',
-                    baseUrl: newProvider === 'custom' ? formData.baseUrl : newBaseUrl
+                    baseUrl: newProvider === 'custom' ? formData.baseUrl : newBaseUrl,
+                    deepseekThinkingMode: newProvider === 'deepseek' ? (formData.deepseekThinkingMode || 'default') : formData.deepseekThinkingMode,
+                    deepseekReasoningEffort: newProvider === 'deepseek' ? (formData.deepseekReasoningEffort || 'high') : formData.deepseekReasoningEffort
                   });
                 }}
               >
@@ -410,6 +420,36 @@ const ConfigModal: React.FC<ConfigModalProps> = ({
               />
             </label>
           </div>
+          {formData.provider === 'deepseek' && (
+            <>
+              <div>
+                <label className='bub-select'>
+                  <span className="label">思考模式</span>
+                  <select
+                    value={formData.deepseekThinkingMode || 'default'}
+                    onChange={(e) => setFormData({ ...formData, deepseekThinkingMode: e.target.value as LLMConfig['deepseekThinkingMode'] })}
+                  >
+                    <option value="default">默认</option>
+                    <option value="enabled">开启</option>
+                    <option value="disabled">关闭</option>
+                  </select>
+                </label>
+              </div>
+              <div>
+                <label className='bub-select'>
+                  <span className="label">思考强度</span>
+                  <select
+                    value={formData.deepseekReasoningEffort || 'high'}
+                    onChange={(e) => setFormData({ ...formData, deepseekReasoningEffort: e.target.value as LLMConfig['deepseekReasoningEffort'] })}
+                    disabled={formData.deepseekThinkingMode === 'disabled'}
+                  >
+                    <option value="high">high</option>
+                    <option value="max">max</option>
+                  </select>
+                </label>
+              </div>
+            </>
+          )}
         </fieldset>
 
         <fieldset className="bub-fieldset">

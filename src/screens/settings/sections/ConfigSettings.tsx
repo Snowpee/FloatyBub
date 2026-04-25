@@ -15,6 +15,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import ConfigModal from './ConfigModal';
 import EmptyState from '@/components/EmptyState';
 import { getDefaultBaseUrl } from '@/utils/providerUtils';
+import { applyDeepSeekThinkingOptions } from '@/utils/deepseekUtils';
 
 interface ConfigSettingsProps {
   onCloseModal?: () => void;
@@ -125,12 +126,13 @@ const ConfigSettings: React.FC<ConfigSettingsProps> = ({ onCloseModal, className
       const url = config.proxyUrl || baseUrl;
       
       // 构建测试请求
-      const testPayload = {
+      const testPayload: Record<string, unknown> = {
         model: config.model,
         messages: [{ role: 'user', content: 'Hello' }],
         max_tokens: 16,
         temperature: 0.1
       };
+      applyDeepSeekThinkingOptions(testPayload, config);
       
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'

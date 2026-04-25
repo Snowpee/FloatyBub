@@ -3,6 +3,7 @@ import { AppState, ChatSlice, ChatSession, ChatMessage } from '../types';
 import { generateId, convertToUUID } from '../utils';
 import { generateSnowflakeId } from '@/utils/snowflakeId';
 import { supabase } from '@/lib/supabase';
+import { applyDeepSeekThinkingOptions, isDeepSeekThinkingEnabled } from '@/utils/deepseekUtils';
 
 export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, get) => ({
   // 初始状态
@@ -141,7 +142,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       console.log('🔧 模型提供商:', llmConfig.provider);
       
       // 检查是否为thinking模型
-      const isThinkingModel = llmConfig.model?.includes('reasoner') || llmConfig.model?.includes('thinking');
+      const isThinkingModel = isDeepSeekThinkingEnabled(llmConfig) || llmConfig.model?.includes('reasoner') || llmConfig.model?.includes('thinking');
       console.log('🧠 是否为thinking模型:', isThinkingModel, '模型名称:', llmConfig.model);
       
       // 根据不同provider构建请求
@@ -176,6 +177,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           // 对于thinking模型，使用流式调用以获取完整内容
           stream: isThinkingModel
         };
+        applyDeepSeekThinkingOptions(body, llmConfig);
       }
       
       // 如果配置了代理URL，使用代理

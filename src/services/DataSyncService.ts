@@ -340,6 +340,8 @@ export class DataSyncService {
         proxyUrl: data.proxyUrl,
         temperature: data.temperature,
         maxTokens: data.maxTokens,
+        deepseekThinkingMode: data.deepseekThinkingMode,
+        deepseekReasoningEffort: data.deepseekReasoningEffort,
         enabled: data.enabled
       },
       is_default: false,
@@ -914,6 +916,8 @@ export class DataSyncService {
       proxyUrl: item.config?.proxyUrl || '',
       temperature: item.config?.temperature || 0.7,
       maxTokens: item.config?.maxTokens || 2048,
+      deepseekThinkingMode: item.config?.deepseekThinkingMode || 'default',
+      deepseekReasoningEffort: item.config?.deepseekReasoningEffort || 'high',
       enabled: item.config?.enabled || false,
       createdAt: item.created_at,
       updatedAt: item.updated_at

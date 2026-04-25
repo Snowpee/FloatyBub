@@ -9,6 +9,8 @@ export interface LLMConfig {
   temperature: number;
   maxTokens: number;
   enabled: boolean;
+  deepseekThinkingMode?: 'default' | 'enabled' | 'disabled';
+  deepseekReasoningEffort?: 'high' | 'max';
 }
 
 export interface AIRole {

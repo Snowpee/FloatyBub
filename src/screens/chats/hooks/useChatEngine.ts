@@ -4,6 +4,7 @@ import { useKnowledgeStore } from '@/store/knowledgeStore';
 import { toast } from '@/hooks/useToast';
 import { ChatEnhancementService } from '@/services/chatEnhancementService';
 import { getDefaultBaseUrl } from '@/utils/providerUtils';
+import { applyDeepSeekThinkingOptions, isDeepSeekThinkingEnabled, stripHistoricalReasoningContent } from '@/utils/deepseekUtils';
 import { executeWebSearch, executeVisitPage, getToolsForProvider } from '@/tools';
 import { stopCurrentVoice } from '@/utils/voiceUtils';
 import { buildSystemMessages } from '../utils/chatUtils';
@@ -174,6 +175,7 @@ export const useChatEngine = ({
                   max_tokens: currentModel.maxTokens,
                   stream: true
                 };
+                applyDeepSeekThinkingOptions(body, currentModel);
                 if (tools && tools.length > 0) {
                   body.tools = tools;
                   body.tool_choice = 'auto';
@@ -194,6 +196,7 @@ export const useChatEngine = ({
                 max_tokens: currentModel.maxTokens,
                 stream: true
               };
+              applyDeepSeekThinkingOptions(body, currentModel);
               if (tools && tools.length > 0) {
                 body.tools = tools;
                 body.tool_choice = 'auto';
@@ -576,7 +579,7 @@ export const useChatEngine = ({
           role: m.role,
           content: m.content
         };
-        if (m.reasoningContent) {
+        if (currentModel.provider !== 'deepseek' && m.reasoningContent) {
           msg.reasoning_content = m.reasoningContent;
         }
         return msg;
@@ -587,7 +590,11 @@ export const useChatEngine = ({
         content: userMessage
       });
 
-      await executeLLMLoop(messages, messageId, sessionId);
+      await executeLLMLoop(
+        currentModel.provider === 'deepseek' ? stripHistoricalReasoningContent(messages) : messages,
+        messageId,
+        sessionId
+      );
 
     } catch (error) {
       setIsGenerating(false);
@@ -628,7 +635,8 @@ export const useChatEngine = ({
       const { skillIds, loadedPaths } = await prepareSkills(lastUserMessage.content, sessionId, currentRole);
 
       // Reset message content
-      const supportsReasoning = currentModel.name?.toLowerCase().includes('deepseek-reasoner') || 
+      const supportsReasoning = isDeepSeekThinkingEnabled(currentModel) ||
+                               currentModel.name?.toLowerCase().includes('deepseek-reasoner') || 
                                currentModel.name?.toLowerCase().includes('o1') || 
                                currentModel.name?.toLowerCase().includes('reasoning');
       
