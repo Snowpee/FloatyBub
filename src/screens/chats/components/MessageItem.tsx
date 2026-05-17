@@ -57,6 +57,35 @@ const tryExtractJson = (s: string) => {
   }
 };
 
+const TTS_TONE_TAG_REGEX = /\[[\p{Script=Han}A-Za-z]{1,12}\](?!\()/gu;
+
+const renderTtsToneText = (content: string) => {
+  TTS_TONE_TAG_REGEX.lastIndex = 0;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = TTS_TONE_TAG_REGEX.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+
+    parts.push(
+      <span key={`${match[0]}-${match.index}`} className="tts-tone">
+        {match[0]}
+      </span>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex === 0) return content;
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return parts;
+};
+
 const MessageItem: React.FC<MessageItemProps> = ({
   msg,
   currentSessionId,
@@ -235,7 +264,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                           开场白: {opening && typeof opening === 'object' && 'title' in opening ? (opening as any).title : '未命名'}
                         </div>
                         <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded">
-                          {opening && typeof opening === 'object' && 'greeting' in opening ? (opening as any).greeting : content}
+                          {renderTtsToneText(opening && typeof opening === 'object' && 'greeting' in opening ? (opening as any).greeting : content)}
                         </div>
                       </div>
                     );
@@ -256,7 +285,8 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     <MarkdownRenderer 
                       key={i}
                       content={processedContent} 
-                      className="pointer-events-auto" 
+                      className="pointer-events-auto"
+                      decorateTtsToneTags
                       onLinkClick={onLinkClick}
                     />
                   );
@@ -274,7 +304,8 @@ const MessageItem: React.FC<MessageItemProps> = ({
                 {skillName && <SkillUsageIndicator skillName={skillName} />}
                 <MarkdownRenderer 
                   content={processedContent} 
-                  className="pointer-events-auto" 
+                  className="pointer-events-auto"
+                  decorateTtsToneTags
                   onLinkClick={onLinkClick}
                 />
               </>

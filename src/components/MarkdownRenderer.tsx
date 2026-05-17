@@ -7,14 +7,68 @@ interface MarkdownRendererProps {
   content: string;
   className?: string;
   onLinkClick?: (href: string) => boolean | void;
+  decorateTtsToneTags?: boolean;
 }
 
-const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '', onLinkClick }) => {
+const TTS_TONE_TAG_REGEX = /\[[\p{Script=Han}A-Za-z]{1,12}\](?!\()/gu;
+const SKIP_TTS_TONE_TAGS = new Set(['a', 'code', 'pre']);
+
+const rehypeTtsToneTags = () => {
+  const transformNode = (node: any, parentTagName?: string) => {
+    if (!node || !Array.isArray(node.children) || SKIP_TTS_TONE_TAGS.has(parentTagName || '')) {
+      return;
+    }
+
+    const nextChildren: any[] = [];
+
+    node.children.forEach((child: any) => {
+      if (child.type === 'text' && typeof child.value === 'string') {
+        TTS_TONE_TAG_REGEX.lastIndex = 0;
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+
+        while ((match = TTS_TONE_TAG_REGEX.exec(child.value)) !== null) {
+          if (match.index > lastIndex) {
+            nextChildren.push({ type: 'text', value: child.value.slice(lastIndex, match.index) });
+          }
+
+          nextChildren.push({
+            type: 'element',
+            tagName: 'span',
+            properties: { className: ['tts-tone'] },
+            children: [{ type: 'text', value: match[0] }]
+          });
+
+          lastIndex = match.index + match[0].length;
+        }
+
+        if (lastIndex === 0) {
+          nextChildren.push(child);
+        } else if (lastIndex < child.value.length) {
+          nextChildren.push({ type: 'text', value: child.value.slice(lastIndex) });
+        }
+
+        return;
+      }
+
+      transformNode(child, child.tagName);
+      nextChildren.push(child);
+    });
+
+    node.children = nextChildren;
+  };
+
+  return (tree: any) => transformNode(tree);
+};
+
+const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '', onLinkClick, decorateTtsToneTags = false }) => {
+  const rehypePlugins = decorateTtsToneTags ? [rehypeHighlight, rehypeTtsToneTags] : [rehypeHighlight];
+
   return (
     <div className={`markdown-content text-wrap whitespace-normal break-word min-w-0 overflow-x-hidden ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
+        rehypePlugins={rehypePlugins}
         components={{
           // 自定义代码块样式
           code: ({ node, inline, className, children, ...props }: any) => {

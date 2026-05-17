@@ -31,6 +31,8 @@ interface VoiceSettingsProps {
   className?: string;
 }
 
+const fallbackModelVersions = ['s2-pro', 's1', 'speech-1.6', 'speech-1.5'];
+
 const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }) => {
   const { voiceSettings, setVoiceSettings } = useAppStore();
   
@@ -40,12 +42,12 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
     apiKey: '',
     readingMode: 'all',
     customModels: [],
-    modelVersion: 'speech-1.6'
+    modelVersion: 's2-pro'
   });
   
 
   
-  const [models, setModels] = useState<VoiceModel[]>([]);
+  const [modelVersions, setModelVersions] = useState<string[]>(fallbackModelVersions);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [playingModel, setPlayingModel] = useState<string | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
@@ -99,7 +101,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
       const needsUpdate = !voiceSettings.modelVersion;
       loadedSettings = { 
         ...voiceSettings, 
-        modelVersion: voiceSettings.modelVersion || 'speech-1.6' 
+        modelVersion: voiceSettings.modelVersion || 's2-pro' 
       };
       
       // 仅当确实需要更新时才写回 store，避免无限循环
@@ -108,7 +110,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
       }
     } else {
       // 使用默认设置
-      loadedSettings = { ...settings, customModels: presetModels, modelVersion: 'speech-1.6' };
+      loadedSettings = { ...settings, customModels: presetModels, modelVersion: 's2-pro' };
       setVoiceSettings(loadedSettings);
     }
     
@@ -116,6 +118,68 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
     refreshCacheStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceSettings]);
+
+  // 从后端代理配置读取支持的 TTS 模型版本
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchModelVersions = async () => {
+      setIsLoadingModels(true);
+
+      try {
+        const apiBaseUrl = getApiBaseUrl();
+        const response = await fetch(`${apiBaseUrl}/api/tts`, {
+          method: 'GET',
+          headers: {
+            'x-api-key': import.meta.env.VITE_API_SECRET || ''
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`获取模型版本失败: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const backendModels = Array.isArray(data.models)
+          ? data.models.filter((model: unknown): model is string => typeof model === 'string' && model.trim().length > 0)
+          : [];
+
+        if (backendModels.length === 0 || cancelled) return;
+
+        const backendDefault = typeof data.default === 'string' && backendModels.includes(data.default)
+          ? data.default
+          : backendModels[0];
+
+        setModelVersions(backendModels);
+
+        setSettings((prevSettings) => {
+          const currentModel = prevSettings.modelVersion || backendDefault;
+          if (backendModels.includes(currentModel)) {
+            return prevSettings;
+          }
+
+          const nextSettings = { ...prevSettings, modelVersion: backendDefault };
+          setVoiceSettings(nextSettings);
+          return nextSettings;
+        });
+      } catch (error) {
+        console.error('获取后端 TTS 模型配置失败:', error);
+        if (!cancelled) {
+          setModelVersions(fallbackModelVersions);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingModels(false);
+        }
+      }
+    };
+
+    fetchModelVersions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setVoiceSettings]);
 
   // 解析模型ID或网址
   const parseModelInput = (input: string): string => {
@@ -251,7 +315,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
       const voiceSettings = {
         ...settings,
         apiKey: settings.apiKey,
-        modelVersion: settings.modelVersion || 'speech-1.6'
+        modelVersion: settings.modelVersion || 's2-pro'
       };
       
       // 生成流式音频URL
@@ -533,15 +597,18 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
             <div className="bub-select">
               <span className="label">模型版本</span>
               <select 
-                value={settings.modelVersion || 'speech-1.6'}
+                value={settings.modelVersion || 's2-pro'}
                 onChange={(e) => {
                   const newSettings = { ...settings, modelVersion: e.target.value };
                   saveSettings(newSettings);
                 }}
+                disabled={isLoadingModels && modelVersions.length === 0}
               >
-                <option value="speech-1.5">speech-1.5</option>
-                <option value="speech-1.6">speech-1.6</option>
-                <option value="s1">s1</option>
+                {modelVersions.map((modelVersion) => (
+                  <option key={modelVersion} value={modelVersion}>
+                    {modelVersion}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

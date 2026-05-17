@@ -960,7 +960,7 @@ export class DataSyncService {
         apiKey: dbVoiceSettings.config?.apiKey || '',
         readingMode: dbVoiceSettings.config?.readingMode || 'all',
         customModels: dbVoiceSettings.config?.customModels || [],
-        modelVersion: dbVoiceSettings.config?.modelVersion || 'speech-1.6',
+        modelVersion: dbVoiceSettings.config?.modelVersion || 's2-pro',
         defaultVoiceModelId: dbVoiceSettings.config?.defaultVoiceModelId || ''
       }
     }

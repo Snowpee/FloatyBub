@@ -94,7 +94,8 @@ const ToastContainer: React.FC = () => {
 
   // 渲染动画项
   const items = transitions(({ x, y }, toast) => (
-    <animated.div 
+    <animated.div
+      key={toast.id}
       style={{
         transform: isMobile 
           ? y.to(v => `translate3d(0, ${v}%, 0)`)
@@ -107,9 +108,6 @@ const ToastContainer: React.FC = () => {
       />
     </animated.div>
   ));
-  
-  // 确保 items 是数组
-  const renderedItems = Array.isArray(items) ? items : [items];
   
   // 如果没有要渲染的项（包括正在退出的项），则不渲染容器（销毁 DOM）
   // 只有当 transitions 列表确实为空时，才销毁
@@ -129,7 +127,7 @@ const ToastContainer: React.FC = () => {
 
   return (
     <div className={toastClasses}>
-      {renderedItems}
+      {items}
     </div>
   );
 };

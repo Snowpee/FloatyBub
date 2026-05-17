@@ -6,14 +6,26 @@ import { indexedDBStorage } from '@/store/storage';
 
 interface TTSRequest {
   text: string;
-  format: 'mp3' | 'wav';
+  format: 'mp3' | 'wav' | 'pcm' | 'opus';
   mp3_bitrate: number;
+  opus_bitrate: number;
   reference_id?: string;
   normalize: boolean;
-  latency: 'normal' | 'balanced';
+  latency: 'normal' | 'balanced' | 'low';
   chunk_length: number;
   model?: string;
   fish_audio_key?: string;
+  temperature: number;
+  top_p: number;
+  prosody_speed: number;
+  prosody_volume: number;
+  prosody_normalize_loudness: boolean;
+  sample_rate: number | null;
+  max_new_tokens: number;
+  repetition_penalty: number;
+  min_chunk_length: number;
+  condition_on_previous_chunks: boolean;
+  early_stop_threshold: number;
 }
 
 // 移除VoiceModel接口定义，使用语音设置中的模型结构
@@ -26,7 +38,8 @@ interface FishAudioModel {
   state: string;
 }
 
-
+const DEFAULT_TTS_MODEL = 's2-pro';
+const FALLBACK_TTS_MODELS = ['s2-pro', 's1', 'speech-1.6', 'speech-1.5'];
 
 const VoiceTest: React.FC = () => {
   const [text, setText] = useState('你好，这是一个语音测试。欢迎使用 Fish Audio 文本转语音功能！');
@@ -40,7 +53,7 @@ const VoiceTest: React.FC = () => {
   const [newModelNote, setNewModelNote] = useState('');
   const [isAddingModel, setIsAddingModel] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [defaultModel, setDefaultModel] = useState('speech-1.6');
+  const [defaultModel, setDefaultModel] = useState(DEFAULT_TTS_MODEL);
   const [customModels, setCustomModels] = useState<any[]>([]);
   const [fishApiKey, setFishApiKey] = useState('');
   
@@ -62,15 +75,44 @@ const VoiceTest: React.FC = () => {
     }
     return serverOptions[serverType];
   };
+
+  const saveVoiceSettings = (
+    models: any[],
+    apiKey: string,
+    modelVersion = config.model || DEFAULT_TTS_MODEL,
+    defaultVoiceModelId = selectedModelId
+  ) => {
+    indexedDBStorage.setItem('voiceSettings', JSON.stringify({
+      provider: 'fish-audio',
+      apiUrl: 'https://api.fish.audio',
+      apiKey,
+      readingMode: 'all',
+      customModels: models,
+      modelVersion,
+      defaultVoiceModelId
+    }));
+  };
   
   const [config, setConfig] = useState<TTSRequest>({
     text: '',
     format: 'mp3',
-    mp3_bitrate: 128,
+    mp3_bitrate: 192,
+    opus_bitrate: -1000,
     normalize: true,
     latency: 'normal',
-    chunk_length: 200,
-    model: 'speech-1.6'
+    chunk_length: 300,
+    model: DEFAULT_TTS_MODEL,
+    temperature: 0.7,
+    top_p: 0.7,
+    prosody_speed: 1,
+    prosody_volume: 0,
+    prosody_normalize_loudness: true,
+    sample_rate: 44100,
+    max_new_tokens: 1024,
+    repetition_penalty: 1.2,
+    min_chunk_length: 50,
+    condition_on_previous_chunks: true,
+    early_stop_threshold: 1
   });
   
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -105,6 +147,9 @@ const VoiceTest: React.FC = () => {
         if (parsed.apiKey) {
           setFishApiKey(parsed.apiKey);
         }
+        if (parsed.modelVersion) {
+          setConfig(prev => ({ ...prev, model: parsed.modelVersion }));
+        }
       } catch (error) {
         console.error('加载语音设置失败:', error);
         setCustomModels(presetModels);
@@ -128,10 +173,11 @@ const VoiceTest: React.FC = () => {
         const data = await response.json();
         if (data.success && data.models) {
           setAvailableModels(data.models);
-          setDefaultModel(data.default || 'speech-1.6');
+          const nextDefaultModel = data.default || DEFAULT_TTS_MODEL;
+          setDefaultModel(nextDefaultModel);
           // 如果当前选择的模型不在可用列表中，则设置为默认模型
           if (!data.models.includes(config.model)) {
-            setConfig(prev => ({ ...prev, model: data.default || 'speech-1.6' }));
+            setConfig(prev => ({ ...prev, model: nextDefaultModel }));
           }
           toast.success('成功获取支持的模型列表');
         }
@@ -142,7 +188,8 @@ const VoiceTest: React.FC = () => {
       console.error('获取模型列表失败:', error);
       toast.error(`获取模型列表失败: ${error instanceof Error ? error.message : '未知错误'}`);
       // 如果获取失败，使用默认模型列表
-      setAvailableModels(['speech-1.5', 'speech-1.6', 's1']);
+      setAvailableModels(FALLBACK_TTS_MODELS);
+      setDefaultModel(DEFAULT_TTS_MODEL);
     }
   };
 
@@ -185,17 +232,12 @@ const VoiceTest: React.FC = () => {
       }
 
       const apiBaseUrl = getApiBaseUrl();
-      const endpoint = serverType === 'vercel' ? '/api/model-info' : '/api/fish-model';
-      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
-        method: 'POST',
+      const response = await fetch(`${apiBaseUrl}/api/model-info/${encodeURIComponent(modelId)}`, {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_API_SECRET || ''
-        },
-        body: JSON.stringify({
-          model_id: modelId,
-          fish_audio_key: fishApiKey
-        })
+          'x-api-key': import.meta.env.VITE_API_SECRET || '',
+          'fish-audio-key': fishApiKey
+        }
       });
 
       if (!response.ok) {
@@ -248,12 +290,7 @@ const VoiceTest: React.FC = () => {
       const updatedModels = [...customModels, newModel];
       setCustomModels(updatedModels);
       
-      // 保存到语音设置
-      const voiceSettings = {
-        customModels: updatedModels,
-        apiKey: fishApiKey
-      };
-      indexedDBStorage.setItem('voiceSettings', JSON.stringify(voiceSettings));
+      saveVoiceSettings(updatedModels, fishApiKey, config.model || DEFAULT_TTS_MODEL, modelId);
       
       setNewModelInput('');
       setNewModelNote('');
@@ -275,12 +312,7 @@ const VoiceTest: React.FC = () => {
     const updatedModels = customModels.filter(model => model.id !== modelId);
     setCustomModels(updatedModels);
     
-    // 保存到语音设置
-    const voiceSettings = {
-      customModels: updatedModels,
-      apiKey: fishApiKey
-    };
-    indexedDBStorage.setItem('voiceSettings', JSON.stringify(voiceSettings));
+    saveVoiceSettings(updatedModels, fishApiKey);
     
     if (selectedModelId === modelId && updatedModels.length > 0) {
       setSelectedModelId(updatedModels[0].id);
@@ -307,37 +339,44 @@ const VoiceTest: React.FC = () => {
     try {
       const apiBaseUrl = getApiBaseUrl();
       
-      // 根据服务器类型调整请求数据格式
-      let requestData: any;
-      if (serverType === 'vercel') {
-        // Vercel API 格式
-        requestData = {
-          text: text,
-          model: config.model,
-          format: config.format,
-          normalize: config.normalize,
-          latency: config.latency,
-          fish_audio_key: fishApiKey,
-          reference_id: selectedModelId
-        };
-      } else {
-        // 本地 TTS 服务器格式
-        requestData = {
-          text,
-          format: config.format,
-          mp3_bitrate: config.mp3_bitrate,
-          normalize: config.normalize,
-          latency: config.latency,
-          chunk_length: config.chunk_length,
-          model: config.model,
-          fish_audio_key: fishApiKey,
-          reference_id: selectedModelId
-        };
-      }
+      const requestData = {
+        text,
+        format: config.format,
+        mp3_bitrate: config.mp3_bitrate,
+        opus_bitrate: config.opus_bitrate,
+        normalize: config.normalize,
+        latency: config.latency,
+        chunk_length: config.chunk_length,
+        model: config.model || defaultModel,
+        temperature: config.temperature,
+        top_p: config.top_p,
+        prosody: {
+          speed: config.prosody_speed,
+          volume: config.prosody_volume,
+          normalize_loudness: config.prosody_normalize_loudness
+        },
+        sample_rate: config.sample_rate,
+        max_new_tokens: config.max_new_tokens,
+        repetition_penalty: config.repetition_penalty,
+        min_chunk_length: config.min_chunk_length,
+        condition_on_previous_chunks: config.condition_on_previous_chunks,
+        early_stop_threshold: config.early_stop_threshold,
+        fish_audio_key: fishApiKey,
+        reference_id: selectedModelId
+      };
 
       console.log('发送 TTS 请求:', {
         text: text.substring(0, 50) + '...',
-        format: config.format
+        format: config.format,
+        mp3_bitrate: config.mp3_bitrate,
+        opus_bitrate: config.opus_bitrate,
+        chunk_length: config.chunk_length,
+        model: requestData.model,
+        temperature: config.temperature,
+        top_p: config.top_p,
+        sample_rate: config.sample_rate,
+        repetition_penalty: config.repetition_penalty,
+        reference_id: selectedModelId
       });
 
       const response = await fetch(`${apiBaseUrl}/api/tts`, {
@@ -442,13 +481,9 @@ const VoiceTest: React.FC = () => {
   // API Key自动保存
   useEffect(() => {
     if (fishApiKey.trim()) {
-      const voiceSettings = {
-        customModels,
-        apiKey: fishApiKey
-      };
-      indexedDBStorage.setItem('voiceSettings', JSON.stringify(voiceSettings));
+      saveVoiceSettings(customModels, fishApiKey);
     }
-  }, [fishApiKey, customModels]);
+  }, [fishApiKey, customModels, config.model, selectedModelId]);
 
   // 清理 URL
   React.useEffect(() => {
@@ -581,10 +616,12 @@ const VoiceTest: React.FC = () => {
                 <select 
                   className="select select-bordered w-full"
                   value={config.format}
-                  onChange={(e) => setConfig(prev => ({ ...prev, format: e.target.value as 'mp3' | 'wav' }))}
+                  onChange={(e) => setConfig(prev => ({ ...prev, format: e.target.value as 'mp3' | 'wav' | 'pcm' | 'opus' }))}
                 >
                   <option value="mp3">MP3</option>
                   <option value="wav">WAV</option>
+                  <option value="pcm">PCM</option>
+                  <option value="opus">Opus</option>
                 </select>
               </div>
               
@@ -601,7 +638,24 @@ const VoiceTest: React.FC = () => {
                   <option value={64}>64 kbps</option>
                   <option value={128}>128 kbps</option>
                   <option value={192}>192 kbps</option>
-                  <option value={320}>320 kbps</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="label">
+                  <span className="label-text">Opus 比特率</span>
+                </label>
+                <select 
+                  className="select select-bordered w-full"
+                  value={config.opus_bitrate}
+                  onChange={(e) => setConfig(prev => ({ ...prev, opus_bitrate: parseInt(e.target.value) }))}
+                  disabled={config.format !== 'opus'}
+                >
+                  <option value={-1000}>自动</option>
+                  <option value={24000}>24 kbps</option>
+                  <option value={32000}>32 kbps</option>
+                  <option value={48000}>48 kbps</option>
+                  <option value={64000}>64 kbps</option>
                 </select>
               </div>
               
@@ -612,30 +666,33 @@ const VoiceTest: React.FC = () => {
                 <select 
                   className="select select-bordered w-full"
                   value={config.latency}
-                  onChange={(e) => setConfig(prev => ({ ...prev, latency: e.target.value as 'normal' | 'balanced' }))}
+                  onChange={(e) => setConfig(prev => ({ ...prev, latency: e.target.value as 'normal' | 'balanced' | 'low' }))}
                 >
-                  <option value="normal">普通</option>
-                  <option value="balanced">平衡</option>
+                  <option value="normal">normal（最佳质量）</option>
+                  <option value="balanced">balanced（平衡）</option>
+                  <option value="low">low（最低延迟）</option>
                 </select>
               </div>
               
               <div>
                 <label className="label">
                   <span className="label-text">文本块长度</span>
+                  <span className="label-text-alt">质量优先建议 300</span>
                 </label>
                 <input 
                   type="number"
                   className="input input-bordered w-full"
                   value={config.chunk_length}
-                  onChange={(e) => setConfig(prev => ({ ...prev, chunk_length: parseInt(e.target.value) || 200 }))}
-                  min={50}
-                  max={500}
+                  onChange={(e) => setConfig(prev => ({ ...prev, chunk_length: parseInt(e.target.value) || 300 }))}
+                  min={100}
+                  max={100}
                 />
               </div>
               
               <div>
                 <label className="label">
-                  <span className="label-text">AI 模型</span>
+                  <span className="label-text">TTS 模型版本</span>
+                  <span className="label-text-alt">默认 {defaultModel}</span>
                 </label>
                 <select 
                   className="select select-bordered w-full"
@@ -645,7 +702,8 @@ const VoiceTest: React.FC = () => {
                   {availableModels.length > 0 ? (
                     availableModels.map((model) => (
                       <option key={model} value={model}>
-                        {model === 'speech-1.5' ? 'Speech 1.5' :
+                        {model === 's2-pro' ? 'S2 Pro（推荐）' :
+                         model === 'speech-1.5' ? 'Speech 1.5' :
                          model === 'speech-1.6' ? 'Speech 1.6' :
                          model === 's1' ? 'S1' : model}
                       </option>
@@ -665,6 +723,188 @@ const VoiceTest: React.FC = () => {
                     onChange={(e) => setConfig(prev => ({ ...prev, normalize: e.target.checked }))}
                   />
                   <span className="label-text ml-2">标准化音频</span>
+                </label>
+              </div>
+            </div>
+            <div className="text-sm text-base-content/60 mt-4">
+              下方参数会直接发送给后端并覆盖后端默认值，用于对比 Fish Audio 最新模型的不同生成效果。
+            </div>
+
+            <div className="divider">生成采样参数</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="label">
+                  <span className="label-text">Temperature</span>
+                  <span className="label-text-alt">{config.temperature}</span>
+                </label>
+                <input
+                  type="range"
+                  className="range range-primary"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={config.temperature}
+                  onChange={(e) => setConfig(prev => ({ ...prev, temperature: parseFloat(e.target.value) }))}
+                />
+              </div>
+
+              <div>
+                <label className="label">
+                  <span className="label-text">Top P</span>
+                  <span className="label-text-alt">{config.top_p}</span>
+                </label>
+                <input
+                  type="range"
+                  className="range range-primary"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={config.top_p}
+                  onChange={(e) => setConfig(prev => ({ ...prev, top_p: parseFloat(e.target.value) }))}
+                />
+              </div>
+
+              <div>
+                <label className="label">
+                  <span className="label-text">Repetition Penalty</span>
+                </label>
+                <input
+                  type="number"
+                  className="input input-bordered w-full"
+                  min={0.8}
+                  max={2}
+                  step={0.05}
+                  value={config.repetition_penalty}
+                  onChange={(e) => setConfig(prev => ({ ...prev, repetition_penalty: parseFloat(e.target.value) || 1.2 }))}
+                />
+              </div>
+
+              <div>
+                <label className="label">
+                  <span className="label-text">Max New Tokens</span>
+                </label>
+                <input
+                  type="number"
+                  className="input input-bordered w-full"
+                  min={128}
+                  max={4096}
+                  step={128}
+                  value={config.max_new_tokens}
+                  onChange={(e) => setConfig(prev => ({ ...prev, max_new_tokens: parseInt(e.target.value) || 1024 }))}
+                />
+              </div>
+
+              <div>
+                <label className="label">
+                  <span className="label-text">Min Chunk Length</span>
+                </label>
+                <input
+                  type="number"
+                  className="input input-bordered w-full"
+                  min={0}
+                  max={300}
+                  step={1}
+                  value={config.min_chunk_length}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    setConfig(prev => ({ ...prev, min_chunk_length: Number.isFinite(value) ? value : 50 }));
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="label">
+                  <span className="label-text">Early Stop Threshold</span>
+                </label>
+                <input
+                  type="number"
+                  className="input input-bordered w-full"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={config.early_stop_threshold}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value);
+                    setConfig(prev => ({ ...prev, early_stop_threshold: Number.isFinite(value) ? value : 1 }));
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="divider">Prosody 与音频参数</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="label">
+                  <span className="label-text">语速 Speed</span>
+                </label>
+                <input
+                  type="number"
+                  className="input input-bordered w-full"
+                  min={0.5}
+                  max={2}
+                  step={0.05}
+                  value={config.prosody_speed}
+                  onChange={(e) => setConfig(prev => ({ ...prev, prosody_speed: parseFloat(e.target.value) || 1 }))}
+                />
+              </div>
+
+              <div>
+                <label className="label">
+                  <span className="label-text">音量 Volume</span>
+                </label>
+                <input
+                  type="number"
+                  className="input input-bordered w-full"
+                  min={-20}
+                  max={20}
+                  step={0.5}
+                  value={config.prosody_volume}
+                  onChange={(e) => setConfig(prev => ({ ...prev, prosody_volume: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+
+              <div>
+                <label className="label">
+                  <span className="label-text">采样率 Sample Rate</span>
+                </label>
+                <select
+                  className="select select-bordered w-full"
+                  value={config.sample_rate ?? 'null'}
+                  onChange={(e) => setConfig(prev => ({
+                    ...prev,
+                    sample_rate: e.target.value === 'null' ? null : parseInt(e.target.value)
+                  }))}
+                >
+                  <option value="null">格式默认</option>
+                  <option value={16000}>16000 Hz</option>
+                  <option value={24000}>24000 Hz</option>
+                  <option value={32000}>32000 Hz</option>
+                  <option value={44100}>44100 Hz</option>
+                  <option value={48000}>48000 Hz</option>
+                </select>
+              </div>
+
+              <div className="flex items-center">
+                <label className="label cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary"
+                    checked={config.prosody_normalize_loudness}
+                    onChange={(e) => setConfig(prev => ({ ...prev, prosody_normalize_loudness: e.target.checked }))}
+                  />
+                  <span className="label-text ml-2">Prosody 音量归一化</span>
+                </label>
+              </div>
+
+              <div className="flex items-center">
+                <label className="label cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary"
+                    checked={config.condition_on_previous_chunks}
+                    onChange={(e) => setConfig(prev => ({ ...prev, condition_on_previous_chunks: e.target.checked }))}
+                  />
+                  <span className="label-text ml-2">参考前序文本块</span>
                 </label>
               </div>
             </div>

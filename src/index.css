@@ -73,7 +73,9 @@
 .modal-backdrop {
   /* backdrop-filter: blur(0.125rem); */
 }
-
+span.tts-tone {
+  @apply opacity-20;
+}
 /* code:not(pre > code)  {
   white-space: pre-wrap;      
   word-break: break-all;      

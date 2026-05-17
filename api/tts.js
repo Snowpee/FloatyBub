@@ -5,8 +5,67 @@ const msgpack = require('msgpack5')();
 const FISH_AUDIO_BASE_URL = 'https://api.fish.audio/v1';
 
 // 支持的模型列表
-const SUPPORTED_MODELS = ['speech-1.5', 'speech-1.6', 's1'];
-const DEFAULT_MODEL = 'speech-1.6';
+const SUPPORTED_MODELS = ['s2-pro', 's1', 'speech-1.6', 'speech-1.5'];
+const DEFAULT_MODEL = 's2-pro';
+const DEFAULT_TTS_QUALITY_OPTIONS = {
+  temperature: 0.7,
+  top_p: 0.7,
+  prosody: {
+    speed: 1,
+    volume: 0,
+    normalize_loudness: true
+  },
+  sample_rate: 44100,
+  opus_bitrate: -1000,
+  max_new_tokens: 1024,
+  repetition_penalty: 1.2,
+  min_chunk_length: 50,
+  condition_on_previous_chunks: true,
+  early_stop_threshold: 1
+};
+
+const parseNumberOption = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const parseBooleanOption = (value, fallback) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  return String(value).toLowerCase() === 'true';
+};
+
+const parseNullableNumberOption = (value, fallback) => {
+  if (value === null || value === 'null') return null;
+  return parseNumberOption(value, fallback);
+};
+
+const buildTtsQualityOptions = (source = {}) => {
+  const sourceProsody = source.prosody || {};
+
+  return {
+    temperature: parseNumberOption(source.temperature, DEFAULT_TTS_QUALITY_OPTIONS.temperature),
+    top_p: parseNumberOption(source.top_p, DEFAULT_TTS_QUALITY_OPTIONS.top_p),
+    prosody: {
+      speed: parseNumberOption(sourceProsody.speed ?? source.prosody_speed, DEFAULT_TTS_QUALITY_OPTIONS.prosody.speed),
+      volume: parseNumberOption(sourceProsody.volume ?? source.prosody_volume, DEFAULT_TTS_QUALITY_OPTIONS.prosody.volume),
+      normalize_loudness: parseBooleanOption(
+        sourceProsody.normalize_loudness ?? source.prosody_normalize_loudness,
+        DEFAULT_TTS_QUALITY_OPTIONS.prosody.normalize_loudness
+      )
+    },
+    sample_rate: parseNullableNumberOption(source.sample_rate, DEFAULT_TTS_QUALITY_OPTIONS.sample_rate),
+    opus_bitrate: parseNumberOption(source.opus_bitrate, DEFAULT_TTS_QUALITY_OPTIONS.opus_bitrate),
+    max_new_tokens: parseNumberOption(source.max_new_tokens, DEFAULT_TTS_QUALITY_OPTIONS.max_new_tokens),
+    repetition_penalty: parseNumberOption(source.repetition_penalty, DEFAULT_TTS_QUALITY_OPTIONS.repetition_penalty),
+    min_chunk_length: parseNumberOption(source.min_chunk_length, DEFAULT_TTS_QUALITY_OPTIONS.min_chunk_length),
+    condition_on_previous_chunks: parseBooleanOption(
+      source.condition_on_previous_chunks,
+      DEFAULT_TTS_QUALITY_OPTIONS.condition_on_previous_chunks
+    ),
+    early_stop_threshold: parseNumberOption(source.early_stop_threshold, DEFAULT_TTS_QUALITY_OPTIONS.early_stop_threshold)
+  };
+};
 
 module.exports = async (req, res) => {
   const timestamp = new Date().toISOString();
@@ -49,12 +108,12 @@ module.exports = async (req, res) => {
         const {
           text,
           format = 'mp3',
-          mp3_bitrate = 128,
+          mp3_bitrate = 192,
           reference_id = null,
           normalize = 'true',
           latency = 'normal',
-          chunk_length = 100,
-          model = 'speech-1.6',
+          chunk_length = 300,
+          model = DEFAULT_MODEL,
           fish_audio_key
         } = req.query;
 
@@ -94,7 +153,8 @@ module.exports = async (req, res) => {
           references: [],
           reference_id,
           normalize: normalize === 'true',
-          latency
+          latency,
+          ...buildTtsQualityOptions(req.query)
         };
 
         console.log(`[${timestamp}] 开始 TTS 流式播放处理:`, {
@@ -200,12 +260,12 @@ module.exports = async (req, res) => {
     const {
       text,
       format = 'mp3',
-      mp3_bitrate = 128,
+      mp3_bitrate = 192,
       reference_id = null,
       normalize = true,
       latency = 'normal',
-      chunk_length = 200,
-      model = 'speech-1.6'
+      chunk_length = 300,
+      model = DEFAULT_MODEL
     } = req.body;
 
     console.log(`[${timestamp}] TTS 请求参数解析:`, {
@@ -246,7 +306,8 @@ module.exports = async (req, res) => {
       references: [],
       reference_id,
       normalize: Boolean(normalize),
-      latency
+      latency,
+      ...buildTtsQualityOptions(req.body)
     };
 
     console.log(`[${timestamp}] 开始 TTS 处理:`, {
