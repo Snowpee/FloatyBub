@@ -10,6 +10,8 @@ import { stopCurrentVoice } from '@/utils/voiceUtils';
 import { buildSystemMessages } from '../utils/chatUtils';
 import { useUserData } from '@/hooks/useUserData';
 
+const STREAM_UPDATE_INTERVAL_MS = 120;
+
 interface UseChatEngineProps {
   sessionId?: string;
   currentSession: any;
@@ -226,8 +228,133 @@ export const useChatEngine = ({
           let currentContent = '';
           let currentReasoningContent = '';
           let currentImages: string[] = [];
+          let pendingSseBuffer = '';
+          let streamUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+          let lastStreamUpdateAt = 0;
+          let reasoningCompletionSent = false;
           
           let toolCallAccumulator: any[] = [];
+
+          const flushStreamUpdate = () => {
+            if (streamUpdateTimer) {
+              clearTimeout(streamUpdateTimer);
+              streamUpdateTimer = null;
+            }
+
+            lastStreamUpdateAt = Date.now();
+            const shouldMarkReasoningComplete = !reasoningCompletionSent && currentContent.length > 0;
+            if (shouldMarkReasoningComplete) {
+              reasoningCompletionSent = true;
+            }
+
+            updateMessageWithReasoning(
+              currentSessionId,
+              messageId,
+              (finalContent || '') + currentContent,
+              currentReasoningContent,
+              true,
+              shouldMarkReasoningComplete,
+              currentImages.length > 0 ? currentImages : undefined
+            );
+          };
+
+          const scheduleStreamUpdate = () => {
+            if (streamUpdateTimer) return;
+
+            const elapsed = Date.now() - lastStreamUpdateAt;
+            const delay = Math.max(0, STREAM_UPDATE_INTERVAL_MS - elapsed);
+
+            if (delay === 0) {
+              flushStreamUpdate();
+              return;
+            }
+
+            streamUpdateTimer = setTimeout(flushStreamUpdate, delay);
+          };
+
+          const processSseLine = (line: string) => {
+            const trimmedLine = line.trim();
+            if (!trimmedLine.startsWith('data:')) return;
+
+            const data = trimmedLine.slice(5).trim();
+            if (!data || data === '[DONE]') return;
+
+            try {
+              const parsed = JSON.parse(data);
+              let content = '';
+              let reasoningContent = '';
+              let images: string[] = [];
+
+              if (currentModel.provider === 'openai' || currentModel.provider === 'custom' || currentModel.provider === 'openrouter' || currentModel.provider === 'deepseek' || currentModel.provider === 'kimi') {
+                const delta = parsed.choices?.[0]?.delta;
+                content = delta?.content || '';
+                reasoningContent = delta?.reasoning_content || '';
+
+                if (delta?.tool_calls) {
+                   const toolCalls = delta.tool_calls;
+                   for (const tc of toolCalls) {
+                     const index = tc.index;
+                     if (!toolCallAccumulator[index]) {
+                       toolCallAccumulator[index] = { id: tc.id, type: tc.type, function: { name: '', arguments: '' } };
+                     }
+                     if (tc.id) toolCallAccumulator[index].id = tc.id;
+                     if (tc.type) toolCallAccumulator[index].type = tc.type;
+                     if (tc.function) {
+                       if (tc.function.name) toolCallAccumulator[index].function.name += tc.function.name;
+                       if (tc.function.arguments) toolCallAccumulator[index].function.arguments += tc.function.arguments;
+                     }
+                   }
+                }
+
+                if (delta?.images) {
+                  const rawImages = delta.images;
+                  if (Array.isArray(rawImages)) {
+                    images = rawImages.map((img: unknown) => {
+                       if (typeof img === 'string') return img;
+                       const imageDelta = img as { image_url?: { url?: string }; url?: string } | null;
+                       if (imageDelta?.image_url?.url) return imageDelta.image_url.url;
+                       if (imageDelta?.url) return imageDelta.url;
+                       return null;
+                    }).filter((img): img is string => Boolean(img));
+                  } else {
+                    images = [rawImages];
+                  }
+                }
+              } else if (currentModel.provider === 'claude') {
+                if (parsed.type === 'content_block_delta') {
+                  content = parsed.delta?.text || '';
+                }
+              } else if (currentModel.provider === 'gemini') {
+                content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+                const parts = parsed.candidates?.[0]?.content?.parts || [];
+                for (const part of parts) {
+                   if (part.functionCall) {
+                     const fc = part.functionCall;
+                     const callId = 'call_' + Math.random().toString(36).slice(2, 11);
+                     toolCallAccumulator.push({
+                       id: callId,
+                       type: 'function',
+                       function: {
+                         name: fc.name,
+                         arguments: JSON.stringify(fc.args)
+                       }
+                     });
+                   }
+                }
+              }
+
+              if (content) currentContent += content;
+              if (reasoningContent) currentReasoningContent += reasoningContent;
+              if (images.length > 0) currentImages = [...currentImages, ...images];
+
+              if (content || reasoningContent || images.length > 0) {
+                scheduleStreamUpdate();
+              }
+            } catch (error) {
+              console.warn('Failed to parse streaming response line:', error);
+            }
+          };
 
           try {
             while (true) {
@@ -235,100 +362,31 @@ export const useChatEngine = ({
               if (done) break;
 
               const chunk = decoder.decode(value, { stream: true });
-              const lines = chunk.split('\n');
+              pendingSseBuffer += chunk;
+              const lines = pendingSseBuffer.split(/\r?\n/);
+              pendingSseBuffer = lines.pop() || '';
 
               for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const data = line.slice(6).trim();
-                  if (data === '[DONE]') continue;
-
-                  try {
-                    const parsed = JSON.parse(data);
-                    let content = '';
-                    let reasoningContent = '';
-                    let images: string[] = [];
-
-                    if (currentModel.provider === 'openai' || currentModel.provider === 'custom' || currentModel.provider === 'openrouter' || currentModel.provider === 'deepseek' || currentModel.provider === 'kimi') {
-                      const delta = parsed.choices?.[0]?.delta;
-                      content = delta?.content || '';
-                      reasoningContent = delta?.reasoning_content || '';
-                      
-                      if (delta?.tool_calls) {
-                         const toolCalls = delta.tool_calls;
-                         for (const tc of toolCalls) {
-                           const index = tc.index;
-                           if (!toolCallAccumulator[index]) {
-                             toolCallAccumulator[index] = { id: tc.id, type: tc.type, function: { name: '', arguments: '' } };
-                           }
-                           if (tc.id) toolCallAccumulator[index].id = tc.id;
-                           if (tc.type) toolCallAccumulator[index].type = tc.type;
-                           if (tc.function) {
-                             if (tc.function.name) toolCallAccumulator[index].function.name += tc.function.name;
-                             if (tc.function.arguments) toolCallAccumulator[index].function.arguments += tc.function.arguments;
-                           }
-                         }
-                      }
-
-                      if (delta?.images) {
-                        const rawImages = delta.images;
-                        if (Array.isArray(rawImages)) {
-                          images = rawImages.map((img: any) => {
-                             if (typeof img === 'string') return img;
-                             if (img?.image_url?.url) return img.image_url.url;
-                             if (img?.url) return img.url;
-                             return null;
-                          }).filter(Boolean);
-                        } else {
-                          images = [rawImages];
-                        }
-                      }
-                    } else if (currentModel.provider === 'claude') {
-                      if (parsed.type === 'content_block_delta') {
-                        content = parsed.delta?.text || '';
-                      }
-                    } else if (currentModel.provider === 'gemini') {
-                      content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                      
-                      const parts = parsed.candidates?.[0]?.content?.parts || [];
-                      for (const part of parts) {
-                         if (part.functionCall) {
-                           const fc = part.functionCall;
-                           const callId = 'call_' + Math.random().toString(36).slice(2, 11);
-                           toolCallAccumulator.push({
-                             id: callId,
-                             type: 'function',
-                             function: {
-                               name: fc.name,
-                               arguments: JSON.stringify(fc.args)
-                             }
-                           });
-                         }
-                      }
-                    } 
-                    
-                    if (content) currentContent += content;
-                    if (reasoningContent) currentReasoningContent += reasoningContent;
-                    if (images.length > 0) currentImages = [...currentImages, ...images];
-
-                    if (content || reasoningContent || images.length > 0) {
-                       const isFirstContent = !!content && !finalContent && !currentContent;
-                       
-                       updateMessageWithReasoning(
-                          currentSessionId,
-                          messageId,
-                          (finalContent || '') + currentContent,
-                          currentReasoningContent,
-                          true,
-                          isFirstContent,
-                          currentImages.length > 0 ? currentImages : undefined
-                        );
-                    }
-
-                  } catch (e) {}
-                }
+                processSseLine(line);
               }
             }
+
+            const remaining = decoder.decode();
+            if (remaining) {
+              pendingSseBuffer += remaining;
+            }
+            if (pendingSseBuffer.trim()) {
+              processSseLine(pendingSseBuffer);
+              pendingSseBuffer = '';
+            }
+            if (currentContent || currentReasoningContent || currentImages.length > 0) {
+              flushStreamUpdate();
+            }
           } finally {
+            if (streamUpdateTimer) {
+              clearTimeout(streamUpdateTimer);
+              streamUpdateTimer = null;
+            }
             reader.releaseLock();
           }
 

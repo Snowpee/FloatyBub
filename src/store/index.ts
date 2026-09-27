@@ -10,7 +10,7 @@ import {
   convertToUUID 
 } from './utils';
 import { migrate, onRehydrateStorage } from './migrations';
-import { AppState } from './types';
+import type { AppState, ChatMessage, ChatSession } from './types';
 import { createSettingsSlice } from './slices/settingsSlice';
 import { createChatSlice } from './slices/chatSlice';
 import { createRoleSlice } from './slices/roleSlice';
@@ -23,6 +23,32 @@ export * from './utils';
 
 const console: Console = { ...globalThis.console, log: (..._args: any[]) => {} };
 
+type PersistedMessage = Partial<ChatMessage> & Record<string, unknown>;
+type PersistedSession = Partial<ChatSession> & {
+  messages?: PersistedMessage[];
+};
+type PersistedState = Partial<AppState> & {
+  chatSessions?: PersistedSession[];
+  tempSession?: PersistedSession | null;
+};
+
+const sanitizePersistedSession = <T extends PersistedSession>(session: T): T => {
+  if (!session?.messages?.some((message: PersistedMessage) => message?.isStreaming)) {
+    return session;
+  }
+
+  return {
+    ...session,
+    messages: session.messages.filter((message: PersistedMessage) => !message?.isStreaming)
+  } as T;
+};
+
+const sanitizePersistedState = <T extends PersistedState>(state: T): T => ({
+  ...state,
+  chatSessions: state.chatSessions?.map(sanitizePersistedSession) || state.chatSessions,
+  tempSession: state.tempSession ? sanitizePersistedSession(state.tempSession) : state.tempSession
+});
+
 export const useAppStore = create<AppState>()(
   persist(
     (...a) => ({
@@ -34,7 +60,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'ai-chat-storage',
-      version: 13, // 版本13：修复日期恢复问题，强制设置默认角色ID
+      version: 14, // 版本14：恢复/持久化时清理已中断的流式状态
       onRehydrateStorage,
       migrate,
       partialize: (state) => ({
@@ -46,7 +72,7 @@ export const useAppStore = create<AppState>()(
         currentUser: state.currentUser,
         globalPrompts: state.globalPrompts,
         agentSkills: state.agentSkills,
-        chatSessions: state.chatSessions,
+        chatSessions: state.chatSessions.map(sanitizePersistedSession),
         currentSessionId: state.currentSessionId,
         tempSessionId: state.tempSessionId,
         theme: state.theme,
@@ -71,13 +97,13 @@ export const useAppStore = create<AppState>()(
             
             // 恢复 persistObject.state (AppState) 中的 Date 对象和 snowflake_id
             if (state && state.state) {
-              state.state = hydrateState(state.state);
+              state.state = sanitizePersistedState(hydrateState(state.state));
             } else if (state) {
               // 兼容旧数据可能直接存储了 state
               // 但按照 setItem 逻辑，应该总是被包裹的
               // 这里保留原逻辑: const actualState = state.state || state;
               const actualState = state.state || state;
-              const hydrated = hydrateState(actualState);
+              const hydrated = sanitizePersistedState(hydrateState(actualState));
               if (state.state) {
                 state.state = hydrated;
               } else {
@@ -91,7 +117,7 @@ export const useAppStore = create<AppState>()(
                 // 如果 state 就是 AppState，那么 persist 中间件会认为它是 { state, version } 吗？
                 // 应该不会走到 else 分支，除非数据损坏或极旧版本。
                 // 我们主要关注正常路径。
-                return hydrateState(state); // 如果 state 是直接的 AppState
+                return sanitizePersistedState(hydrateState(state)); // 如果 state 是直接的 AppState
               }
             }
             

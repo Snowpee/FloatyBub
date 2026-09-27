@@ -6,8 +6,14 @@ import { useDataSync } from './useDataSync'
 import { dataSyncService } from '@/services/DataSyncService'
 import { KnowledgeService } from '@/services/knowledgeService'
 import { useKnowledgeStore } from '@/store/knowledgeStore'
+import { getErrorDetails, getErrorMessage } from '@/utils/errorUtils'
 
-const console: Console = { ...globalThis.console, log: () => {} }
+const authConsole = {
+  ...globalThis.console,
+  log: () => undefined,
+  warn: (...args: unknown[]) => globalThis.console.warn(...args),
+  error: (...args: unknown[]) => globalThis.console.error(...args)
+} as Console
 
 export interface AuthState {
   user: User | null
@@ -23,6 +29,26 @@ export interface AuthActions {
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>
   updateProfile: (updates: { display_name?: string; avatar_url?: string }) => Promise<{ error: { message: string } | null }>
   clearError: () => void
+}
+
+function getAuthDebugContext() {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+  let supabaseHost = ''
+
+  try {
+    supabaseHost = supabaseUrl ? new URL(supabaseUrl).host : ''
+  } catch {
+    supabaseHost = 'invalid-url'
+  }
+
+  return {
+    origin: typeof window !== 'undefined' ? window.location.origin : '',
+    protocol: typeof window !== 'undefined' ? window.location.protocol : '',
+    online: typeof navigator !== 'undefined' ? navigator.onLine : undefined,
+    supabaseHost,
+    hasSupabaseUrl: Boolean(supabaseUrl),
+    hasSupabaseAnonKey: Boolean(import.meta.env.VITE_SUPABASE_ANON_KEY)
+  }
 }
 
 export function useAuth(): AuthState & AuthActions {
@@ -632,7 +658,8 @@ export function useAuth(): AuthState & AuthActions {
       
       return { error }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      const errorMessage = getErrorMessage(err)
+      authConsole.error('[useAuth] signUp exception:', getErrorDetails(err), getAuthDebugContext())
       setError(errorMessage)
       return { error: { message: errorMessage } as AuthError }
     } finally {
@@ -651,12 +678,15 @@ export function useAuth(): AuthState & AuthActions {
       })
       
       if (error) {
-        setError(error.message)
+        const errorMessage = getErrorMessage(error, 'Login failed')
+        authConsole.error('[useAuth] signIn auth error:', getErrorDetails(error), getAuthDebugContext())
+        setError(errorMessage)
       }
       
       return { error }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      const errorMessage = getErrorMessage(err, 'Login failed')
+      authConsole.error('[useAuth] signIn exception:', getErrorDetails(err), getAuthDebugContext())
       setError(errorMessage)
       return { error: { message: errorMessage } as AuthError }
     } finally {
@@ -745,7 +775,8 @@ export function useAuth(): AuthState & AuthActions {
       
       return { error }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      const errorMessage = getErrorMessage(err)
+      authConsole.error('[useAuth] resetPassword exception:', getErrorDetails(err), getAuthDebugContext())
       setError(errorMessage)
       return { error: { message: errorMessage } as AuthError }
     }

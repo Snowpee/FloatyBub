@@ -1,5 +1,16 @@
 import { defaultAutoTitleConfig, defaultAssistantConfig } from './utils';
 
+const clearStreamingMessages = (session: any) => {
+  if (!session?.messages?.some((message: any) => message?.isStreaming)) {
+    return session;
+  }
+
+  return {
+    ...session,
+    messages: session.messages.filter((message: any) => !message?.isStreaming)
+  };
+};
+
 export const migrate = (persistedState: any, version: number) => {
   // 数据迁移：为现有消息补充roleId信息
   if (version < 2 && persistedState?.chatSessions) {
@@ -204,6 +215,11 @@ export const migrate = (persistedState: any, version: number) => {
     if (persistedState && !persistedState.defaultRoleId) {
       persistedState.defaultRoleId = '00000000-0000-4000-8000-000000000001';
     }
+  }
+
+  // 版本14迁移：移除中断后遗留的流式消息，避免重载后显示半截消息 + loading
+  if (version < 14 && persistedState?.chatSessions) {
+    persistedState.chatSessions = persistedState.chatSessions.map(clearStreamingMessages);
   }
 
   return persistedState;
