@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { App } from '@/App';
 import ChatPage from '@/screens/chats/Chats';
 import RoleListPage from '@/screens/RoleListPage';
@@ -27,6 +28,8 @@ import InputDemo from '@/screens/_debug/InputDemo';
 import FetchTestPage from '@/screens/_debug/FetchTestPage';
 import RoleModal from '@/screens/settings/sections/RolesModal';
 import ConfigModal from '@/screens/settings/sections/ConfigModal';
+
+const VoicePilot = lazy(() => import('@/screens/call/VoicePilot'));
 
 export const router = createBrowserRouter([
   {
@@ -93,6 +96,10 @@ export const router = createBrowserRouter([
       {
         path: 'debug/voice',
         element: <VoiceTest />
+      },
+      {
+        path: 'call/pilot',
+        element: <Suspense fallback={<div className="p-6">正在加载通话测试…</div>}><VoicePilot /></Suspense>
       },
       {
         path: 'debug/database',

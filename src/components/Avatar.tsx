@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 interface AvatarProps {
   name: string;
   avatar?: string; // 自定义头像URL或base64
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   className?: string;
   showRing?: boolean;
   ringColor?: string;
@@ -27,14 +27,16 @@ const Avatar: React.FC<AvatarProps> = ({
     sm: 'w-6',
     md: 'w-8', 
     lg: 'w-12',
-    xl: 'w-16'
+    xl: 'w-16',
+    '2xl': 'w-24'
   };
   
   const textSizeClasses = {
     sm: 'text-xs',
     md: 'text-sm',
     lg: 'text-base', 
-    xl: 'text-lg'
+    xl: 'text-lg',
+    '2xl': 'text-xl'
   };
 
   const hasCustomAvatar = avatar && isValidImageUrl(avatar) && !hasError && isLoaded;

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Send, Square, Loader2, SlidersHorizontal, Globe, Users } from 'lucide-react';
+import { Send, Square, Loader2, SlidersHorizontal, Globe, Users, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { replaceTemplateVariables } from '@/utils/templateUtils';
 import { useAnimatedText } from '@/components/AnimatedText';
@@ -13,6 +13,8 @@ interface ChatInputProps {
   isGenerating: boolean;
   onSendMessage: () => void;
   onStopGeneration: () => void;
+  onStartVoiceCall: () => void;
+  canStartVoiceCall: boolean;
   selectedRoleId: string | null;
   setSelectedRoleId: (id: string) => void;
   currentUserProfile: any;
@@ -28,6 +30,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
   isGenerating,
   onSendMessage,
   onStopGeneration,
+  onStartVoiceCall,
+  canStartVoiceCall,
   selectedRoleId,
   setSelectedRoleId,
   currentUserProfile,
@@ -106,6 +110,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
       <div className="flex justify-between items-center">
         {/* 左下角按钮组 */}
         <div className="flex space-x-2">
+          <button
+            onClick={onStartVoiceCall}
+            disabled={!canStartVoiceCall || isLoading || isGenerating}
+            className="btn btn-sm btn-ghost"
+            title={canStartVoiceCall ? '开始实时通话' : '请先进入一个对话'}
+            aria-label="开始实时通话"
+          >
+            <Phone className="h-4 w-4" />
+          </button>
           {/* 模型选择器 */}
           <div className="flex items-center gap-1">
 

@@ -69,20 +69,79 @@
 - Supabase 项目 (用于认证与数据同步)
 - Fish Audio API 密钥 (可选，用于语音功能)
 
-### 安装依赖
-```bash
-# 使用 pnpm (推荐)
-pnpm install
+### 正确启动项目
 
-# 或使用 npm
+本项目由三个运行部分组成：
+
+| 部分 | 默认地址 | 用途 | 本地开发是否需要 |
+| --- | --- | --- | --- |
+| Vite 前端 | `http://localhost:5173` | Web 页面 | 必需 |
+| `local-server` | `http://localhost:3001` | 本地 TTS、联网搜索等代理接口 | 完整功能需要 |
+| Vercel Serverless | `https://floatybub.vercel.app` | Fish Agent 会话和 Floaty LLM Gateway | 实时通话需要 |
+
+#### 1. 安装依赖
+
+```bash
 npm install
+npm --prefix local-server install
 ```
 
-### 启动 Web 开发服务器
+也可以在根目录使用 `pnpm install`，但 `local-server` 是独立的 npm 项目，仍需单独安装其依赖。
+
+#### 2. 配置本地环境变量
+
+```bash
+cp .env.example .env.local
+```
+
+编辑 `.env.local`，至少提供：
+
+```dotenv
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# 本地测试实时通话时，使用已经部署并配置好的 Vercel 后端
+VITE_VOICE_API_BASE_URL=https://floatybub.vercel.app
+```
+
+如需本地 TTS 或联网搜索，再复制并配置本地服务环境：
+
+```bash
+cp local-server/.env.example local-server/.env
+```
+
+不要把 Fish Audio 或 LLM 的服务端私钥放在 `VITE_` 开头的变量中；Vite 会把这类变量打包到浏览器。当前存储功能使用的 `VITE_STORAGE_*` 凭据也会暴露给客户端，只应使用权限受限的测试凭据。仓库已有本地 `.env` 时，不要用示例文件覆盖其中的有效配置。
+
+#### 3. 启动本地代理
+
+在第一个终端运行：
+
+```bash
+npm run voice:server
+```
+
+看到 `本地代理服务运行在 http://localhost:3001` 后再启动前端。开发模式下，普通 API 会固定访问这个地址。
+
+#### 4. 启动 Web 前端
+
+在第二个终端运行：
+
 ```bash
 npm run dev
 ```
-访问 [http://localhost:5173](http://localhost:5173) 查看应用。
+
+打开 [http://localhost:5173](http://localhost:5173)。首次使用需登录 Supabase 账号。
+
+#### 5. 验证启动结果
+
+- Web 页面：访问 `http://localhost:5173`
+- 本地代理健康检查：访问 `http://localhost:3001/api/health`
+- 实时通话测试页：访问 `http://localhost:5173/call/pilot`
+- Vercel 语音服务状态：访问 `https://floatybub.vercel.app/api/voice-session`
+
+通话测试页需要选择已同步到 Supabase 的 Floaty Agent 和受支持的 LLM 配置。通话链路为 `浏览器 → Fish Audio → Floaty LLM Gateway → 所选 LLM`。通话模式当前不加载 Skill 和知识库。
+
+如果只开发界面，可以只运行 `npm run dev`；此时依赖 `/api/*` 的 TTS、搜索等本地功能不可用。实时通话仍可使用，前提是 `.env.local` 中的 `VITE_VOICE_API_BASE_URL` 指向可用的 Vercel 部署。
 
 ### 环境变量配置
 本项目同时包含前端与 Serverless 接口能力，建议使用 `.env.local` 管理本地环境变量（不会提交到仓库）。
@@ -110,6 +169,8 @@ npm run dev
 项目根目录的 `api/` 提供 Serverless Functions：
 - `/api/tts`：TTS 转发与流式输出
 - `/api/search`：Google CSE 联网搜索
+- `/api/voice-session`：校验用户并创建 Fish Audio 私有会话
+- `/api/llm-gateway`（对外兼容 `/v1/chat/completions`）：将 Fish Audio 的对话请求路由到本次会话选择的 LLM
 - `/api/health`、`/api/models`、`/api/model-info`、`/api/validate-key`：诊断与辅助接口
 
 ### 本地运行代理服务（可选）
@@ -211,20 +272,77 @@ A modern intelligent dialogue assistant based on React + TypeScript + Capacitor,
 - Supabase Project (For auth and data sync)
 - Fish Audio API Key (Optional, for voice features)
 
-### Installation
-```bash
-# Using pnpm (Recommended)
-pnpm install
+### Start the project correctly
 
-# Or using npm
+The project has three runtime parts:
+
+| Part | Default URL | Purpose | Required locally |
+| --- | --- | --- | --- |
+| Vite frontend | `http://localhost:5173` | Web UI | Yes |
+| `local-server` | `http://localhost:3001` | Local TTS and search proxy APIs | For the full feature set |
+| Vercel Serverless | `https://floatybub.vercel.app` | Fish sessions and the Floaty LLM Gateway | For realtime calls |
+
+#### 1. Install dependencies
+
+```bash
 npm install
+npm --prefix local-server install
 ```
 
-### Start Web Development Server
+You can use `pnpm install` in the repository root, but `local-server` is a separate npm project and its dependencies must still be installed separately.
+
+#### 2. Configure local environment variables
+
+```bash
+cp .env.example .env.local
+```
+
+At minimum, set these values in `.env.local`:
+
+```dotenv
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_VOICE_API_BASE_URL=https://floatybub.vercel.app
+```
+
+For local TTS and web search, also configure the local proxy:
+
+```bash
+cp local-server/.env.example local-server/.env
+```
+
+Do not put Fish Audio or LLM server secrets in variables prefixed with `VITE_`; Vite exposes those variables to the browser. The current `VITE_STORAGE_*` credentials are also client-visible and should be limited test credentials. Do not overwrite an existing configured `.env` file with the example.
+
+#### 3. Start the local proxy
+
+Run in the first terminal:
+
+```bash
+npm run voice:server
+```
+
+Wait for `http://localhost:3001` to be ready. In development, regular API requests use this address.
+
+#### 4. Start the frontend
+
+Run in a second terminal:
+
 ```bash
 npm run dev
 ```
-Visit [http://localhost:5173](http://localhost:5173).
+
+Open [http://localhost:5173](http://localhost:5173) and sign in with a Supabase account.
+
+#### 5. Verify the services
+
+- Web UI: `http://localhost:5173`
+- Local proxy health: `http://localhost:3001/api/health`
+- Realtime call pilot: `http://localhost:5173/call/pilot`
+- Vercel voice health: `https://floatybub.vercel.app/api/voice-session`
+
+The call pilot requires a Floaty Agent and a supported LLM configuration synced to Supabase. Its request path is `browser → Fish Audio → Floaty LLM Gateway → selected LLM`. Call mode currently excludes Skills and knowledge bases.
+
+For UI-only work, running `npm run dev` is enough. Local features that call `/api/*`, such as TTS and search, will be unavailable unless `local-server` is running. Realtime calls can still work when `VITE_VOICE_API_BASE_URL` points to a working Vercel deployment.
 
 ### Environment Variables
 Use `.env.local` for local development (not committed).
@@ -252,6 +370,8 @@ Use `.env.local` for local development (not committed).
 Serverless functions in `api/`:
 - `/api/tts` (TTS proxy with streaming output)
 - `/api/search` (Google CSE web search)
+- `/api/voice-session` (authenticated Fish Audio private sessions)
+- `/api/llm-gateway`, exposed as `/v1/chat/completions` (routes Fish Audio turns to the LLM selected for the session)
 - `/api/health`, `/api/models`, `/api/model-info`, `/api/validate-key` (diagnostics)
 
 ### Run Local Proxy Server (Optional)

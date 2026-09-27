@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "check": "tsc -b --noEmit",
+    "voice:server": "npm --prefix local-server run dev",
     "check-data-integrity": "node scripts/check-data-integrity.js",
     "cap:add:ios": "npx cap add ios",
     "cap:copy": "npx cap copy",
@@ -22,9 +23,10 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",
     "@aws-sdk/s3-request-presigner": "^3.864.0",
-    "@capacitor/core": "^7.4.4",
-    "@capacitor/haptics": "^7.0.2",
-    "@capacitor/ios": "^7.4.4",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.4.1",
+    "@fishaudio/agent-react": "^0.3.0",
     "@react-spring/web": "^10.0.1",
     "@sparticuz/chromium-min": "^143.0.4",
     "@supabase/supabase-js": "^2.53.0",
@@ -37,6 +39,7 @@
     "konsta": "^5.0.5",
     "lucide-react": "^0.511.0",
     "mime-types": "^3.0.1",
+    "ogl": "^1.0.11",
     "puppeteer-core": "^24.37.2",
     "pyodide": "^0.29.3",
     "react": "^18.3.1",
@@ -51,7 +54,7 @@
     "zustand": "^5.0.6"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.4.4",
+    "@capacitor/cli": "^8.4.1",
     "@eslint/js": "^9.25.0",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/mime-types": "^3.0.1",

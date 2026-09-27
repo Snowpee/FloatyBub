@@ -1,6 +1,6 @@
 # 本地代理服务 (Local Proxy Server)
 
-这是一个基于 Node.js Express 的代理服务，用于在本地安全地提供 TTS、联网搜索等接口能力。
+这是一个基于 Node.js Express 的代理服务，用于在本地提供 Fish Agent 私有会话、TTS、联网搜索等接口能力。
 
 ## 功能特性
 
@@ -28,7 +28,8 @@ npm install
 cp .env.example .env
 
 # 编辑 .env 文件，配置以下参数：
-# FISH_AUDIO_API_KEY=your_fish_audio_api_key_here  # Fish Audio API 密钥（可选，由前端提供）
+# FISH_AUDIO_API_KEY=your_fish_audio_api_key_here  # Fish Audio 服务端 API 密钥
+# FISH_AGENT_ID=your_published_agent_id             # 已发布的固定测试 Agent
 # API_SECRET=your_secret_api_key_here              # 服务器访问密钥（必需）
 # PORT=3001                                        # 服务器端口（可选）
 ```
@@ -44,6 +45,14 @@ npm start
 ```
 
 服务将在 `http://localhost:3001` 启动。
+
+### POST /api/voice-session
+
+为固定的私有 Fish Agent 创建一次性会话令牌。请求需带 `x-api-key`。客户端只能传设备时区，不能传 prompt、知识库或工具配置。
+
+### GET /api/voice-session/health
+
+返回最小通话验证所需环境变量是否齐全，不返回任何密钥值。
 
 ## API 端点
 
@@ -98,7 +107,7 @@ fetch('http://localhost:3001/api/tts', {
 {
   "status": "ok",
   "timestamp": "2024-01-01T00:00:00.000Z",
-  "note": "Fish Audio API Key 由前端提供",
+  "note": "Fish Agent 使用服务端 Key；旧 TTS 接口仍兼容前端传入 Key",
   "server_info": {
     "node_version": "v18.20.5",
     "platform": "darwin",
@@ -176,7 +185,7 @@ fetch('http://localhost:3001/api/tts', {
 ## 安全注意事项
 
 1. **API 密钥安全**: 
-   - Fish Audio API 密钥由前端提供，不在服务器端存储
+   - 旧 TTS 接口仍支持前端提供 Fish Audio API 密钥；Fish Agent 会话只使用服务端环境变量
    - 服务器访问密钥 (API_SECRET) 必须妥善保管
    - 永远不要在前端代码中暴露服务器访问密钥
 2. **CORS 配置**: 生产环境中应限制 CORS 来源

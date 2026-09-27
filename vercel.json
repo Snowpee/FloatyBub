@@ -14,9 +14,19 @@
     },
     "api/search.js": {
       "maxDuration": 10
+    },
+    "api/voice-session.js": {
+      "maxDuration": 20
+    },
+    "api/llm-gateway.js": {
+      "maxDuration": 15
     }
   },
   "rewrites": [
+    {
+      "source": "/v1/chat/completions",
+      "destination": "/api/llm-gateway"
+    },
     {
       "source": "/api/model-info/([^/]+)",
       "destination": "/api/model-info?modelId=$1"
@@ -29,10 +39,5 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "env": {
-    "FISH_AUDIO_API_KEY": "@fish_audio_api_key",
-    "GOOGLE_SEARCH_API_KEY": "@google_search_api_key",
-    "GOOGLE_SEARCH_CX": "@google_search_cx"
-  }
+  ]
 }

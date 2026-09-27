@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { Volume2, Play, Square, RefreshCw, Settings, Plus, Trash2, Activity, X, Database } from 'lucide-react';
 import { toast } from '@/hooks/useToast';
 import { useAppStore } from '@/store';
@@ -447,6 +448,11 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
 
   return (
     <div className={cn("p-4 md:p-6 max-w-6xl mx-auto md:pt-0 flex flex-col gap-4", className)}>
+
+      <div className="rounded-xl bg-base-200 p-4 flex items-center justify-between gap-3">
+        <div><p className="font-medium">实时通话验证版</p><p className="text-sm opacity-60">角色、音色与知识库测试 · 不支持 Skill</p></div>
+        <Link to="/call/pilot" onClick={onCloseModal} className="btn btn-primary btn-sm">开始测试</Link>
+      </div>
 
       {/* 供应商选择 */}
       <fieldset className="bub-fieldset">

@@ -8,7 +8,7 @@ import MarkdownRenderer from '@/components/MarkdownRenderer';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { replaceTemplateVariables } from '@/utils/templateUtils';
 import { isDeepSeekThinkingEnabled } from '@/utils/deepseekUtils';
-import { playVoiceStreaming, stopCurrentVoice, addVoiceStateListener, getVoiceState } from '@/utils/voiceUtils';
+import { playVoiceStreaming, stopCurrentVoice, addVoiceStateListener, getVoiceState, getVoiceModelForMessage } from '@/utils/voiceUtils';
 import { useAuth } from '@/hooks/useAuth';
 import { 
   useChatScroll, 
@@ -18,6 +18,7 @@ import {
 } from './hooks';
 import { usePageContext } from '@/hooks/usePageContext';
 import { ChatInput, MessageList } from './components';
+import VoiceCallPanel, { type PersistedVoiceMessage } from '@/screens/call/VoiceCallPanel';
 
 const Chats: React.FC = () => {
   const { className: pageClassName } = usePageContext();
@@ -37,6 +38,7 @@ const Chats: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pendingMessageRef = useRef<string | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  const [isVoiceCallOpen, setIsVoiceCallOpen] = useState(false);
   
   // 获取用户认证信息
   const { user } = useAuth();
@@ -467,6 +469,28 @@ const Chats: React.FC = () => {
     stopGeneration();
   };
 
+  const handleStartVoiceCall = () => {
+    if (!currentSession || !currentRole || !currentModel) {
+      toast.error('请先进入一个已配置 Agent 和模型的对话');
+      return;
+    }
+    if (!currentModel.enabled || !['openai', 'kimi', 'deepseek', 'openrouter', 'custom'].includes(currentModel.provider)) {
+      toast.error('当前会话模型暂不支持实时通话');
+      return;
+    }
+    setIsVoiceCallOpen(true);
+  };
+
+  const persistVoiceMessages = useCallback((voiceMessages: PersistedVoiceMessage[]) => {
+    if (!currentSession) return;
+    for (const voiceMessage of voiceMessages) {
+      addMessage(currentSession.id, voiceMessage, () => {
+        if (effectiveAssistantConfig?.enabled) markSessionNeedsTitle(currentSession.id);
+      });
+    }
+    toast.success(`已将 ${voiceMessages.length} 条通话记录写入当前对话`);
+  }, [addMessage, currentSession, effectiveAssistantConfig?.enabled, markSessionNeedsTitle]);
+
   // 重新生成消息
   const handleRegenerateMessage = async (messageId: string) => {
     await regenerateMessage(messageId);
@@ -557,6 +581,8 @@ const Chats: React.FC = () => {
           isGenerating={isGenerating}
           onSendMessage={handleSendMessage}
           onStopGeneration={handleStopGeneration}
+          onStartVoiceCall={handleStartVoiceCall}
+          canStartVoiceCall={!!currentSession && !!currentRole && !!currentModel}
           selectedRoleId={selectedRoleId}
           setSelectedRoleId={setSelectedRoleId}
           currentUserProfile={currentUserProfile}
@@ -564,6 +590,17 @@ const Chats: React.FC = () => {
           currentModel={currentModel}
           textareaRef={textareaRef}
         />
+        {isVoiceCallOpen && currentSession && currentRole && currentModel && <VoiceCallPanel
+          roleId={currentRole.id}
+          modelConfigId={currentModel.id}
+          conversationId={currentSession.id === tempSessionId ? undefined : currentSession.id}
+          userProfileId={currentUserProfile?.id}
+          voiceId={getVoiceModelForMessage(currentRole, voiceSettings)?.id}
+          title={currentRole.name}
+          avatar={currentRole.avatar}
+          onPersistMessages={persistVoiceMessages}
+          onClose={() => setIsVoiceCallOpen(false)}
+        />}
       </div>
       {/* 编辑消息模态框：常规尺寸 */}
       <dialog 

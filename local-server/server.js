@@ -81,7 +81,7 @@ const buildTtsQualityOptions = (source = {}) => {
   };
 };
 
-console.log('本地代理服务启动，Fish Audio API Key 将由前端提供');
+console.log('本地代理服务启动：Fish Agent 使用服务端 Key，旧 TTS 接口仍兼容前端传入 Key');
 
 // API 密钥验证中间件
 const apiKeyAuth = (req, res, next) => {
@@ -106,6 +106,47 @@ const apiKeyAuth = (req, res, next) => {
   console.log(`[${timestamp}] API 密钥验证成功 - IP: ${clientIP}`);
   next();
 };
+
+// Fish Agents 最小验证版：使用控制台中已发布的固定 Agent。
+// 不接受客户端 prompt、知识库或工具配置，避免把本地 Skill 带入通话。
+app.get('/api/voice-session/health', (req, res) => {
+  const missing = ['FISH_AUDIO_API_KEY', 'FISH_AGENT_ID', 'API_SECRET']
+    .filter(name => !process.env[name]);
+  res.json({ configured: missing.length === 0, missing, provider: 'fish-agents' });
+});
+
+app.post('/api/voice-session', apiKeyAuth, async (req, res) => {
+  const fishApiKey = process.env.FISH_AUDIO_API_KEY;
+  const agentId = process.env.FISH_AGENT_ID;
+  if (!fishApiKey || !agentId) {
+    return res.status(503).json({ error: 'not_configured' });
+  }
+
+  try {
+    const upstream = await axios.post(`${FISH_AUDIO_BASE_URL}/agent/sessions`, {
+      agent_id: agentId,
+      client_timezone: typeof req.body?.client_timezone === 'string' ? req.body.client_timezone : undefined,
+      tool_events: false,
+      record_audio: false
+    }, {
+      headers: {
+        Authorization: `Bearer ${fishApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+
+    // Fish 要求客户端原样消费该一次性、短时效对象。
+    return res.json(upstream.data);
+  } catch (error) {
+    const upstreamStatus = error.response?.status;
+    console.error('Fish Agent 会话创建失败', { status: upstreamStatus, message: error.message });
+    return res.status(502).json({
+      error: 'session_unavailable',
+      details: upstreamStatus ? `Fish Audio 返回 ${upstreamStatus}` : '无法连接 Fish Audio'
+    });
+  }
+});
 
 // Google Custom Search API
 const GOOGLE_CSE_ENDPOINT = 'https://www.googleapis.com/customsearch/v1';
@@ -647,7 +688,7 @@ app.get('/api/health', (req, res) => {
   const healthData = {
     status: 'ok',
     timestamp: timestamp,
-    note: 'Fish Audio API Key 由前端提供',
+    note: 'Fish Agent 使用服务端 Key；旧 TTS 接口仍兼容前端传入 Key',
     server_info: {
       node_version: process.version,
       platform: process.platform,
@@ -817,7 +858,7 @@ app.get('/api/model-info/:modelId', apiKeyAuth, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 本地代理服务运行在 http://localhost:${PORT}`);
   console.log(`📋 健康检查: http://localhost:${PORT}/api/health`);
-  console.log(`🔑 Fish Audio API Key 由前端提供`);
+  console.log(`🔑 Fish Agent 使用服务端 API Key`);
 });
 
 // 优雅关闭
