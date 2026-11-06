@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, User, Edit3, Copy, MoreHorizontal, Zap, Square } from 'lucide-react';
+import { Loader2, Trash2, Volume2, MessageSquareText, RefreshCw, ChevronLeft, ChevronRight, User, Edit3, Copy, MoreHorizontal, Zap, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
@@ -135,6 +135,10 @@ const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   const messageRole = getMessageRole();
+  const [showVoiceText, setShowVoiceText] = useState(false);
+  const voiceOnly = msg.role === 'assistant' && messageRole?.replyMode === 'voice';
+  const voiceActive = voicePlayingState.currentMessageId === msg.id;
+
 
   const handleMouseEnter = () => {
     if (blurTimeoutRef.current) {
@@ -230,7 +234,19 @@ const MessageItem: React.FC<MessageItemProps> = ({
           </div>
         )}
 
+        {voiceOnly && (
+          <button type="button" className="btn btn-circle btn-sm absolute -right-3 -top-3 z-20 shadow-sm" title={showVoiceText ? '隐藏文字' : '展示文字'} aria-label={showVoiceText ? '隐藏文字' : '展示文字'} aria-expanded={showVoiceText} onClick={(e) => { e.stopPropagation(); setShowVoiceText(v => !v); }}>
+            <MessageSquareText className="h-4 w-4" />
+          </button>
+        )}
         <div>
+          {voiceOnly && (
+            <button type="button" className="btn btn-ghost btn-sm gap-2" disabled={!!msg.isStreaming || !msg.content.trim() || (voiceActive && voicePlayingState.isGenerating)} onClick={(e) => { e.stopPropagation(); onReadMessage(msg.id, msg.content, messageRole); }}>
+              {voiceActive && voicePlayingState.isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+              {msg.isStreaming ? '正在生成回复…' : voiceActive && voicePlayingState.isGenerating ? '正在生成语音…' : voiceActive && voicePlayingState.isPlaying ? '停止播放' : '播放语音'}
+            </button>
+          )}
+          <div hidden={voiceOnly && !showVoiceText}>
           {/* 思考过程 */}
           {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
             <ThinkingProcess 
@@ -312,6 +328,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
             );
           })()}
           
+          </div>
           {/* 图片渲染 */}
           {msg.images && msg.images.length > 0 && (
             <div className="mt-3 space-y-2">

@@ -38,11 +38,13 @@ export function getVoicePilotHealth() {
   return request<VoicePilotHealth>({ method: 'GET' });
 }
 
-export async function createVoiceSession(input: VoiceSessionInput): Promise<SessionToken> {
+export async function createVoiceSession(input: VoiceSessionInput, signal?: AbortSignal): Promise<SessionToken> {
   const { data } = await supabase.auth.getSession();
+  signal?.throwIfAborted();
   if (!data.session) throw new Error('请先登录，再开始通话。');
   return request<SessionToken>({
     method: 'POST',
+    signal,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` },
     body: JSON.stringify({
       ...input,

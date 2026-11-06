@@ -84,14 +84,8 @@ span.tts-tone {
   max-width: 100%;            
 } */
 
- .btn {
+ .btn:not(.btn-xs, .btn-sm, .btn-md, .btn-lg, .btn-xl) {
   --size: calc(var(--size-field, 0.25rem) * 11);
- }
- .btn-sm {
-  --size: calc(var(--size-field, 0.25rem) * 8);
- }
- .btn-xs {
-  --size: calc(var(--size-field, 0.25rem) * 6);
  }
 
 
@@ -593,4 +587,45 @@ dialog .modal-box {
 #trae-badge-plugin,
 .trae-badge {
   display: none !important;
+}
+
+@keyframes voice-text-reveal {
+  from { opacity: 0.25; filter: blur(2px); }
+  to { opacity: 1; filter: blur(0); }
+}
+
+.voice-text-reveal {
+  animation: voice-text-reveal 320ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-text-reveal { animation: none; }
+}
+
+/* Desktop call dialog uses the same DaisyUI shell as Settings. */
+.voice-call-dialog .modal-box {
+  animation: voice-call-enter 200ms ease-out both;
+}
+.voice-call-dialog .modal-backdrop {
+  animation: voice-call-backdrop-in 200ms ease-out both;
+}
+.voice-call-dialog-closing .modal-box {
+  animation: voice-call-exit 180ms ease-in both;
+}
+.voice-call-dialog-closing .modal-backdrop {
+  animation: voice-call-backdrop-out 180ms ease-in both;
+}
+@keyframes voice-call-enter {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes voice-call-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
+@keyframes voice-call-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes voice-call-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .voice-call-dialog .modal-box,
+  .voice-call-dialog .modal-backdrop { animation-duration: 1ms; }
 }

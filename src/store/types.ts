@@ -25,6 +25,7 @@ export interface AIRole {
   globalPromptIds?: string[];
   skillIds?: string[];
   voiceModelId?: string;
+  replyMode?: 'text' | 'voice-text' | 'voice';
   isFavorite?: boolean;
   createdAt: Date;
   updatedAt: Date;

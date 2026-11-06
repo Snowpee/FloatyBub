@@ -26,6 +26,7 @@ export interface RoleFormData {
   globalPromptIds: string[];
   skillIds: string[];
   voiceModelId: string;
+  replyMode: NonNullable<AIRole['replyMode']>;
   knowledgeBaseId: string;
 }
 
@@ -75,6 +76,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
     globalPromptIds: [],
     skillIds: [],
     voiceModelId: '',
+    replyMode: 'text',
     knowledgeBaseId: ''
   });
 
@@ -97,6 +99,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
           globalPromptIds: globalPromptIds,
           skillIds: initialRole.skillIds || [],
           voiceModelId: initialRole.voiceModelId || '',
+          replyMode: initialRole.replyMode || 'text',
           knowledgeBaseId: initialKnowledgeBaseId || ''
         }));
         setIsEditLoading(false);
@@ -113,6 +116,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
           globalPromptIds: [],
           skillIds: [],
           voiceModelId: '',
+    replyMode: 'text',
           knowledgeBaseId: ''
         });
         setIsEditLoading(false);
@@ -516,6 +520,15 @@ const RolesModal: React.FC<RolesModalProps> = ({
           )}
           </div>
           <>
+          <label className="bub-select w-full">
+            <span className="label">默认回复方式</span>
+            <select value={formData.replyMode} onChange={(e) => setFormData({ ...formData, replyMode: e.target.value as RoleFormData['replyMode'] })}>
+              <option value="text">文字</option>
+              <option value="voice-text">语音+文字</option>
+              <option value="voice">纯语音</option>
+            </select>
+          </label>
+          <p className="text-xs text-base-content/60">语音模式会在新回复完成后自动朗读；纯语音可点击消息悬浮按钮查看文字。需先配置可用的语音模型。</p>
           <label className="bub-select w-full">
             <span className="label">语音模型</span>
             <select

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AgentAudioVisualizer, FishAgentError, useAgentMessages, useConversation } from '@fishaudio/agent-react';
-import { Download, Mic, MicOff, Phone, PhoneOff, RefreshCw, Square } from 'lucide-react';
+import { Download, Mic, MicOff, Phone, PhoneOff, RefreshCw, Square, Volume2 } from 'lucide-react';
 import { createVoiceSession, getVoicePilotHealth, type VoicePilotHealth } from '@/services/voice/pilot';
 import { useAppStore } from '@/store';
 import { getVoiceModelForMessage } from '@/utils/voiceUtils';
@@ -32,6 +32,7 @@ export default function VoicePilot() {
   const [checking, setChecking] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
+  const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
   const [roleId, setRoleId] = useState('');
   const [conversationId, setConversationId] = useState('');
   const [modelConfigId, setModelConfigId] = useState('');
@@ -63,7 +64,7 @@ export default function VoicePilot() {
 
   const start = async () => {
     if (starting || conversation.status === 'connecting') return;
-    setStarting(true); setError('');
+    setStarting(true); setError(''); setNeedsAudioUnlock(false);
     try {
       const sessionToken = await createVoiceSession({
         roleId,
@@ -73,12 +74,14 @@ export default function VoicePilot() {
         voiceId: voiceId || undefined,
       });
       await conversation.startSession({ sessionToken });
+      try { await conversation.startAudio(); }
+      catch { setNeedsAudioUnlock(true); }
     } catch (cause) { setError(readableError(cause)); }
     finally { setStarting(false); }
   };
 
   const end = async () => {
-    setError('');
+    setError(''); setNeedsAudioUnlock(false);
     try { await conversation.endSession(); }
     catch (cause) { setError(readableError(cause)); }
   };
@@ -86,6 +89,15 @@ export default function VoicePilot() {
   const toggleMute = async () => {
     try { await conversation.setMicMuted(!conversation.micMuted); }
     catch (cause) { setError(readableError(cause)); }
+  };
+
+  const unlockAudio = async () => {
+    try {
+      await conversation.startAudio();
+      setNeedsAudioUnlock(false);
+    } catch (cause) {
+      setError(readableError(cause));
+    }
   };
 
   const download = () => {
@@ -135,7 +147,7 @@ export default function VoicePilot() {
           <button className="btn btn-error" onClick={() => void end()}><PhoneOff size={18} />挂断</button>
         </>}
       </div>
-      {active && <button className="btn btn-link btn-sm mt-2" onClick={() => void conversation.startAudio().catch(cause => setError(readableError(cause)))}>听不到声音？点击开启播放</button>}
+      {active && needsAudioUnlock && <button className="btn btn-warning btn-sm mt-3" onClick={() => void unlockAudio()}><Volume2 size={17} />浏览器已阻止声音，点击恢复</button>}
     </section>
     {error && <div role="alert" className="alert alert-warning mb-4 text-sm">{error}</div>}
     <section className="rounded-2xl border border-base-300 p-4">
