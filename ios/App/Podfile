@@ -22,3 +22,18 @@ end
 post_install do |installer|
   assertDeploymentTarget(installer)
 end
+
+# Input/output paths are intentionally disabled above. Explicitly declare the
+# embed phase as always-running instead of leaving dependency analysis enabled.
+post_integrate do |installer|
+  installer.aggregate_targets.map(&:user_project).uniq.each do |project|
+    project.native_targets.each do |target|
+      target.shell_script_build_phases.each do |phase|
+        if phase.name == '[CP] Embed Pods Frameworks'
+          phase.always_out_of_date = '1'
+        end
+      end
+    end
+    project.save
+  end
+end
