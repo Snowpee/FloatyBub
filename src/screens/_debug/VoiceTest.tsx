@@ -38,8 +38,8 @@ interface FishAudioModel {
   state: string;
 }
 
-const DEFAULT_TTS_MODEL = 's2-pro';
-const FALLBACK_TTS_MODELS = ['s2-pro', 's1', 'speech-1.6', 'speech-1.5'];
+const DEFAULT_TTS_MODEL = 'drama-3';
+const FALLBACK_TTS_MODELS = ['drama-3', 's2.1-pro', 's2.1-pro-free', 's2-pro', 's1', 'speech-1.6', 'speech-1.5'];
 
 const VoiceTest: React.FC = () => {
   const [text, setText] = useState('你好，这是一个语音测试。欢迎使用 Fish Audio 文本转语音功能！');
@@ -702,7 +702,10 @@ const VoiceTest: React.FC = () => {
                   {availableModels.length > 0 ? (
                     availableModels.map((model) => (
                       <option key={model} value={model}>
-                        {model === 's2-pro' ? 'S2 Pro（推荐）' :
+                        {model === 'drama-3' ? 'Drama 3（最新）' :
+                         model === 's2.1-pro' ? 'S2.1 Pro' :
+                         model === 's2.1-pro-free' ? 'S2.1 Pro Free' :
+                         model === 's2-pro' ? 'S2 Pro' :
                          model === 'speech-1.5' ? 'Speech 1.5' :
                          model === 'speech-1.6' ? 'Speech 1.6' :
                          model === 's1' ? 'S1' : model}

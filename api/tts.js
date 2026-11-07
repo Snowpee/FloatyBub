@@ -5,8 +5,8 @@ const msgpack = require('msgpack5')();
 const FISH_AUDIO_BASE_URL = 'https://api.fish.audio/v1';
 
 // 支持的模型列表
-const SUPPORTED_MODELS = ['s2-pro', 's1', 'speech-1.6', 'speech-1.5'];
-const DEFAULT_MODEL = 's2-pro';
+const SUPPORTED_MODELS = ['drama-3', 's2.1-pro', 's2.1-pro-free', 's2-pro', 's1', 'speech-1.6', 'speech-1.5'];
+const DEFAULT_MODEL = 'drama-3';
 const DEFAULT_TTS_QUALITY_OPTIONS = {
   temperature: 0.7,
   top_p: 0.7,

@@ -70,7 +70,7 @@ npm start
 - `normalize` (可选): 是否标准化音频，默认 true
 - `latency` (可选): 延迟模式，默认 'normal'
 - `chunk_length` (可选): 文本块长度，默认 200
-- `model` (可选): 语音模型，默认 'speech-1.6'
+- `model` (可选): 语音模型，默认 'drama-3'
 
 **示例请求：**
 
@@ -79,7 +79,7 @@ const requestData = {
   text: '你好，这是一个测试。',
   fish_audio_key: 'your_fish_audio_api_key',
   format: 'mp3',
-  model: 'speech-1.6'
+  model: 'drama-3'
 };
 
 fetch('http://localhost:3001/api/tts', {
@@ -128,8 +128,8 @@ fetch('http://localhost:3001/api/tts', {
 ```json
 {
   "success": true,
-  "models": ["speech-1.5", "speech-1.6", "s1"],
-  "default": "speech-1.6"
+  "models": ["drama-3", "s2.1-pro", "s2.1-pro-free", "s2-pro", "s1", "speech-1.6", "speech-1.5"],
+  "default": "drama-3"
 }
 ```
 
@@ -209,3 +209,5 @@ fetch('http://localhost:3001/api/tts', {
 ## 许可证
 
 MIT License
+
+Drama 3 使用与其他 TTS 模型相同的接口，代理将所选版本传入 Fish Audio 的 `model` 请求头。支持方括号表演指令和成对语气标签；详见 https://docs.fish.audio/features/text-to-speech/drama-3 。旧模型选项保留用于兼容已有设置。

@@ -962,7 +962,7 @@ export class DataSyncService {
         apiKey: dbVoiceSettings.config?.apiKey || '',
         readingMode: dbVoiceSettings.config?.readingMode || 'all',
         customModels: dbVoiceSettings.config?.customModels || [],
-        modelVersion: dbVoiceSettings.config?.modelVersion || 's2-pro',
+        modelVersion: dbVoiceSettings.config?.modelVersion || 'drama-3',
         defaultVoiceModelId: dbVoiceSettings.config?.defaultVoiceModelId || ''
       }
     }

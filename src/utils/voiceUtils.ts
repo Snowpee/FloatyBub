@@ -58,6 +58,7 @@ const generateCacheKey = async (text: string, voiceModelId: string, settings: Vo
     text: text.trim(),
     voiceModelId,
     readingMode: settings.readingMode,
+    modelVersion: settings.modelVersion || 'drama-3',
     apiUrl: settings.apiUrl
   };
   
@@ -416,7 +417,7 @@ export const generateStreamingVoiceUrl = (
     reference_id: voiceModel.id,
     format: 'mp3',
     mp3_bitrate: '192',
-    model: voiceSettings.modelVersion || 's2-pro',
+    model: voiceSettings.modelVersion || 'drama-3',
     fish_audio_key: voiceSettings.apiKey,
     x_api_key: import.meta.env.VITE_API_SECRET || '',
     normalize: 'true',
@@ -467,7 +468,7 @@ export const generateVoiceAudio = async (
           reference_id: voiceModel.id,
           format: 'mp3',
           mp3_bitrate: 192,
-          model: voiceSettings.modelVersion || 's2-pro',
+          model: voiceSettings.modelVersion || 'drama-3',
           fish_audio_key: voiceSettings.apiKey
         })
       });

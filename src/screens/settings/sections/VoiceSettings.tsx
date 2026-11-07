@@ -32,7 +32,7 @@ interface VoiceSettingsProps {
   className?: string;
 }
 
-const fallbackModelVersions = ['s2-pro', 's1', 'speech-1.6', 'speech-1.5'];
+const fallbackModelVersions = ['drama-3', 's2.1-pro', 's2.1-pro-free', 's2-pro', 's1', 'speech-1.6', 'speech-1.5'];
 
 const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }) => {
   const { voiceSettings, setVoiceSettings } = useAppStore();
@@ -43,7 +43,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
     apiKey: '',
     readingMode: 'all',
     customModels: [],
-    modelVersion: 's2-pro'
+    modelVersion: 'drama-3'
   });
   
 
@@ -102,7 +102,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
       const needsUpdate = !voiceSettings.modelVersion;
       loadedSettings = { 
         ...voiceSettings, 
-        modelVersion: voiceSettings.modelVersion || 's2-pro' 
+        modelVersion: voiceSettings.modelVersion || 'drama-3'
       };
       
       // 仅当确实需要更新时才写回 store，避免无限循环
@@ -111,7 +111,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
       }
     } else {
       // 使用默认设置
-      loadedSettings = { ...settings, customModels: presetModels, modelVersion: 's2-pro' };
+      loadedSettings = { ...settings, customModels: presetModels, modelVersion: 'drama-3' };
       setVoiceSettings(loadedSettings);
     }
     
@@ -316,7 +316,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
       const voiceSettings = {
         ...settings,
         apiKey: settings.apiKey,
-        modelVersion: settings.modelVersion || 's2-pro'
+        modelVersion: settings.modelVersion || 'drama-3'
       };
       
       // 生成流式音频URL
@@ -599,11 +599,12 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
           </div>
           
           {/* 模型版本选择 */}
+          <p className="px-4 text-xs text-base-content/60">Drama 3 支持用 [温柔地说]、[短暂停顿] 等方括号指令，以及 &lt;whisper&gt;…&lt;/whisper&gt; 等成对标签控制语气。</p>
           <div>
             <div className="bub-select">
               <span className="label">模型版本</span>
               <select 
-                value={settings.modelVersion || 's2-pro'}
+                value={settings.modelVersion || 'drama-3'}
                 onChange={(e) => {
                   const newSettings = { ...settings, modelVersion: e.target.value };
                   saveSettings(newSettings);
@@ -612,7 +613,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
               >
                 {modelVersions.map((modelVersion) => (
                   <option key={modelVersion} value={modelVersion}>
-                    {modelVersion}
+                    {modelVersion === 'drama-3' ? 'Drama 3（最新）' : modelVersion}
                   </option>
                 ))}
               </select>
