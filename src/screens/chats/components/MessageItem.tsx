@@ -1,9 +1,11 @@
-import React, { useRef, useState } from 'react';
-import { Loader2, Trash2, Volume2, MessageSquareText, RefreshCw, ChevronLeft, ChevronRight, User, Edit3, Copy, MoreHorizontal, Zap, Square } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Loader2, Trash2, Volume2, RefreshCw, ChevronLeft, ChevronRight, User, Edit3, Copy, MoreHorizontal, Zap, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import ThinkingProcess from './ThinkingProcess';
+import VoiceReply from './VoiceReply';
+import { replyDelayMs } from '@/utils/voicePresentation';
 import Avatar from '@/components/Avatar';
 import AudioWaveform from '@/components/AudioWaveform';
 import { replaceTemplateVariables } from '@/utils/templateUtils';
@@ -136,8 +138,24 @@ const MessageItem: React.FC<MessageItemProps> = ({
 
   const messageRole = getMessageRole();
   const [showVoiceText, setShowVoiceText] = useState(false);
-  const voiceOnly = msg.role === 'assistant' && messageRole?.replyMode === 'voice';
+  const voiceReply = msg.role === 'assistant' && (messageRole?.replyMode === 'voice' || messageRole?.replyMode === 'voice-text');
   const voiceActive = voicePlayingState.currentMessageId === msg.id;
+  const [replyStage, setReplyStage] = useState<'hidden' | 'placeholder' | 'ready'>(msg.isStreaming ? 'hidden' : 'ready');
+  const delayTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const delayRange = useRef([messageRole?.replyDelayMinSeconds, messageRole?.replyDelayMaxSeconds]);
+  delayRange.current = [messageRole?.replyDelayMinSeconds, messageRole?.replyDelayMaxSeconds];
+  useEffect(() => {
+    if (!msg.isStreaming) return;
+    delayTimers.current.forEach(clearTimeout);
+    setReplyStage('hidden');
+    const delay = replyDelayMs(delayRange.current[0], delayRange.current[1]);
+    delayTimers.current = [setTimeout(() => setReplyStage('placeholder'), delay), setTimeout(() => setReplyStage('ready'), delay + 700)];
+  }, [msg.isStreaming]);
+  useEffect(() => () => delayTimers.current.forEach(clearTimeout), []);
+
+  useEffect(() => {
+    if (msg.isStreaming) setShowVoiceText(false);
+  }, [msg.isStreaming]);
 
 
   const handleMouseEnter = () => {
@@ -206,6 +224,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
         msg.role === 'user' ? 'chat-end' : 'chat-start',
         chatStyle === 'document' && 'chat-box'
       )}
+      style={voiceReply && replyStage === 'hidden' ? { display: 'none' } : undefined}
     >
       <div className="chat-image avatar">
         {renderAvatar()}
@@ -228,25 +247,25 @@ const MessageItem: React.FC<MessageItemProps> = ({
         onMouseLeave={handleMouseLeave}
       >
         {/* 音频波纹 */}
-        {msg.role === 'assistant' && voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id && (
+        {!voiceReply && msg.role === 'assistant' && voicePlayingState.isPlaying && voicePlayingState.currentMessageId === msg.id && (
           <div className="absolute -top-1 -right-1 z-20">
             <AudioWaveform className="bg-base-100 rounded-full p-1 shadow-sm" />
           </div>
         )}
 
-        {voiceOnly && (
-          <button type="button" className="btn btn-circle btn-sm absolute -right-3 -top-3 z-20 shadow-sm" title={showVoiceText ? '隐藏文字' : '展示文字'} aria-label={showVoiceText ? '隐藏文字' : '展示文字'} aria-expanded={showVoiceText} onClick={(e) => { e.stopPropagation(); setShowVoiceText(v => !v); }}>
-            <MessageSquareText className="h-4 w-4" />
-          </button>
-        )}
         <div>
-          {voiceOnly && (
-            <button type="button" className="btn btn-ghost btn-sm gap-2" disabled={!!msg.isStreaming || !msg.content.trim() || (voiceActive && voicePlayingState.isGenerating)} onClick={(e) => { e.stopPropagation(); onReadMessage(msg.id, msg.content, messageRole); }}>
-              {voiceActive && voicePlayingState.isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
-              {msg.isStreaming ? '正在生成回复…' : voiceActive && voicePlayingState.isGenerating ? '正在生成语音…' : voiceActive && voicePlayingState.isPlaying ? '停止播放' : '播放语音'}
-            </button>
-          )}
-          <div hidden={voiceOnly && !showVoiceText}>
+          {voiceReply && <VoiceReply
+            messageId={msg.id}
+            text={msg.content}
+            streaming={!!msg.isStreaming}
+            allowReady={replyStage === 'ready'}
+            promptOnParameterChange={isLatestAssistant}
+            role={messageRole}
+            playing={voiceActive && voicePlayingState.isPlaying}
+            expanded={showVoiceText}
+            onToggleText={() => { setShowVoiceText(v => !v); setVisibleActionButtons(null); }}
+          />}
+          {(!voiceReply || showVoiceText) && <div>
           {/* 思考过程 */}
           {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
             <ThinkingProcess 
@@ -328,7 +347,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
             );
           })()}
           
-          </div>
+          </div>}
           {/* 图片渲染 */}
           {msg.images && msg.images.length > 0 && (
             <div className="mt-3 space-y-2">
@@ -349,12 +368,12 @@ const MessageItem: React.FC<MessageItemProps> = ({
           )}
           
           {/* Loading Indicator */}
-          {msg.isStreaming && (
+          {msg.isStreaming && !voiceReply && (
             <Loader2 className="h-4 w-4 animate-spin mt-2" />
           )}
 
-          {/* 操作按钮组 */}
-          <div onClick={(e) => e.stopPropagation()} className={cn(
+          {/* 操作按钮组仅在文字可见时挂载 */}
+          {(!voiceReply || showVoiceText) && <div onClick={(e) => e.stopPropagation()} className={cn(
             'absolute flex gap-1 p-1 bg-base-100 text-base-content rounded-[var(--radius-box)] transition-opacity duration-200 z-10 backdrop-blur-sm shadow-sm pointer-events-auto',
             'delay-300 group-hover:delay-0',
             visibleActionButtons === msg.id ? 'delay-0' : '',
@@ -391,8 +410,8 @@ const MessageItem: React.FC<MessageItemProps> = ({
               <Copy className="h-4 w-4" />
             </button>
 
-            {/* Read Aloud Button */}
-            {msg.role === 'assistant' && (
+            {/* Voice replies already have their own cached playback control. */}
+            {msg.role === 'assistant' && !voiceReply && (
               <button
                 className={cn(
                   "btn btn-sm btn-circle btn-ghost h-7 w-7",
@@ -521,7 +540,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                 </li>
               </ul>
             </div>
-          </div>
+          </div>}
         </div>
       </div>
     </div>

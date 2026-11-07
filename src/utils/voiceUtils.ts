@@ -1,305 +1,31 @@
 import { AIRole, VoiceSettings, VoiceModel } from '@/store';
 import { getApiBaseUrl } from '@/lib/utils';
+import { VoiceRequestQueue } from './voiceRequestQueue';
+import { findVoiceCacheVariant, hashVoiceIdentity, readVoiceCache, saveVoiceCache, voiceRevision } from './voiceAudioCache';
+import type { VoiceAnalysis } from './voiceAudioCache';
+export { clearAllCache, getCacheStats } from './voiceAudioCache';
 
-// 音频缓存相关接口和常量
-interface AudioCacheItem {
-  id: string;
-  audioBlob: Blob;
-  createdAt: number;
-  size: number;
-  cacheKey: string;
-}
-
-const CACHE_DB_NAME = 'VoiceAudioCache';
-const CACHE_DB_VERSION = 1;
-const CACHE_STORE_NAME = 'audioCache';
-const CACHE_EXPIRY_DAYS = 7;
-const CACHE_MAX_SIZE_MB = 100;
-const CACHE_MAX_SIZE_BYTES = CACHE_MAX_SIZE_MB * 1024 * 1024;
-
-// IndexedDB 数据库实例
-let cacheDB: IDBDatabase | null = null;
-
-// 初始化缓存数据库
-const initCacheDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    if (cacheDB) {
-      resolve(cacheDB);
-      return;
-    }
-
-    const request = indexedDB.open(CACHE_DB_NAME, CACHE_DB_VERSION);
-
-    request.onerror = () => {
-      reject(new Error('无法打开缓存数据库'));
-    };
-
-    request.onsuccess = () => {
-      cacheDB = request.result;
-      resolve(cacheDB);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      
-      // 创建对象存储
-      if (!db.objectStoreNames.contains(CACHE_STORE_NAME)) {
-        const store = db.createObjectStore(CACHE_STORE_NAME, { keyPath: 'id' });
-        store.createIndex('cacheKey', 'cacheKey', { unique: true });
-        store.createIndex('createdAt', 'createdAt', { unique: false });
-      }
-    };
-  });
-};
-
-// 生成缓存键（MD5哈希）
-const generateCacheKey = async (text: string, voiceModelId: string, settings: VoiceSettings): Promise<string> => {
-  const data = {
-    text: text.trim(),
-    voiceModelId,
-    readingMode: settings.readingMode,
-    modelVersion: settings.modelVersion || 'drama-3',
-    apiUrl: settings.apiUrl
-  };
-  
-  const encoder = new TextEncoder();
-  const dataString = JSON.stringify(data);
-  const dataBuffer = encoder.encode(dataString);
-  
-  const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  return hashHex;
-};
-
-// 从缓存获取音频
-const getCachedAudio = async (cacheKey: string): Promise<Blob | null> => {
-  try {
-    const db = await initCacheDB();
-    const transaction = db.transaction([CACHE_STORE_NAME], 'readonly');
-    const store = transaction.objectStore(CACHE_STORE_NAME);
-    const index = store.index('cacheKey');
-    
-    return new Promise((resolve, reject) => {
-      const request = index.get(cacheKey);
-      
-      request.onsuccess = () => {
-        const result = request.result as AudioCacheItem | undefined;
-        if (result) {
-          // 检查是否过期
-          const now = Date.now();
-          const expiryTime = result.createdAt + (CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-          
-          if (now < expiryTime) {
-            resolve(result.audioBlob);
-          } else {
-            // 过期，删除缓存项
-            deleteCachedAudio(result.id).catch(console.error);
-            resolve(null);
-          }
-        } else {
-          resolve(null);
-        }
-      };
-      
-      request.onerror = () => {
-        reject(new Error('读取缓存失败'));
-      };
-    });
-  } catch (error) {
-    console.error('获取缓存音频失败:', error);
-    return null;
+export const generateCacheKey = (text: string, voiceModelId: string, settings: VoiceSettings): Promise<string> => hashVoiceIdentity({
+  text: text.trim(), voiceModelId, readingMode: settings.readingMode,
+  modelVersion: settings.modelVersion || 'drama-3', apiUrl: settings.apiUrl
+});
+// Earlier releases stored only a hash, not a message binding. Recover known
+// model/voice variants locally; no migration path is allowed to generate audio.
+export const findLegacyMessageVoice = async (text: string, settings: VoiceSettings, voiceIds: string[]) => {
+  const versions = [...new Set([settings.modelVersion || 'drama-3', 'drama-3', 's2.1-pro', 's2.1-pro-free', 's2-pro', 's1', 'speech-1.6', 'speech-1.5'])];
+  const keys: string[] = [];
+  for (const voiceId of new Set(voiceIds)) for (const readingMode of ['all', 'dialogue-only'] as const) {
+    const readingText = processTextForReading(text, readingMode);
+    if (!readingText.trim()) continue;
+    keys.push(await hashVoiceIdentity({ text: readingText.trim(), voiceModelId: voiceId, readingMode, apiUrl: settings.apiUrl }));
+    for (const modelVersion of versions) keys.push(await generateCacheKey(readingText, voiceId, { ...settings, readingMode, modelVersion }));
   }
+  return findVoiceCacheVariant([...new Set(keys)]);
 };
-
-// 保存音频到缓存
-const setCachedAudio = async (cacheKey: string, audioBlob: Blob): Promise<void> => {
-  try {
-    const db = await initCacheDB();
-    
-    // 检查缓存大小限制
-    const currentSize = await getCacheSize();
-    if (currentSize + audioBlob.size > CACHE_MAX_SIZE_BYTES) {
-      // 清理过期缓存
-      await cleanExpiredCache();
-      
-      // 再次检查大小
-      const newSize = await getCacheSize();
-      if (newSize + audioBlob.size > CACHE_MAX_SIZE_BYTES) {
-        console.warn('缓存空间不足，跳过缓存');
-        return;
-      }
-    }
-    
-    const cacheItem: AudioCacheItem = {
-      id: crypto.randomUUID(),
-      audioBlob,
-      createdAt: Date.now(),
-      size: audioBlob.size,
-      cacheKey
-    };
-    
-    const transaction = db.transaction([CACHE_STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(CACHE_STORE_NAME);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.add(cacheItem);
-      
-      request.onsuccess = () => {
-        resolve();
-      };
-      
-      request.onerror = () => {
-        reject(new Error('保存缓存失败'));
-      };
-    });
-  } catch (error) {
-    console.error('保存缓存音频失败:', error);
-  }
-};
-
-// 删除缓存项
-const deleteCachedAudio = async (id: string): Promise<void> => {
-  try {
-    const db = await initCacheDB();
-    const transaction = db.transaction([CACHE_STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(CACHE_STORE_NAME);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.delete(id);
-      
-      request.onsuccess = () => {
-        resolve();
-      };
-      
-      request.onerror = () => {
-        reject(new Error('删除缓存失败'));
-      };
-    });
-  } catch (error) {
-    console.error('删除缓存音频失败:', error);
-  }
-};
-
-// 获取缓存总大小
-const getCacheSize = async (): Promise<number> => {
-  try {
-    const db = await initCacheDB();
-    const transaction = db.transaction([CACHE_STORE_NAME], 'readonly');
-    const store = transaction.objectStore(CACHE_STORE_NAME);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      
-      request.onsuccess = () => {
-        const items = request.result as AudioCacheItem[];
-        const totalSize = items.reduce((sum, item) => sum + item.size, 0);
-        resolve(totalSize);
-      };
-      
-      request.onerror = () => {
-        reject(new Error('获取缓存大小失败'));
-      };
-    });
-  } catch (error) {
-    console.error('获取缓存大小失败:', error);
-    return 0;
-  }
-};
-
-// 清理过期缓存
-const cleanExpiredCache = async (): Promise<void> => {
-  try {
-    const db = await initCacheDB();
-    const transaction = db.transaction([CACHE_STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(CACHE_STORE_NAME);
-    
-    const now = Date.now();
-    const expiryThreshold = now - (CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      
-      request.onsuccess = () => {
-        const items = request.result as AudioCacheItem[];
-        const expiredItems = items.filter(item => item.createdAt < expiryThreshold);
-        
-        // 删除过期项
-        const deletePromises = expiredItems.map(item => deleteCachedAudio(item.id));
-        Promise.all(deletePromises).then(() => resolve()).catch(reject);
-      };
-      
-      request.onerror = () => {
-        reject(new Error('清理过期缓存失败'));
-      };
-    });
-  } catch (error) {
-    console.error('清理过期缓存失败:', error);
-  }
-};
-
-// 清空所有缓存
-export const clearAllCache = async (): Promise<void> => {
-  try {
-    const db = await initCacheDB();
-    const transaction = db.transaction([CACHE_STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(CACHE_STORE_NAME);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.clear();
-      
-      request.onsuccess = () => {
-        resolve();
-      };
-      
-      request.onerror = () => {
-        reject(new Error('清空缓存失败'));
-      };
-    });
-  } catch (error) {
-    console.error('清空缓存失败:', error);
-    throw error;
-  }
-};
-
-// 获取缓存统计信息
-export const getCacheStats = async (): Promise<{ size: number; count: number; sizeFormatted: string }> => {
-  try {
-    const db = await initCacheDB();
-    const transaction = db.transaction([CACHE_STORE_NAME], 'readonly');
-    const store = transaction.objectStore(CACHE_STORE_NAME);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      
-      request.onsuccess = () => {
-        const items = request.result as AudioCacheItem[];
-        const totalSize = items.reduce((sum, item) => sum + item.size, 0);
-        const count = items.length;
-        
-        // 格式化大小显示
-        let sizeFormatted: string;
-        if (totalSize < 1024) {
-          sizeFormatted = `${totalSize} B`;
-        } else if (totalSize < 1024 * 1024) {
-          sizeFormatted = `${(totalSize / 1024).toFixed(1)} KB`;
-        } else {
-          sizeFormatted = `${(totalSize / (1024 * 1024)).toFixed(1)} MB`;
-        }
-        
-        resolve({ size: totalSize, count, sizeFormatted });
-      };
-      
-      request.onerror = () => {
-        reject(new Error('获取缓存统计失败'));
-      };
-    });
-  } catch (error) {
-    console.error('获取缓存统计失败:', error);
-    return { size: 0, count: 0, sizeFormatted: '0 B' };
-  }
-};
+interface VoiceAudioResult { audioBlob: Blob; cacheKey: string; persisted: boolean; revision: string; analysis?: VoiceAnalysis }
+const generationQueue = new VoiceRequestQueue<VoiceAudioResult>(2);
+let playbackRequest: AbortController | null = null;
+let ownedPlaybackUrl: string | null = null;
 
 // 语音播放状态管理
 interface VoicePlaybackState {
@@ -310,7 +36,7 @@ interface VoicePlaybackState {
   isFallingBack: boolean; // 是否正在降级播放
 }
 
-let voiceState: VoicePlaybackState = {
+const voiceState: VoicePlaybackState = {
   isPlaying: false,
   currentAudio: null,
   currentMessageId: null,
@@ -338,12 +64,20 @@ const notifyListeners = () => {
 
 // 停止当前播放
 export const stopCurrentVoice = () => {
+  playbackRequest?.abort();
+  playbackRequest = null;
   if (voiceState.currentAudio) {
+    voiceState.currentAudio.onended = null;
+    voiceState.currentAudio.onerror = null;
+    voiceState.currentAudio.oncanplay = null;
+    voiceState.currentAudio.onloadstart = null;
     voiceState.currentAudio.pause();
     voiceState.currentAudio.currentTime = 0;
     voiceState.currentAudio = null;
   }
+  if (ownedPlaybackUrl) { URL.revokeObjectURL(ownedPlaybackUrl); ownedPlaybackUrl = null; }
   voiceState.isPlaying = false;
+  voiceState.isGenerating = false;
   voiceState.currentMessageId = null;
   voiceState.isFallingBack = false;
   notifyListeners();
@@ -431,280 +165,140 @@ export const generateStreamingVoiceUrl = (
   return `${apiBaseUrl}${endpoint}?${params.toString()}`;
 };
 
-export const generateVoiceAudio = async (
+export const requestVoiceAudio = async (
   text: string,
   voiceModel: VoiceModel,
-  voiceSettings: VoiceSettings
+  voiceSettings: VoiceSettings,
+  options: { signal?: AbortSignal; force?: boolean } = {}
+): Promise<VoiceAudioResult> => {
+  const cacheKey = await generateCacheKey(text, voiceModel.id, voiceSettings);
+  options.signal?.throwIfAborted();
+  if (!options.force) {
+    const cached = await readVoiceCache(cacheKey);
+    options.signal?.throwIfAborted();
+    if (cached) return { audioBlob: cached.audioBlob, cacheKey, persisted: cached.persisted !== false, revision: voiceRevision(cached), analysis: cached.analysis };
+  }
+  return generationQueue.request(cacheKey, async signal => {
+    if (!options.force) {
+      const cached = await readVoiceCache(cacheKey);
+      if (cached) return { audioBlob: cached.audioBlob, cacheKey, persisted: cached.persisted !== false, revision: voiceRevision(cached), analysis: cached.analysis };
+    }
+    signal.throwIfAborted();
+    const response = await fetch(`${getApiBaseUrl()}/api/tts`, {
+      method: 'POST', signal,
+      headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_API_SECRET || '' },
+      body: JSON.stringify({ text, reference_id: voiceModel.id, format: 'mp3', mp3_bitrate: 192,
+        model: voiceSettings.modelVersion || 'drama-3', fish_audio_key: voiceSettings.apiKey })
+    });
+    if (!response.ok) throw new Error(`语音生成失败: ${response.status} ${response.statusText}`);
+    const audioBlob = await response.blob();
+    signal.throwIfAborted();
+    if (!audioBlob.size) throw new Error('语音服务返回了空音频');
+    // Do not release the shared request until the persistence transaction commits.
+    const revision = crypto.randomUUID();
+    const persisted = await saveVoiceCache(cacheKey, audioBlob, revision);
+    return { audioBlob, cacheKey, persisted, revision };
+  }, options.signal);
+};
+
+export const generateVoiceAudio = async (
+  text: string, voiceModel: VoiceModel, voiceSettings: VoiceSettings,
+  options: { silent?: boolean; signal?: AbortSignal; force?: boolean } = {}
 ): Promise<string> => {
+  const result = await requestVoiceAudio(text, voiceModel, voiceSettings, options);
+  options.signal?.throwIfAborted();
+  return URL.createObjectURL(result.audioBlob);
+};
+
+// All ordinary playback uses the same cached queue, with no parallel streaming fallback.
+export const playVoice = async (messageId: string, text: string, role: AIRole | null, settings: VoiceSettings | null): Promise<void> => {
+  if (voiceState.currentMessageId === messageId && (voiceState.isPlaying || voiceState.isGenerating)) { stopCurrentVoice(); return; }
+  stopCurrentVoice();
+  if (!settings) throw new Error('语音设置未配置');
+  const model = getVoiceModelForMessage(role, settings);
+  if (!model) throw new Error('未找到可用的语音模型');
+  const readingText = processTextForReading(text, settings.readingMode);
+  if (!readingText.trim()) throw new Error('没有可朗读的内容');
+  const controller = new AbortController();
+  playbackRequest = controller;
+  voiceState.currentMessageId = messageId;
+  voiceState.isGenerating = true;
+  notifyListeners();
   try {
-    // 生成缓存键
-    const cacheKey = await generateCacheKey(text, voiceModel.id, voiceSettings);
-    
-    // 先检查缓存
-    const cachedBlob = await getCachedAudio(cacheKey);
-    if (cachedBlob) {
-      console.log('使用缓存的音频文件');
-      return URL.createObjectURL(cachedBlob);
-    }
-    
-    console.log('缓存未命中，调用API生成音频');
-    
-    // 设置生成状态
-    voiceState.isGenerating = true;
-    notifyListeners();
-    
+    const result = await requestVoiceAudio(readingText, model, settings, { signal: controller.signal });
+    controller.signal.throwIfAborted();
+    if (playbackRequest !== controller) return;
+    playbackRequest = null;
+    const url = URL.createObjectURL(result.audioBlob);
     try {
-      // 使用本地代理服务器而不是直接调用官方API
-      const apiBaseUrl = getApiBaseUrl();
-      
-      const response = await fetch(`${apiBaseUrl}/api/tts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_API_SECRET || ''
-        },
-        body: JSON.stringify({
-          text,
-          reference_id: voiceModel.id,
-          format: 'mp3',
-          mp3_bitrate: 192,
-          model: voiceSettings.modelVersion || 'drama-3',
-          fish_audio_key: voiceSettings.apiKey
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`语音生成失败: ${response.status} ${response.statusText}`);
-      }
-
-      const audioBlob = await response.blob();
-      
-      // 保存到缓存（异步，不阻塞返回）
-      setCachedAudio(cacheKey, audioBlob).catch(error => {
-        console.warn('保存音频缓存失败:', error);
-      });
-      
-      return URL.createObjectURL(audioBlob);
-    } finally {
-      // 重置生成状态
-      voiceState.isGenerating = false;
-      notifyListeners();
-    }
+      await playPreparedVoice(messageId, url);
+      if (getVoiceState().currentMessageId === messageId) ownedPlaybackUrl = url;
+      else URL.revokeObjectURL(url);
+    } catch (error) { URL.revokeObjectURL(url); throw error; }
   } catch (error) {
-    console.error('生成音频失败:', error);
-    // 确保重置生成状态
-    voiceState.isGenerating = false;
-    notifyListeners();
+    if (controller.signal.aborted) return;
+    if (playbackRequest === controller) stopCurrentVoice();
     throw error;
   }
 };
-
-// 播放语音
-export const playVoice = async (
-  messageId: string,
-  text: string,
-  role: AIRole | null,
-  voiceSettings: VoiceSettings | null
-): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    try {
-      // 如果正在播放同一条消息，则停止播放
-      if (voiceState.isPlaying && voiceState.currentMessageId === messageId) {
-        stopCurrentVoice();
-        resolve();
-        return;
-      }
-
-      // 停止当前播放
-      stopCurrentVoice();
-
-      if (!voiceSettings) {
-        reject(new Error('语音设置未配置'));
-        return;
-      }
-
-      // 获取语音模型
-      const voiceModel = getVoiceModelForMessage(role, voiceSettings);
-      if (!voiceModel) {
-        reject(new Error('未找到可用的语音模型'));
-        return;
-      }
-
-      // 处理朗读内容
-      const processedText = processTextForReading(text, voiceSettings.readingMode);
-      if (!processedText.trim()) {
-        reject(new Error('没有可朗读的内容'));
-        return;
-      }
-
-      // 更新状态
-      voiceState.isPlaying = true;
-      voiceState.currentMessageId = messageId;
-      notifyListeners();
-
-      // 生成音频
-      generateVoiceAudio(processedText, voiceModel, voiceSettings)
-        .then(audioUrl => {
-          // 创建音频对象
-          const audio = new Audio(audioUrl);
-          voiceState.currentAudio = audio;
-
-          // 设置音频事件监听器
-          audio.onended = () => {
-            URL.revokeObjectURL(audioUrl); // 清理URL
-            stopCurrentVoice();
-            resolve();
-          };
-
-          audio.onerror = (event) => {
-            console.error('音频播放错误:', event);
-            URL.revokeObjectURL(audioUrl); // 清理URL
-            stopCurrentVoice();
-            reject(new Error('音频播放失败'));
-          };
-
-          // 播放音频
-          audio.play().catch(error => {
-            console.error('音频播放启动失败:', error);
-            URL.revokeObjectURL(audioUrl);
-            stopCurrentVoice();
-            reject(new Error('音频播放启动失败'));
-          });
-        })
-        .catch(error => {
-          stopCurrentVoice();
-          reject(error);
-        });
-
-    } catch (error) {
-      stopCurrentVoice();
-      reject(error);
-    }
-  });
-};
-
-// 流式播放语音（边下边播）
-export const playVoiceStreaming = async (
-  messageId: string,
-  text: string,
-  role: AIRole | null,
-  voiceSettings: VoiceSettings | null
-): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    try {
-      // 如果正在播放同一条消息，则停止播放
-      if (voiceState.isPlaying && voiceState.currentMessageId === messageId) {
-        stopCurrentVoice();
-        resolve();
-        return;
-      }
-
-      // 停止当前播放
-      stopCurrentVoice();
-
-      if (!voiceSettings) {
-        reject(new Error('语音设置未配置'));
-        return;
-      }
-
-      // 获取语音模型
-      const voiceModel = getVoiceModelForMessage(role, voiceSettings);
-      if (!voiceModel) {
-        reject(new Error('未找到可用的语音模型'));
-        return;
-      }
-
-      // 处理朗读内容
-      const processedText = processTextForReading(text, voiceSettings.readingMode);
-      if (!processedText.trim()) {
-        reject(new Error('没有可朗读的内容'));
-        return;
-      }
-
-      // 更新状态
-      voiceState.isPlaying = true;
-      voiceState.currentMessageId = messageId;
-      notifyListeners();
-
-      // 生成流式音频URL
-      const streamingUrl = generateStreamingVoiceUrl(processedText, voiceModel, voiceSettings);
-      
-      // 创建音频对象并直接使用流式URL
-      const audio = new Audio(streamingUrl);
-      voiceState.currentAudio = audio;
-
-      // 设置音频事件监听器
-      audio.onended = () => {
-        stopCurrentVoice();
-        resolve();
-      };
-
-      audio.onerror = async (event) => {
-        console.error('流式音频播放错误:', event);
-        
-        // 防止重复降级
-        if (voiceState.isFallingBack) {
-          console.log('已在降级播放中，跳过重复降级');
-          return;
-        }
-        
-        console.log('尝试降级到传统播放方式...');
-        voiceState.isFallingBack = true;
-        
-        try {
-          // 降级到传统的 fetch+blob 方式
-          stopCurrentVoice();
-          await playVoice(messageId, text, role, voiceSettings);
-          resolve();
-        } catch (fallbackError) {
-          console.error('降级播放也失败:', fallbackError);
-          stopCurrentVoice();
-          reject(new Error(`流式音频播放失败: ${event}, 降级播放也失败: ${fallbackError}`));
-        }
-      };
-
-      // 音频开始播放时的回调
-      audio.onloadstart = () => {
-        console.log('开始加载流式音频');
-      };
-
-      audio.oncanplay = () => {
-        console.log('流式音频可以开始播放');
-      };
-
-      // 播放音频
-      audio.play().catch(async (error) => {
-        console.error('流式音频播放启动失败:', error);
-        
-        // 防止重复降级
-        if (voiceState.isFallingBack) {
-          console.log('已在降级播放中，跳过重复降级');
-          return;
-        }
-        
-        console.log('尝试降级到传统播放方式...');
-        voiceState.isFallingBack = true;
-        
-        try {
-          // 降级到传统的 fetch+blob 方式
-          stopCurrentVoice();
-          await playVoice(messageId, text, role, voiceSettings);
-          resolve();
-        } catch (fallbackError) {
-          console.error('降级播放也失败:', fallbackError);
-          stopCurrentVoice();
-          reject(new Error(`流式音频播放启动失败: ${error}, 降级播放也失败: ${fallbackError}`));
-        }
-      });
-
-    } catch (error) {
-      stopCurrentVoice();
-      reject(error);
-    }
-  });
-};
+export const playVoiceStreaming = playVoice;
 
 // 获取当前播放状态
 export const getVoiceState = (): VoicePlaybackState => {
   return { ...voiceState };
+};
+
+// Play an already generated reply without another TTS request.
+export const playPreparedVoice = async (messageId: string, audioUrl: string): Promise<void> => {
+  if (voiceState.currentMessageId === messageId && voiceState.isPlaying) {
+    stopCurrentVoice();
+    return;
+  }
+  stopCurrentVoice();
+  const audio = new Audio(audioUrl);
+  voiceState.currentAudio = audio;
+  voiceState.currentMessageId = messageId;
+  voiceState.isPlaying = true;
+  notifyListeners();
+  audio.onended = () => { if (voiceState.currentAudio === audio) stopCurrentVoice(); };
+  audio.onerror = () => { if (voiceState.currentAudio === audio) stopCurrentVoice(); };
+  try {
+    await audio.play();
+  } catch (error) {
+    if (voiceState.currentAudio === audio) stopCurrentVoice();
+    throw error;
+  }
+};
+
+/** Subscribe directly to native media time events without updating the chat store. */
+export const addVoiceProgressListener = (
+  messageId: string,
+  fallbackDuration: number,
+  listener: (progress: number) => void
+): (() => void) => {
+  let audio: HTMLAudioElement | null = null;
+  const events = ['timeupdate', 'durationchange', 'loadedmetadata', 'seeked', 'ended', 'emptied'] as const;
+  const update = () => {
+    const state = getVoiceState();
+    if (!audio || state.currentMessageId !== messageId || !state.isPlaying || audio.ended) {
+      listener(0);
+      return;
+    }
+    const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : fallbackDuration;
+    listener(duration > 0 && Number.isFinite(audio.currentTime) ? Math.min(1, Math.max(0, audio.currentTime / duration)) : 0);
+  };
+  const detach = () => { events.forEach(event => audio?.removeEventListener(event, update)); };
+  const sync = () => {
+    const state = getVoiceState();
+    const next = state.currentMessageId === messageId ? state.currentAudio : null;
+    if (next !== audio) {
+      detach();
+      audio = next;
+      events.forEach(event => audio?.addEventListener(event, update));
+    }
+    update();
+  };
+  const unsubscribe = addVoiceStateListener(sync);
+  sync();
+  return () => { unsubscribe(); detach(); audio = null; };
 };

@@ -27,6 +27,8 @@ export interface RoleFormData {
   skillIds: string[];
   voiceModelId: string;
   replyMode: NonNullable<AIRole['replyMode']>;
+  replyDelayMinSeconds: number;
+  replyDelayMaxSeconds: number;
   knowledgeBaseId: string;
 }
 
@@ -77,6 +79,8 @@ const RolesModal: React.FC<RolesModalProps> = ({
     skillIds: [],
     voiceModelId: '',
     replyMode: 'text',
+    replyDelayMinSeconds: 1,
+    replyDelayMaxSeconds: 3,
     knowledgeBaseId: ''
   });
 
@@ -100,6 +104,8 @@ const RolesModal: React.FC<RolesModalProps> = ({
           skillIds: initialRole.skillIds || [],
           voiceModelId: initialRole.voiceModelId || '',
           replyMode: initialRole.replyMode || 'text',
+          replyDelayMinSeconds: initialRole.replyDelayMinSeconds ?? 1,
+          replyDelayMaxSeconds: initialRole.replyDelayMaxSeconds ?? 3,
           knowledgeBaseId: initialKnowledgeBaseId || ''
         }));
         setIsEditLoading(false);
@@ -116,7 +122,9 @@ const RolesModal: React.FC<RolesModalProps> = ({
           globalPromptIds: [],
           skillIds: [],
           voiceModelId: '',
-    replyMode: 'text',
+          replyMode: 'text',
+          replyDelayMinSeconds: 1,
+          replyDelayMaxSeconds: 3,
           knowledgeBaseId: ''
         });
         setIsEditLoading(false);
@@ -141,6 +149,10 @@ const RolesModal: React.FC<RolesModalProps> = ({
       return;
     }
 
+    if (formData.replyDelayMinSeconds < 0 || formData.replyDelayMaxSeconds > 60 || formData.replyDelayMaxSeconds < formData.replyDelayMinSeconds) {
+      toast.error('回复延迟需为 0–60 秒，最大值不能小于最小值');
+      return;
+    }
     // 过滤空的开场白
     const filteredOpeningMessages = formData.openingMessages.filter(msg => msg.trim() !== '');
     if (filteredOpeningMessages.length === 0) {
@@ -528,7 +540,16 @@ const RolesModal: React.FC<RolesModalProps> = ({
               <option value="voice">纯语音</option>
             </select>
           </label>
-          <p className="text-xs text-base-content/60">语音模式会在新回复完成后自动朗读；纯语音可点击消息悬浮按钮查看文字。需先配置可用的语音模型。</p>
+          {formData.replyMode !== 'text' && <div className="space-y-2">
+            <span className="text-sm">随机回复延迟（秒）</span>
+            <div className="flex items-center gap-2">
+              <input type="number" aria-label="最短回复延迟（秒）" className="input input-bordered w-24" min={0} max={60} step={0.5} value={formData.replyDelayMinSeconds} onChange={e => setFormData({ ...formData, replyDelayMinSeconds: Number(e.target.value) })} />
+              <span>至</span>
+              <input type="number" aria-label="最长回复延迟（秒）" className="input input-bordered w-24" min={0} max={60} step={0.5} value={formData.replyDelayMaxSeconds} onChange={e => setFormData({ ...formData, replyDelayMaxSeconds: Number(e.target.value) })} />
+            </div>
+            <p className="text-xs text-base-content/60">等待期间隐藏回复，随后显示语音回复占位框。均设为 0 可关闭延迟。</p>
+          </div>}
+          <p className="text-xs text-base-content/60">语音模式默认显示语音条，点击后播放；点击消息悬浮按钮可查看文字。需先配置可用的语音模型。</p>
           <label className="bub-select w-full">
             <span className="label">语音模型</span>
             <select

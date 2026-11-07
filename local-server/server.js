@@ -1,3 +1,4 @@
+const createTtsCancellation = require('../api/_lib/tts-cancellation');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -481,7 +482,9 @@ app.post('/api/tts', apiKeyAuth, async (req, res) => {
 
     // 调用 Fish Audio API
     console.log(`[${timestamp}] 调用 Fish Audio API - URL: ${FISH_AUDIO_BASE_URL}/tts`);
+    const cancellation = createTtsCancellation(req, res);
     const response = await axios({
+      signal: cancellation.signal,
       method: 'POST',
       url: `${FISH_AUDIO_BASE_URL}/tts`,
       data: encodedData,
@@ -515,9 +518,11 @@ app.post('/api/tts', apiKeyAuth, async (req, res) => {
       console.error(`[${timestamp}] 音频流传输错误:`, streamError.message);
     });
     
+    cancellation.attach(response.data);
     response.data.pipe(res);
 
   } catch (error) {
+    if (error.code === 'ERR_CANCELED' || req.aborted || res.destroyed) return;
     console.error(`[${timestamp}] TTS 请求失败 - IP: ${clientIP}`);
     console.error(`[${timestamp}] 错误详情:`, error.message);
     
@@ -611,7 +616,9 @@ app.get('/api/tts/stream', apiKeyAuth, async (req, res) => {
 
     // 调用 Fish Audio API
     console.log(`[${timestamp}] 调用 Fish Audio API - URL: ${FISH_AUDIO_BASE_URL}/tts`);
+    const cancellation = createTtsCancellation(req, res);
     const response = await axios({
+      signal: cancellation.signal,
       method: 'POST',
       url: `${FISH_AUDIO_BASE_URL}/tts`,
       data: encodedData,
@@ -645,9 +652,11 @@ app.get('/api/tts/stream', apiKeyAuth, async (req, res) => {
       console.error(`[${timestamp}] 音频流传输错误:`, streamError.message);
     });
     
+    cancellation.attach(response.data);
     response.data.pipe(res);
 
   } catch (error) {
+    if (error.code === 'ERR_CANCELED' || req.aborted || res.destroyed) return;
     console.error(`[${timestamp}] TTS Stream 请求失败 - IP: ${clientIP}`);
     console.error(`[${timestamp}] 错误详情:`, error.message);
     

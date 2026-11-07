@@ -426,7 +426,9 @@ export class DataSyncService {
         globalPromptId: data.globalPromptId, // 保持向后兼容
         globalPromptIds: data.globalPromptIds, // 新的多个提示词ID数组
         voiceModelId: data.voiceModelId,
-        replyMode: data.replyMode || 'text'
+        replyMode: data.replyMode || 'text',
+        replyDelayMinSeconds: data.replyDelayMinSeconds ?? 1,
+        replyDelayMaxSeconds: data.replyDelayMaxSeconds ?? 3
       },
       created_at: safeToISOString(data.createdAt),
       updated_at: safeToISOString(data.updatedAt)
@@ -938,6 +940,8 @@ export class DataSyncService {
       globalPromptIds: item.global_prompt_ids || item.settings?.globalPromptIds || [], // 新的多个提示词ID数组
       skillIds: item.skill_ids || [], // 同步关联的 Skill ID 数组
       voiceModelId: item.settings?.voiceModelId || '',
+      replyDelayMinSeconds: item.settings?.replyDelayMinSeconds ?? 1,
+      replyDelayMaxSeconds: item.settings?.replyDelayMaxSeconds ?? 3,
       replyMode: ['text', 'voice-text', 'voice'].includes(item.settings?.replyMode) ? item.settings.replyMode : 'text',
       createdAt: item.created_at,
       updatedAt: item.updated_at

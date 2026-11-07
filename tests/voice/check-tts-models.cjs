@@ -16,6 +16,7 @@ async function check(file, local) {
     console: { log() {}, warn() {}, error() {} },
     process: { env: { API_SECRET: 'test-secret' }, on() {} },
     require(name) {
+      if (name.endsWith('tts-cancellation')) return require('../../api/_lib/tts-cancellation');
       if (name === 'axios') return async options => {
         requests.push(options);
         return { status: 200, headers: {}, data: { pipe() {}, on() {} } };
@@ -42,6 +43,7 @@ async function check(file, local) {
     await handler(req(method, fields), res);
     assert(!res.code || res.code < 400, `${file} ${method} failed: ${JSON.stringify(res.body)}`);
     const upstream = requests.at(-1);
+    assert(upstream.signal instanceof AbortSignal, 'TTS must forward a cancellation signal');
     assert.equal(upstream.headers.Model, model || 'drama-3');
     assert.equal(JSON.parse(upstream.data.toString()).text, text);
   }

@@ -4,7 +4,7 @@ import { Volume2, Play, Square, RefreshCw, Settings, Plus, Trash2, Activity, X, 
 import { toast } from '@/hooks/useToast';
 import { useAppStore } from '@/store';
 import { getApiBaseUrl, cn } from '@/lib/utils';
-import { getCacheStats, clearAllCache, generateStreamingVoiceUrl } from '@/utils/voiceUtils';
+import { getCacheStats, clearAllCache, generateVoiceAudio } from '@/utils/voiceUtils';
 import VoiceModelModal from './VoiceModelModal';
 
 interface VoiceModel {
@@ -50,6 +50,9 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
   
   const [modelVersions, setModelVersions] = useState<string[]>(fallbackModelVersions);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const previewRequest = useRef<AbortController | null>(null);
+  const previewUrl = useRef<string | null>(null);
+  const previewAudio = useRef<HTMLAudioElement | null>(null);
   const [playingModel, setPlayingModel] = useState<string | null>(null);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
@@ -60,6 +63,12 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [cacheStats, setCacheStats] = useState({ count: 0, size: 0, sizeFormatted: '0 B' });
   const [isClearingCache, setIsClearingCache] = useState(false);
+
+  useEffect(() => () => {
+    previewRequest.current?.abort();
+    previewAudio.current?.pause();
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+  }, []);
 
   // 预设的语音模型
   const presetModels: VoiceModel[] = [
@@ -301,9 +310,9 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
     return null;
   };
 
-  // 测试语音（流式播放）
+  // 测试语音：复用统一生成队列与音频缓存
   const testVoice = async (modelId: string) => {
-    if (playingVoiceId) {
+    if (playingVoiceId || (previewRequest.current && !previewRequest.current.signal.aborted)) {
       stopVoice();
       return;
     }
@@ -319,21 +328,25 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
         modelVersion: settings.modelVersion || 'drama-3'
       };
       
-      // 生成流式音频URL
-      const streamingUrl = generateStreamingVoiceUrl(
-        '这是一个语音测试，用来试听当前语音模型的效果。',
-        voiceModel,
-        voiceSettings
-      );
-      
-      // 创建音频对象并直接使用流式URL
-      const audio = new Audio(streamingUrl);
-      
+      previewRequest.current?.abort();
+      const controller = new AbortController();
+      previewRequest.current = controller;
+      const url = await generateVoiceAudio('这是一个语音测试，用来试听当前语音模型的效果。', voiceModel, voiceSettings, { signal: controller.signal, silent: true });
+      if (controller.signal.aborted) { URL.revokeObjectURL(url); return; }
+      previewRequest.current = null;
+      previewUrl.current = url;
+      const audio = new Audio(url);
+      previewAudio.current = audio;
+
       audio.onended = () => {
+        URL.revokeObjectURL(url);
+        if (previewUrl.current === url) previewUrl.current = null;
         setPlayingVoiceId(null);
       };
       
       audio.onerror = (event) => {
+        URL.revokeObjectURL(url);
+        if (previewUrl.current === url) previewUrl.current = null;
         console.error('流式语音播放失败:', event);
         setPlayingVoiceId(null);
         toast.error('语音播放失败');
@@ -351,6 +364,7 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
       await audio.play();
       
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       console.error('语音测试失败:', error);
       toast.error('语音测试失败');
       setPlayingVoiceId(null);
@@ -359,11 +373,13 @@ const VoiceSettings: React.FC<VoiceSettingsProps> = ({ onCloseModal, className }
 
   // 停止语音
   const stopVoice = () => {
-    if (audioRef) {
-      audioRef.pause();
-      audioRef.currentTime = 0;
-      setAudioRef(null);
-    }
+    previewRequest.current?.abort();
+    previewRequest.current = null;
+    if (previewUrl.current) { URL.revokeObjectURL(previewUrl.current); previewUrl.current = null; }
+    previewAudio.current?.pause();
+    if (previewAudio.current) previewAudio.current.currentTime = 0;
+    previewAudio.current = null;
+    if (audioRef) setAudioRef(null);
     setPlayingVoiceId(null);
   };
 

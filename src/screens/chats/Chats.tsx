@@ -349,31 +349,10 @@ const Chats: React.FC = () => {
   
 
 
-  // Only newly received replies are read automatically; opening history stays silent.
-  const replyPlaybackRef = useRef<{ sessionId?: string; seen: Set<string>; pending: Set<string> }>({ seen: new Set(), pending: new Set() });
+  // Playback is explicitly started by clicking a message, never by receiving it.
   useEffect(() => {
-    const messages = currentSession?.messages || [];
-    const tracking = replyPlaybackRef.current;
-    if (tracking.sessionId !== currentSession?.id) {
-      stopCurrentVoice();
-      tracking.sessionId = currentSession?.id;
-      tracking.seen = new Set(messages.map(m => m.id));
-      tracking.pending = new Set(messages.filter(m => m.role === 'assistant' && m.isStreaming).map(m => m.id));
-      return;
-    }
-    for (const reply of messages) {
-      if (reply.role !== 'assistant') continue;
-      if (!tracking.seen.has(reply.id) || reply.isStreaming) tracking.pending.add(reply.id);
-      tracking.seen.add(reply.id);
-      if (!tracking.pending.has(reply.id) || reply.isStreaming || isLoading) continue;
-      tracking.pending.delete(reply.id);
-      const role = aiRoles.find(r => r.id === reply.roleId) || currentRole;
-      if (!role || !role.replyMode || role.replyMode === 'text' || !reply.content.trim() || isVoiceCallOpen) continue;
-      void playVoiceStreaming(reply.id, reply.content, role, voiceSettings).catch(error => {
-        toast.error(`自动朗读失败，可查看文字或重试播放: ${error instanceof Error ? error.message : '未知错误'}`);
-      });
-    }
-  }, [currentSession, currentRole, aiRoles, voiceSettings, isLoading, isVoiceCallOpen]);
+    stopCurrentVoice();
+  }, [currentSession?.id]);
 
   // 发送消息
   const handleSendMessage = async () => {

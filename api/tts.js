@@ -1,3 +1,4 @@
+const createTtsCancellation = require('./_lib/tts-cancellation');
 const axios = require('axios');
 const msgpack = require('msgpack5')();
 
@@ -171,7 +172,9 @@ module.exports = async (req, res) => {
 
         // 调用 Fish Audio API
         console.log(`[${timestamp}] 调用 Fish Audio API: ${FISH_AUDIO_BASE_URL}/tts`);
+        const cancellation = createTtsCancellation(req, res);
         const response = await axios({
+          signal: cancellation.signal,
           method: 'POST',
           url: `${FISH_AUDIO_BASE_URL}/tts`,
           data: encodedData,
@@ -193,6 +196,7 @@ module.exports = async (req, res) => {
 
         console.log(`[${timestamp}] 开始流式传输音频数据，格式: ${format}`);
         // 流式传输音频数据
+        cancellation.attach(response.data);
         response.data.pipe(res);
         
         // 监听流传输完成
@@ -207,6 +211,7 @@ module.exports = async (req, res) => {
         return; // 重要：直接返回，不执行后续代码
 
       } catch (error) {
+        if (error.code === 'ERR_CANCELED' || req.aborted || res.destroyed) return;
         console.error(`[${timestamp}] TTS 流式播放处理错误:`, {
           message: error.message,
           code: error.code,
@@ -324,7 +329,9 @@ module.exports = async (req, res) => {
 
     // 调用 Fish Audio API
     console.log(`[${timestamp}] 调用 Fish Audio API: ${FISH_AUDIO_BASE_URL}/tts`);
+    const cancellation = createTtsCancellation(req, res);
     const response = await axios({
+      signal: cancellation.signal,
       method: 'POST',
       url: `${FISH_AUDIO_BASE_URL}/tts`,
       data: encodedData,
@@ -346,6 +353,7 @@ module.exports = async (req, res) => {
 
     console.log(`[${timestamp}] 开始流式传输音频数据，格式: ${format}`);
     // 流式传输音频数据
+    cancellation.attach(response.data);
     response.data.pipe(res);
     
     // 监听流传输完成
@@ -358,6 +366,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
+    if (error.code === 'ERR_CANCELED' || req.aborted || res.destroyed) return;
     console.error(`[${timestamp}] TTS 处理错误:`, {
       message: error.message,
       code: error.code,

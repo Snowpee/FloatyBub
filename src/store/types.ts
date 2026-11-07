@@ -26,6 +26,8 @@ export interface AIRole {
   skillIds?: string[];
   voiceModelId?: string;
   replyMode?: 'text' | 'voice-text' | 'voice';
+  replyDelayMinSeconds?: number;
+  replyDelayMaxSeconds?: number;
   isFavorite?: boolean;
   createdAt: Date;
   updatedAt: Date;
