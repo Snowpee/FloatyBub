@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
       if (promptIds.includes(item.id) && item.content) systemParts.push(`[全局设置：${replaceVariables(item.content, userName, roleName)}]`);
     }
     if (role.prompt) systemParts.push(`[角色设置：${replaceVariables(role.prompt, userName, roleName)}]`);
-    systemParts.push('[通话模式：仅进行基础对话，不使用或调用任何 Skill、工具或知识库。]');
+    systemParts.push('[通话模式：仅进行基础对话，不使用或调用任何 Skill、工具或知识库。直接回答，默认使用一到三个适合口头表达的短句，不输出思考过程或长篇分析；用户明确要求详细说明时再展开。]');
 
     const opening = role.settings?.openingMessages?.[role.settings?.currentOpeningIndex || 0]
       || role.settings?.openingMessages?.[0]

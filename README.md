@@ -171,6 +171,8 @@ npm run dev
 - `/api/search`：Google CSE 联网搜索
 - `/api/voice-session`：校验用户并创建 Fish Audio 私有会话
 - `/api/llm-gateway`（对外兼容 `/v1/chat/completions`）：将 Fish Audio 的对话请求路由到本次会话选择的 LLM
+
+语音通话应从 Floaty Bub 创建：会话携带短期加密运行令牌，绑定登录用户、模型和会话。Fish 控制台的独立 Run test / Preview 不携带此上下文，会返回 `voice_runtime_missing`；它不能作为应用通话的端到端测试。不要通过关闭网关鉴权来绕过此限制。网关区分首个正文等待超时与正文开始后的流超时，并要求上游完整的 Chat Completions SSE 结束标记。
 - `/api/health`、`/api/models`、`/api/model-info`、`/api/validate-key`：诊断与辅助接口
 
 ### 本地运行代理服务（可选）

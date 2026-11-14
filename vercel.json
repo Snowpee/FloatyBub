@@ -19,7 +19,7 @@
       "maxDuration": 20
     },
     "api/llm-gateway.js": {
-      "maxDuration": 15
+      "maxDuration": 45
     }
   },
   "rewrites": [

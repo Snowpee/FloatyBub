@@ -5,6 +5,8 @@ const {
   supabaseFetch,
 } = require('./_lib/voice-runtime');
 
+const { pipeVoiceCompletion, VoiceGatewayError } = require('./_lib/voice-stream');
+
 const query = (table, select, filters = '') => `/rest/v1/${table}?select=${encodeURIComponent(select)}${filters}`;
 
 module.exports = async (req, res) => {
@@ -14,10 +16,27 @@ module.exports = async (req, res) => {
   const provided = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!expected || provided !== expected) return res.status(401).json({ error: { message: 'Unauthorized', type: 'authentication_error' } });
 
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  let firstContentTimeout;
+  let streamTimeout;
+  let abortCode;
+  const abort = () => { abortCode = 'client_disconnected'; controller.abort(); };
+  const onClose = () => { if (!res.writableEnded) abort(); };
+  req.on('aborted', abort);
+  res.on('close', onClose);
+
   try {
     const token = req.body?.fishaudio_extra_body?.runtime_token;
-    const runtime = openRuntime(token);
-    if (runtime.userId !== req.body?.user_id) throw new Error('Runtime user mismatch');
+    if (typeof token !== 'string' || !token) {
+      throw new VoiceGatewayError('voice_runtime_missing', 'Start the call from Floaty Bub. Fish console tests do not include the required session runtime token.', 400);
+    }
+    let runtime;
+    try { runtime = openRuntime(token); }
+    catch { throw new VoiceGatewayError('voice_runtime_invalid', 'Voice session expired or has an invalid runtime token. Start a new call from Floaty Bub.', 401); }
+    if (runtime.userId !== req.body?.user_id) throw new VoiceGatewayError('voice_runtime_user_mismatch', 'Voice session user does not match the request', 403);
+    // Bound time to actual spoken output, not merely HTTP headers/keepalives.
+    firstContentTimeout = setTimeout(() => { abortCode = 'llm_first_content_timeout'; controller.abort(); }, 8500);
 
     const [models, sessions, history] = await Promise.all([
       supabaseFetch(query('llm_configs', 'id,user_id,provider,model,config', `&id=eq.${encodeURIComponent(runtime.modelConfigId)}`), runtime.accessToken),
@@ -25,7 +44,7 @@ module.exports = async (req, res) => {
       runtime.conversationId ? supabaseFetch(query('messages', 'role,content,message_timestamp', `&session_id=eq.${encodeURIComponent(runtime.conversationId)}&order=message_timestamp.desc&limit=40`), runtime.accessToken) : [],
     ]);
     const config = models[0];
-    if (!config || !compatibleProviders.has(config.provider) || (runtime.conversationId && !sessions[0])) throw new Error('Runtime configuration unavailable');
+    if (!config || !compatibleProviders.has(config.provider) || (runtime.conversationId && !sessions[0])) throw new VoiceGatewayError('voice_configuration_unavailable', 'Voice model or conversation is no longer available', 404);
 
     const incoming = Array.isArray(req.body.messages) ? req.body.messages.filter(item => ['system', 'user', 'assistant'].includes(item?.role)) : [];
     const firstConversationIndex = incoming.findIndex(item => item.role !== 'system');
@@ -47,35 +66,51 @@ module.exports = async (req, res) => {
       headers['HTTP-Referer'] = process.env.PUBLIC_APP_URL || 'https://floaty.example';
       headers['X-Title'] = 'Floaty Voice';
     }
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 9000);
-    req.on('aborted', () => controller.abort());
+    // Grok 4.7 defaults to high, mandatory reasoning. Its voice path needs the
+    // documented low effort; exclude hides reasoning, it does not disable it.
+    if (config.provider === 'openrouter' && /^x-ai\/grok-4\.7(?:$|-)/.test(config.model)) {
+      upstreamBody.reasoning = { effort: 'low', exclude: true };
+    }
+    if (config.provider === 'deepseek') {
+      const mode = config.config?.deepseekThinkingMode;
+      if (mode === 'enabled' || mode === 'disabled') upstreamBody.thinking = { type: mode };
+      if (mode !== 'disabled' && config.config?.deepseekReasoningEffort) upstreamBody.reasoning_effort = config.config.deepseekReasoningEffort;
+    }
     const upstream = await fetch(completionUrl(config), {
       method: 'POST', headers, body: JSON.stringify(upstreamBody), signal: controller.signal,
     });
     if (!upstream.ok || !upstream.body) {
-      clearTimeout(timeout);
       const details = await upstream.text().catch(() => '');
-      console.error('llm upstream failed', { status: upstream.status, details: details.slice(0, 300) });
-      return res.status(502).json({ error: { message: 'LLM upstream unavailable', type: 'upstream_error' } });
+      console.error('llm upstream failed', { status: upstream.status, responseLength: details.length });
+      throw new VoiceGatewayError('llm_upstream_http_error', `LLM upstream returned HTTP ${upstream.status}`);
     }
 
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders?.();
-    const reader = upstream.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
-    }
-    clearTimeout(timeout);
-    return res.end();
+    return await pipeVoiceCompletion(upstream, res, {
+      signal: controller.signal,
+      onContent: () => {
+        clearTimeout(firstContentTimeout);
+        // Do not abort a healthy, already-speaking stream after 9 seconds.
+        streamTimeout = setTimeout(() => { abortCode = 'llm_stream_timeout'; controller.abort(); }, 35000);
+      },
+    });
   } catch (error) {
-    console.error('llm-gateway failed', { message: error.message });
-    if (!res.headersSent) return res.status(400).json({ error: { message: 'Invalid voice runtime', type: 'invalid_request_error' } });
-    return res.end();
+    if (abortCode === 'client_disconnected') return;
+    const code = abortCode || error.code || 'llm_gateway_failed';
+    const status = abortCode ? 504 : error.status || 502;
+    const message = abortCode ? 'Voice model response timed out. Use a faster model or lower reasoning effort.'
+      : error instanceof VoiceGatewayError ? error.message : 'Voice model or database connection failed';
+    console.error('llm-gateway failed', { code, elapsedMs: Date.now() - startedAt });
+    const body = { error: { message, type: status < 500 ? 'invalid_request_error' : 'upstream_error', code } };
+    if (!res.headersSent) return res.status(status).json(body);
+    if (!res.destroyed && !res.writableEnded) {
+      res.write(`data: ${JSON.stringify(body)}\n\n`);
+      return res.end();
+    }
+  } finally {
+    clearTimeout(firstContentTimeout);
+    clearTimeout(streamTimeout);
+    controller.abort();
+    req.off('aborted', abort);
+    res.off('close', onClose);
   }
 };
