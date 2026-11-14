@@ -147,6 +147,7 @@ export interface AssistantConfig {
 }
 
 export interface SettingsSlice {
+  pendingSettingsSync: { type: string; data: any; userId: string | null; token: string }[];
   theme: 'light' | 'dark' | 'cupcake' | 'floaty';
   sidebarOpen: boolean;
   chatStyle: 'conversation' | 'document';

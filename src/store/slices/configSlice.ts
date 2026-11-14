@@ -71,6 +71,7 @@ export const createConfigSlice: StateCreator<AppState, [], [], ConfigSlice> = (s
         console.error('删除LLM配置失败:', error);
         throw new Error(`删除LLM配置失败: ${error.message}`);
       }
+      if (originalCurrentModelId === id) queueDataSync('general_settings', { currentModelId: null });
     } catch (error) {
       // 如果是我们抛出的错误，直接重新抛出
       if (error instanceof Error && error.message.includes('删除LLM配置失败')) {
@@ -92,6 +93,7 @@ export const createConfigSlice: StateCreator<AppState, [], [], ConfigSlice> = (s
   setCurrentModel: (id) => {
     const state = get();
     set({ currentModelId: id });
+    queueDataSync('general_settings', { currentModelId: id });
     
     // 如果有当前会话，同时更新会话的模型ID
     if (state.currentSessionId) {

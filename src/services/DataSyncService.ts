@@ -153,7 +153,7 @@ export class DataSyncService {
   }
 
   // 添加到同步队列
-  async queueSync(type: SyncItem['type'], data: any, op: SyncItem['op'] = 'upsert'): Promise<void> {
+  async queueSync(type: SyncItem['type'], data: any, op: SyncItem['op'] = 'upsert'): Promise<boolean> {
     await this.ensureInitialized()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -177,14 +177,24 @@ export class DataSyncService {
 
 
     if (this.isOnline && this.syncStatus !== 'syncing') {
-      await this.processSyncQueue()
+      const result = await this.processSyncQueue()
+      return result.success && this.syncQueue.length === 0
     } else if (!this.isOnline) {
       this.updateStatus('offline')
     }
+    return false
   }
 
   // 处理同步队列
-  private async processSyncQueue(): Promise<SyncResult> {
+  private processingQueue: Promise<SyncResult> | null = null
+
+  private processSyncQueue(): Promise<SyncResult> {
+    if (this.processingQueue) return this.processingQueue
+    this.processingQueue = this.processSyncQueueOnce().finally(() => { this.processingQueue = null })
+    return this.processingQueue
+  }
+
+  private async processSyncQueueOnce(): Promise<SyncResult> {
     await this.ensureInitialized()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -256,9 +266,9 @@ export class DataSyncService {
 
     await this.persistQueue()
 
-    if (errors.length > 0) {
+    if (errors.length > 0 || remaining.length > 0) {
       this.updateStatus('error')
-      return { success: false, error: errors.join('; '), syncedItems }
+      return { success: false, error: errors.join('; ') || '仍有数据等待重试', syncedItems }
     } else {
       this.lastSyncTime = Date.now()
       await this.persistLastSyncTime()
@@ -521,7 +531,7 @@ export class DataSyncService {
 
   // 同步通用设置（快捷键、自动标题等）
   private async syncGeneralSettings(data: any): Promise<void> {
-    const isFullReplace = data.__full === true
+    // 全量快照也保留其他客户端新增的字段。
 
     // 读取已有设置以执行合并，避免覆盖其他字段
     const { data: existing, error: fetchError } = await supabase
@@ -531,8 +541,7 @@ export class DataSyncService {
       .maybeSingle()
 
     if (fetchError) {
-      // 不阻断同步；记录后继续执行 upsert
-      console.warn('⚠️ general_settings 获取失败，继续执行 upsert:', fetchError.message)
+      throw new Error(`读取通用设置失败: ${fetchError.message}`)
     }
 
     // 仅将传入的字段合并/替换到 settings，移除未定义键
@@ -558,6 +567,9 @@ export class DataSyncService {
       if (data.chatStyle !== undefined) {
         incomingSettings.chatStyle = data.chatStyle
       }
+      for (const key of ['theme', 'currentModelId', 'currentUserProfileId']) {
+        if (data[key] !== undefined) incomingSettings[key] = data[key]
+      }
       if (data.defaultRoleId !== undefined) {
         incomingSettings.defaultRoleId = data.defaultRoleId
       }
@@ -571,12 +583,7 @@ export class DataSyncService {
       incomingSettings.assistantConfig = incomingSettings.autoTitleConfig
     }
 
-    const settingsToWrite = isFullReplace
-      ? incomingSettings // 全量替换：直接使用传入的设置对象
-      : {
-          ...(existing?.settings || {}),
-          ...incomingSettings // 增量合并：保留已有字段，更新传入的部分
-        }
+    const settingsToWrite = { ...(existing?.settings || {}), ...incomingSettings }
 
     const upsertData = {
       user_id: data.user_id,
@@ -905,8 +912,8 @@ export class DataSyncService {
     if (knowledgeEntriesResult.error) {
       throw new Error(`拉取 Knowledge Entries 失败: ${knowledgeEntriesResult.error.message}`)
     }
-    // 语音设置可能不存在，不抛出错误
-    // 通用设置可能不存在，不抛出错误
+    if (voiceSettingsResult.error) throw new Error(`拉取语音设置失败: ${voiceSettingsResult.error.message}`)
+    if (generalSettingsResult.error) throw new Error(`拉取通用设置失败: ${generalSettingsResult.error.message}`)
 
     // 将数据库字段映射回前端格式
     const llmConfigs = (llmConfigsResult.data || []).map((item: any) => ({
@@ -917,8 +924,8 @@ export class DataSyncService {
       apiKey: item.config?.apiKey || '',
       baseUrl: item.config?.baseUrl || '',
       proxyUrl: item.config?.proxyUrl || '',
-      temperature: item.config?.temperature || 0.7,
-      maxTokens: item.config?.maxTokens || 2048,
+      temperature: item.config?.temperature ?? 0.7,
+      maxTokens: item.config?.maxTokens ?? 2048,
       deepseekThinkingMode: item.config?.deepseekThinkingMode || 'default',
       deepseekReasoningEffort: item.config?.deepseekReasoningEffort || 'high',
       enabled: item.config?.enabled || false,
@@ -998,6 +1005,7 @@ export class DataSyncService {
     if (generalSettingsResult.data) {
       const gs = generalSettingsResult.data
       generalSettings = {
+        ...gs.settings,
         // 仅在存在云端记录时返回，避免覆盖本地默认值
         sendMessageShortcut: gs.settings?.sendMessageShortcut,
         assistantConfig: gs.settings?.assistantConfig || gs.settings?.autoTitleConfig,
@@ -1032,7 +1040,9 @@ export class DataSyncService {
       throw new Error('网络未连接')
     }
 
-    return await this.processSyncQueue()
+    let result = await this.processSyncQueue()
+    while (result.success && this.syncQueue.length > 0) result = await this.processSyncQueue()
+    return result
   }
 
   // 清空同步队列

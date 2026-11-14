@@ -140,7 +140,7 @@ const Layout = () => {
         const avatar = editingAvatar;
 
         setCurrentUser({
-          id: currentUser?.id || user.id,
+          id: user.id,
           name: displayName,
           email: currentUser?.email || user.email || '',
           avatar: avatar || currentUser?.avatar || '',

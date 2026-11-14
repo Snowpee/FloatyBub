@@ -1,4 +1,5 @@
 import { VoiceSettings, SearchConfig, AutoTitleConfig, AssistantConfig, AIRole } from './types';
+import { useAppStore } from './index';
 import { supabase } from '@/lib/supabase';
 import { dataSyncService } from '@/services/DataSyncService';
 import { ensureSnowflakeIdString } from '@/utils/snowflakeId';
@@ -103,6 +104,19 @@ export const convertToUUID = (oldId: string): string => {
 
 // 数据同步辅助函数
 export const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_prompt' | 'voice_settings' | 'general_settings' | 'user_profile' | 'user_role' | 'agent_skill', data: any) => {
+  const token = crypto.randomUUID();
+  let syncData = data;
+  useAppStore.setState(state => {
+    const userId = state.currentUser?.id ?? null;
+    const matches = (item: typeof state.pendingSettingsSync[number]) => item.type === type && item.userId === userId && item.data.id === data.id;
+    const previous = state.pendingSettingsSync.filter(matches);
+    // General settings are patches; retain other unsent keys when coalescing edits.
+    const pendingData = type === 'general_settings'
+      ? { settings: Object.assign({}, ...previous.map(item => item.data.settings || item.data), data.settings || data) }
+      : data;
+    syncData = pendingData;
+    return { pendingSettingsSync: [...state.pendingSettingsSync.filter(item => !matches(item)), { type, data: pendingData, userId, token }] };
+  });
   try {
     console.log('🔄 queueDataSync: 准备同步数据', { type, data })
     
@@ -116,7 +130,9 @@ export const queueDataSync = async (type: 'llm_config' | 'ai_role' | 'global_pro
     console.log('✅ queueDataSync: 用户已登录，开始同步', user.id)
     
     // 添加到同步队列
-    await dataSyncService.queueSync(type, data);
+    let synced = await dataSyncService.queueSync(type, syncData);
+    if (!synced && navigator.onLine) synced = (await dataSyncService.manualSync()).success;
+    if (synced) useAppStore.setState(state => ({ pendingSettingsSync: state.pendingSettingsSync.filter(item => item.token !== token) }));
     console.log('✅ queueDataSync: 数据已添加到同步队列')
 
   } catch (error) {

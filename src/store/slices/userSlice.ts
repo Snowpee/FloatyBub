@@ -97,6 +97,7 @@ export const createUserSlice: StateCreator<AppState, [], [], UserSlice> = (set, 
   
   setCurrentUserProfile: (profile) => {
     set({ currentUserProfile: profile });
+    queueDataSync('general_settings', { currentUserProfileId: profile?.id ?? null });
   },
   
   // 用户认证相关actions

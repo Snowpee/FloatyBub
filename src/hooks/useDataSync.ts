@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { dataSyncService, type SyncStatus, type SyncResult } from '@/services/DataSyncService'
 import { supabase } from '@/lib/supabase'
+import { retainDataSyncSubscription } from '@/services/dataSyncSubscriptions'
 import { useAppStore, type AgentSkill } from '@/store'
 import { useKnowledgeStore } from '@/store/knowledgeStore'
 import type { KnowledgeBase, KnowledgeEntry } from '@/types/knowledge'
@@ -87,52 +88,37 @@ export function useDataSync(): DataSyncHookReturn {
 
     // console.log('[SkillSync] 🔌 初始化 Realtime 订阅', `agent_skills_${user.id}`)
 
-    const channel = supabase
-      .channel(`agent_skills_${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'agent_skills',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          // console.log('[SkillSync] 📥 收到 Realtime 事件:', payload.eventType, payload)
-          const { eventType, new: newRecord, old: oldRecord } = payload
+    return retainDataSyncSubscription(
+      'agent_skills',
+      user.id,
+      (payload) => {
+        // console.log('[SkillSync] 📥 收到 Realtime 事件:', payload.eventType, payload)
+        const { eventType, new: newRecord, old: oldRecord } = payload
 
-          if (eventType === 'INSERT' || eventType === 'UPDATE') {
-             const skill: AgentSkill = {
-                id: newRecord.id,
-                name: newRecord.name,
-                description: newRecord.description || '',
-                content: newRecord.content || '',
-                files: newRecord.files || [],
-                enabled: newRecord.enabled ?? true,
-                createdAt: new Date(newRecord.created_at),
-                updatedAt: new Date(newRecord.updated_at)
-             }
-             if (eventType === 'INSERT') {
-                // console.log('[SkillSync] 📥 插入本地 Skill:', skill.name)
-                addAgentSkill(skill, { skipSync: true })
-             } else {
-                // console.log('[SkillSync] 📥 更新本地 Skill:', skill.name)
-                updateAgentSkill(skill.id, skill, { skipSync: true })
-             }
-          } else if (eventType === 'DELETE') {
-             // console.log('[SkillSync] 📥 删除本地 Skill:', oldRecord.id)
-             deleteAgentSkill(oldRecord.id, { skipSync: true })
-          }
+        if (eventType === 'INSERT' || eventType === 'UPDATE') {
+           const skill: AgentSkill = {
+              id: newRecord.id,
+              name: newRecord.name,
+              description: newRecord.description || '',
+              content: newRecord.content || '',
+              files: newRecord.files || [],
+              enabled: newRecord.enabled ?? true,
+              createdAt: new Date(newRecord.created_at),
+              updatedAt: new Date(newRecord.updated_at)
+           }
+           if (eventType === 'INSERT') {
+              // console.log('[SkillSync] 📥 插入本地 Skill:', skill.name)
+              addAgentSkill(skill, { skipSync: true })
+           } else {
+              // console.log('[SkillSync] 📥 更新本地 Skill:', skill.name)
+              updateAgentSkill(skill.id, skill, { skipSync: true })
+           }
+        } else if (eventType === 'DELETE' && oldRecord.id) {
+           // console.log('[SkillSync] 📥 删除本地 Skill:', oldRecord.id)
+           deleteAgentSkill(oldRecord.id, { skipSync: true })
         }
-      )
-      .subscribe((status) => {
-        // console.log('[SkillSync] 🔌 订阅状态:', status)
-      })
-
-    return () => {
-      // console.log('[SkillSync] 🔌 取消 Realtime 订阅')
-      supabase.removeChannel(channel)
-    }
+      }
+    )
   }, [user?.id, addAgentSkill, updateAgentSkill, deleteAgentSkill])
 
   // Global Prompts Realtime Subscription
@@ -141,50 +127,35 @@ export function useDataSync(): DataSyncHookReturn {
 
     // console.log('[PromptSync] 🔌 初始化 Realtime 订阅', `global_prompts_${user.id}`)
 
-    const channel = supabase
-      .channel(`global_prompts_${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'global_prompts',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          // console.log('[PromptSync] 📥 收到 Realtime 事件:', payload.eventType, payload)
-          const { eventType, new: newRecord, old: oldRecord } = payload
+    return retainDataSyncSubscription(
+      'global_prompts',
+      user.id,
+      (payload) => {
+        // console.log('[PromptSync] 📥 收到 Realtime 事件:', payload.eventType, payload)
+        const { eventType, new: newRecord, old: oldRecord } = payload
 
-          if (eventType === 'INSERT' || eventType === 'UPDATE') {
-             const prompt: any = {
-                id: newRecord.id,
-                title: newRecord.title,
-                description: newRecord.description || '',
-                prompt: newRecord.prompt || newRecord.content, // DB可能是content, store是prompt
-                createdAt: new Date(newRecord.created_at),
-                updatedAt: new Date(newRecord.updated_at)
-             }
-             if (eventType === 'INSERT') {
-                // console.log('[PromptSync] 📥 插入本地 Prompt:', prompt.title)
-                addGlobalPrompt(prompt, { skipSync: true })
-             } else {
-                // console.log('[PromptSync] 📥 更新本地 Prompt:', prompt.title)
-                updateGlobalPrompt(prompt.id, prompt, { skipSync: true })
-             }
-          } else if (eventType === 'DELETE') {
-             // console.log('[PromptSync] 📥 删除本地 Prompt:', oldRecord.id)
-             deleteGlobalPrompt(oldRecord.id, { skipSync: true })
-          }
+        if (eventType === 'INSERT' || eventType === 'UPDATE') {
+           const prompt: any = {
+              id: newRecord.id,
+              title: newRecord.title,
+              description: newRecord.description || newRecord.category || '',
+              prompt: newRecord.prompt || newRecord.content, // DB可能是content, store是prompt
+              createdAt: new Date(newRecord.created_at),
+              updatedAt: new Date(newRecord.updated_at)
+           }
+           if (eventType === 'INSERT') {
+              // console.log('[PromptSync] 📥 插入本地 Prompt:', prompt.title)
+              addGlobalPrompt(prompt, { skipSync: true })
+           } else {
+              // console.log('[PromptSync] 📥 更新本地 Prompt:', prompt.title)
+              updateGlobalPrompt(prompt.id, prompt, { skipSync: true })
+           }
+        } else if (eventType === 'DELETE' && oldRecord.id) {
+           // console.log('[PromptSync] 📥 删除本地 Prompt:', oldRecord.id)
+           deleteGlobalPrompt(oldRecord.id, { skipSync: true })
         }
-      )
-      .subscribe((status) => {
-        // console.log('[PromptSync] 🔌 订阅状态:', status)
-      })
-
-    return () => {
-      // console.log('[PromptSync] 🔌 取消 Realtime 订阅')
-      supabase.removeChannel(channel)
-    }
+      }
+    )
   }, [user?.id, addGlobalPrompt, updateGlobalPrompt, deleteGlobalPrompt])
 
   // Knowledge Base Realtime Subscription
@@ -193,50 +164,35 @@ export function useDataSync(): DataSyncHookReturn {
 
     console.log('[KBSync] 🔌 初始化 Knowledge Base Realtime 订阅', `knowledge_bases_${user.id}`)
 
-    const channel = supabase
-      .channel(`knowledge_bases_${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'knowledge_bases',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('[KBSync] 📥 收到 Knowledge Base 事件:', payload.eventType, payload)
-          const { eventType, new: newRecord, old: oldRecord } = payload
+    return retainDataSyncSubscription(
+      'knowledge_bases',
+      user.id,
+      (payload) => {
+        console.log('[KBSync] 📥 收到 Knowledge Base 事件:', payload.eventType, payload)
+        const { eventType, new: newRecord, old: oldRecord } = payload
 
-          if (eventType === 'INSERT' || eventType === 'UPDATE') {
-             const kbRequest = {
-                id: newRecord.id,
-                name: newRecord.name,
-                description: newRecord.description || '',
-                user_id: newRecord.user_id,
-                created_at: newRecord.created_at,
-                updated_at: newRecord.updated_at
-             }
-             if (eventType === 'INSERT') {
-                console.log('[KBSync] 📥 插入本地 Knowledge Base:', kbRequest.name)
-                createKnowledgeBase(kbRequest, { skipSync: true })
-             } else {
-                console.log('[KBSync] 📥 更新本地 Knowledge Base:', kbRequest.name)
-                updateKnowledgeBase(newRecord.id, kbRequest, { skipSync: true })
-             }
-          } else if (eventType === 'DELETE') {
-             console.log('[KBSync] 📥 删除本地 Knowledge Base:', oldRecord.id)
-             deleteKnowledgeBase(oldRecord.id, { skipSync: true })
-          }
+        if (eventType === 'INSERT' || eventType === 'UPDATE') {
+           const kbRequest = {
+              id: newRecord.id,
+              name: newRecord.name,
+              description: newRecord.description || '',
+              user_id: newRecord.user_id,
+              created_at: newRecord.created_at,
+              updated_at: newRecord.updated_at
+           }
+           if (eventType === 'INSERT') {
+              console.log('[KBSync] 📥 插入本地 Knowledge Base:', kbRequest.name)
+              createKnowledgeBase(kbRequest, { skipSync: true })
+           } else {
+              console.log('[KBSync] 📥 更新本地 Knowledge Base:', kbRequest.name)
+              updateKnowledgeBase(newRecord.id, kbRequest, { skipSync: true })
+           }
+        } else if (eventType === 'DELETE' && oldRecord.id) {
+           console.log('[KBSync] 📥 删除本地 Knowledge Base:', oldRecord.id)
+           deleteKnowledgeBase(oldRecord.id, { skipSync: true })
         }
-      )
-      .subscribe((status) => {
-        console.log('[KBSync] 🔌 Knowledge Base 订阅状态:', status)
-      })
-
-    return () => {
-      console.log('[KBSync] 🔌 取消 Knowledge Base Realtime 订阅')
-      supabase.removeChannel(channel)
-    }
+      }
+    )
   }, [user?.id, createKnowledgeBase, updateKnowledgeBase, deleteKnowledgeBase])
 
   // Knowledge Entry Realtime Subscription
@@ -245,52 +201,37 @@ export function useDataSync(): DataSyncHookReturn {
 
     console.log('[EntrySync] 🔌 初始化 Knowledge Entry Realtime 订阅', `knowledge_entries_${user.id}`)
 
-    const channel = supabase
-      .channel(`knowledge_entries_${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'knowledge_entries',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('[EntrySync] 📥 收到 Knowledge Entry 事件:', payload.eventType, payload)
-          const { eventType, new: newRecord, old: oldRecord } = payload
+    return retainDataSyncSubscription(
+      'knowledge_entries',
+      user.id,
+      (payload) => {
+        console.log('[EntrySync] 📥 收到 Knowledge Entry 事件:', payload.eventType, payload)
+        const { eventType, new: newRecord, old: oldRecord } = payload
 
-          if (eventType === 'INSERT' || eventType === 'UPDATE') {
-             const entryRequest = {
-                id: newRecord.id,
-                name: newRecord.name,
-                keywords: newRecord.keywords || [],
-                explanation: newRecord.explanation || '',
-                knowledge_base_id: newRecord.knowledge_base_id,
-                user_id: newRecord.user_id,
-                created_at: newRecord.created_at,
-                updated_at: newRecord.updated_at
-             }
-             if (eventType === 'INSERT') {
-                console.log('[EntrySync] 📥 插入本地 Knowledge Entry:', entryRequest.name)
-                createKnowledgeEntry(entryRequest, { skipSync: true })
-             } else {
-                console.log('[EntrySync] 📥 更新本地 Knowledge Entry:', entryRequest.name)
-                updateKnowledgeEntry(newRecord.id, entryRequest, { skipSync: true })
-             }
-          } else if (eventType === 'DELETE') {
-             console.log('[EntrySync] 📥 删除本地 Knowledge Entry:', oldRecord.id)
-             deleteKnowledgeEntry(oldRecord.id, { skipSync: true })
-          }
+        if (eventType === 'INSERT' || eventType === 'UPDATE') {
+           const entryRequest = {
+              id: newRecord.id,
+              name: newRecord.name,
+              keywords: newRecord.keywords || [],
+              explanation: newRecord.explanation || '',
+              knowledge_base_id: newRecord.knowledge_base_id,
+              user_id: newRecord.user_id,
+              created_at: newRecord.created_at,
+              updated_at: newRecord.updated_at
+           }
+           if (eventType === 'INSERT') {
+              console.log('[EntrySync] 📥 插入本地 Knowledge Entry:', entryRequest.name)
+              createKnowledgeEntry(entryRequest, { skipSync: true })
+           } else {
+              console.log('[EntrySync] 📥 更新本地 Knowledge Entry:', entryRequest.name)
+              updateKnowledgeEntry(newRecord.id, entryRequest, { skipSync: true })
+           }
+        } else if (eventType === 'DELETE' && oldRecord.id) {
+           console.log('[EntrySync] 📥 删除本地 Knowledge Entry:', oldRecord.id)
+           deleteKnowledgeEntry(oldRecord.id, { skipSync: true })
         }
-      )
-      .subscribe((status) => {
-        console.log('[EntrySync] 🔌 Knowledge Entry 订阅状态:', status)
-      })
-
-    return () => {
-      console.log('[EntrySync] 🔌 取消 Knowledge Entry Realtime 订阅')
-      supabase.removeChannel(channel)
-    }
+      }
+    )
   }, [user?.id, createKnowledgeEntry, updateKnowledgeEntry, deleteKnowledgeEntry])
 
   // Agent Skills Debounced Sync

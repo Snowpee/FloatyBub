@@ -12,6 +12,7 @@ import { convertAvatarForExport, convertAvatarFromImport } from '@/utils/avatarU
 import { ensureSnowflakeIdString } from '@/utils/snowflakeId';
 
 export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> = (set, get) => ({
+  pendingSettingsSync: [],
   // 初始状态
   theme: 'floaty',
   sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
@@ -32,6 +33,7 @@ export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> 
     });
     
     set({ theme });
+    queueDataSync('general_settings', { theme });
     console.log('🔧 store 状态已更新:', { theme: get().theme });
     
     // 更新 HTML 元素的 data-theme 属性以支持 DaisyUI 主题切换
@@ -153,6 +155,9 @@ export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> 
       const state = get();
       const payload = {
         settings: {
+          theme: state.theme,
+          currentModelId: state.currentModelId,
+          currentUserProfileId: state.currentUserProfile?.id ?? null,
           chatStyle: state.chatStyle,
           sendMessageShortcut: state.sendMessageShortcut,
           assistantConfig: state.assistantConfig,

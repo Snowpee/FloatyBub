@@ -64,6 +64,7 @@ export const useAppStore = create<AppState>()(
       onRehydrateStorage,
       migrate,
       partialize: (state) => ({
+        pendingSettingsSync: state.pendingSettingsSync,
         llmConfigs: state.llmConfigs,
         currentModelId: state.currentModelId,
         aiRoles: state.aiRoles,

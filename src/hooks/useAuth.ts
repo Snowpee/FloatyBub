@@ -153,7 +153,26 @@ export function useAuth(): AuthState & AuthActions {
           return
         }
         
+        // IndexedDB hydration must finish before cloud data can replace preferences.
+        if (!useAppStore.persist.hasHydrated()) {
+          await new Promise<void>(resolve => {
+            const unsubscribe = useAppStore.persist.onFinishHydration(() => { unsubscribe(); resolve() })
+            if (useAppStore.persist.hasHydrated()) { unsubscribe(); resolve() }
+          })
+        }
+        const pending = useAppStore.getState().pendingSettingsSync.filter(item => !item.userId || item.userId === user.id)
+        for (const item of pending) {
+          await dataSyncService.queueSync(item.type as Parameters<typeof dataSyncService.queueSync>[0], item.data)
+        }
+        const syncResult = await dataSyncService.manualSync()
+        if (!syncResult.success) throw new Error(syncResult.error || '本地设置尚未同步，保留本地数据')
+        const tokens = new Set(pending.map(item => item.token))
+        useAppStore.setState(state => ({ pendingSettingsSync: state.pendingSettingsSync.filter(item => !tokens.has(item.token)) }))
+        const pendingSnapshot = useAppStore.getState().pendingSettingsSync
         const cloudData = await pullFromCloud(user)
+        // A change made while the request was in flight wins over its stale response.
+        if (useAppStore.getState().pendingSettingsSync !== pendingSnapshot) return
+        if (!isMountedRef.current || signingOutRef.current || useAppStore.getState().currentUser?.id !== user.id) return
         
         // 智能合并AI角色：保留默认角色，添加云端自定义角色
         const currentState = useAppStore.getState()
@@ -177,13 +196,20 @@ export function useAuth(): AuthState & AuthActions {
           ...(cloudData.voiceSettings && { voiceSettings: cloudData.voiceSettings }),
           ...(cloudData.userRoles && { userRoles: cloudData.userRoles }),
           ...(gs && gs.sendMessageShortcut !== undefined ? { sendMessageShortcut: gs.sendMessageShortcut } : {}),
-          ...(gs && (gs.assistantConfig || gs.autoTitleConfig) ? { assistantConfig: gs.assistantConfig || gs.autoTitleConfig } : {}),
-          ...(gs && (gs.autoTitleConfig || gs.assistantConfig) ? { autoTitleConfig: gs.autoTitleConfig || gs.assistantConfig } : {}),
-          ...(gs && gs.searchConfig ? { searchConfig: gs.searchConfig } : {}),
+          ...(gs && (gs.assistantConfig || gs.autoTitleConfig) ? { assistantConfig: { ...currentState.assistantConfig, ...(gs.assistantConfig || gs.autoTitleConfig) } } : {}),
+          ...(gs && (gs.autoTitleConfig || gs.assistantConfig) ? { autoTitleConfig: { ...currentState.autoTitleConfig, ...(gs.autoTitleConfig || gs.assistantConfig) } } : {}),
+          ...(gs && gs.searchConfig ? { searchConfig: { ...currentState.searchConfig, ...gs.searchConfig } } : {}),
           ...(gs && gs.chatStyle ? { chatStyle: gs.chatStyle as 'conversation' | 'document' } : {}),
-          ...(gs && gs.defaultRoleId ? { defaultRoleId: gs.defaultRoleId } : {})
+          ...(gs && gs.defaultRoleId !== undefined ? { defaultRoleId: gs.defaultRoleId } : {}),
+          ...(gs && gs.currentModelId !== undefined ? { currentModelId: gs.currentModelId } : {}),
+          ...(gs && gs.theme !== undefined ? { theme: gs.theme } : {}),
+          ...(gs && gs.currentUserProfileId !== undefined ? { currentUserProfile: cloudData.userRoles.find((profile: { id: string }) => profile.id === gs.currentUserProfileId) || null } : {})
         })
         
+        if (gs?.theme && typeof document !== 'undefined') {
+          document.documentElement.setAttribute('data-theme', gs.theme)
+          document.documentElement.classList.toggle('dark', gs.theme === 'dark')
+        }
         // 知识库同步
         if (cloudData.knowledgeBases && cloudData.knowledgeEntries) {
           console.log('📚 [useAuth] 同步 Knowledge Base 数据...')
@@ -563,9 +589,20 @@ export function useAuth(): AuthState & AuthActions {
           
           // 更新本地状态
           if (isMountedRef.current && !signingOutRef.current) {
+            // user_profiles.id identifies the profile row, not the auth account.
+            // Repair unsent entries created while that row ID was used locally.
+            if (userProfile.id && userProfile.id !== user.id &&
+                useAppStore.getState().pendingSettingsSync.some(item => item.userId === userProfile.id)) {
+              useAppStore.setState(state => ({
+                pendingSettingsSync: state.pendingSettingsSync.map(item =>
+                  item.userId === userProfile.id ? { ...item, userId: user.id } : item
+                )
+              }))
+            }
             setCurrentUser({
-              id: userProfile.id || userProfile.user_id,
+              id: user.id,
               name: userProfile.display_name || userProfile.name,
+              email: user.email || '',
               avatar: userProfile.avatar,
               preferences: userProfile.preferences || {}
             })
