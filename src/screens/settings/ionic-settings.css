@@ -11,9 +11,7 @@
   --ion-color-primary: var(--color-primary);
   --ion-color-primary-contrast: var(--color-primary-content);
 
-  /* Existing section editors portal to body at z-50. Keep them above this
-     container until those editors also migrate to Ionic overlays. */
-  z-index: 40 !important;
+
 }
 
 .ionic-settings-modal ion-nav > .ion-page,
@@ -63,4 +61,13 @@
    bottom inset belongs to this wrapper, not an additional IonContent padding. */
 .ionic-settings-standard-page {
   padding-bottom: var(--ion-safe-area-bottom, 0px);
+}
+
+/* The app does not use IonApp. Supply Ionic's safe-area variables on both
+   animation participants so max(30px, var(--ion-safe-area-top)) is valid. */
+:root {
+  --ion-safe-area-top: env(safe-area-inset-top, 0px);
+  --ion-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --ion-safe-area-left: env(safe-area-inset-left, 0px);
+  --ion-safe-area-right: env(safe-area-inset-right, 0px);
 }

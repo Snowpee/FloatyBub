@@ -137,7 +137,7 @@ const { create, act } = dependencies('react-test-renderer');
     await act(async () => global.__settingsModal.onDidPresent());
     await act(async () => global.__settingsNativeBack());
     await act(async () => tree.root.findByProps({ 'aria-label': '关闭设置' }).props.onClick());
-    assert.equal(count.close, 1, 'close updates parent without waiting for overlay dismissal');
+    assert.equal(count.close, 1, 'close dismisses overlay and updates parent once');
     await act(async () => global.__settingsModal.onDidDismiss());
     assert.equal(count.close, 1, 'dismiss after button close does not notify twice');
     await act(async () => tree.update(React.createElement(Settings, { ...props, isOpen: false })));

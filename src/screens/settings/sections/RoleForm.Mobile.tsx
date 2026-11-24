@@ -1,5 +1,5 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
-import { IonButton, IonInput, IonItem, IonLabel, IonList, IonListHeader, IonNote, IonSelect, IonSelectOption, IonTextarea } from '@ionic/react';
+import { IonButton, IonInput, IonItem, IonLabel, IonList, IonListHeader, IonItemGroup, IonReorder, IonReorderGroup, IonNote, IonSelect, IonSelectOption, IonTextarea } from '@ionic/react';
 import { useAppStore } from '@/store';
 import type { KnowledgeBase } from '@/types/knowledge';
 import RoleAvatarUpload from '../components/RoleAvatarUpload';
@@ -7,26 +7,25 @@ import type { RoleFormData } from './RolesModal';
 
 type Props = { value: RoleFormData; onChange: Dispatch<SetStateAction<RoleFormData>>; knowledgeBases: KnowledgeBase[]; disabled: boolean };
 function Group({ title, children, note }: { title: string; children: ReactNode; note?: string }) {
-  return <IonList inset mode="ios"><IonListHeader><IonLabel>{title}</IonLabel></IonListHeader>{children}{note && <IonNote className="role-form-note">{note}</IonNote>}</IonList>;
+  return <IonList inset mode="ios"><IonListHeader><IonLabel>{title}</IonLabel></IonListHeader><IonItemGroup>{children}</IonItemGroup>{note && <IonNote className="role-form-note">{note}</IonNote>}</IonList>;
 }
 export default function RoleFormMobile({ value, onChange, knowledgeBases, disabled }: Props) {
   const { globalPrompts, agentSkills, voiceSettings } = useAppStore();
   const patch = (next: Partial<RoleFormData>) => onChange(previous => ({ ...previous, ...next }));
-  const move = (field: 'globalPromptIds' | 'skillIds', index: number, offset: number) => {
-    const ids = [...value[field]];
-    [ids[index], ids[index + offset]] = [ids[index + offset], ids[index]];
-    patch({ [field]: ids });
-  };
-  const selected = (field: 'globalPromptIds' | 'skillIds', title: string, options: { id: string; name: string }[]) => <Group title={title} note="按列表顺序应用，可使用上下移按钮调整顺序。">
-    <IonItem><IonSelect label="选择项目" labelPlacement="stacked" multiple interface="alert" cancelText="取消" okText="完成" disabled={disabled} value={value[field]} onIonChange={event => {
+  const selected = (field: 'globalPromptIds' | 'skillIds', title: string, options: { id: string; name: string }[]) => <Group title={title} note="按列表顺序应用，拖动右侧手柄可排序。">
+    <IonItem><IonSelect label={title} labelPlacement="start" multiple interface="alert" cancelText="取消" okText="完成" disabled={disabled} value={value[field]} onIonChange={event => {
       const ids = event.detail.value as string[];
       patch({ [field]: [...value[field].filter(id => ids.includes(id)), ...ids.filter(id => !value[field].includes(id))] });
     }}>{options.map(option => <IonSelectOption key={option.id} value={option.id}>{option.name}</IonSelectOption>)}</IonSelect></IonItem>
-    {value[field].map((id, index) => <IonItem key={id}><IonLabel className="ion-text-wrap">{options.find(option => option.id === id)?.name || '已失效项目'}</IonLabel>
-      <IonButton slot="end" fill="clear" disabled={disabled || index === 0} aria-label={`上移${title}第${index + 1}项`} onClick={() => move(field, index, -1)}>↑</IonButton>
-      <IonButton slot="end" fill="clear" disabled={disabled || index === value[field].length - 1} aria-label={`下移${title}第${index + 1}项`} onClick={() => move(field, index, 1)}>↓</IonButton>
-      <IonButton slot="end" fill="clear" color="danger" disabled={disabled} aria-label={`移除${title}第${index + 1}项`} onClick={() => patch({ [field]: value[field].filter(item => item !== id) })}>移除</IonButton>
-    </IonItem>)}
+    <IonReorderGroup disabled={disabled} onIonItemReorder={event => {
+      const ids = [...value[field]];
+      const [id] = ids.splice(event.detail.from, 1);
+      ids.splice(event.detail.to, 0, id);
+      patch({ [field]: ids });
+      event.detail.complete();
+    }}>{value[field].map(id => <IonItem key={id}><IonLabel className="ion-text-wrap">{options.find(option => option.id === id)?.name || '已失效项目'}</IonLabel>
+      <IonReorder slot="end" aria-label="拖动排序" />
+    </IonItem>)}</IonReorderGroup>
   </Group>;
   return <div className="role-form-mobile">
     <div className="role-form-avatar"><RoleAvatarUpload ionic name={value.name || '新角色'} currentAvatar={value.avatar} onAvatarChange={avatar => patch({ avatar: avatar || '' })} /></div>
@@ -35,7 +34,7 @@ export default function RoleFormMobile({ value, onChange, knowledgeBases, disabl
       <IonItem><IonTextarea label="角色描述" labelPlacement="stacked" placeholder="简要描述角色的特点和用途" autoGrow rows={2} value={value.description} disabled={disabled} onIonInput={event => patch({ description: event.detail.value ?? '' })} /></IonItem>
     </Group>
     <Group title="角色提示词" note="定义角色的身份、行为方式和回答风格。">
-      <IonItem><IonTextarea label="提示词" labelPlacement="stacked" placeholder="你是一个专业的编程助手……" autoGrow rows={6} value={value.systemPrompt} disabled={disabled} onIonInput={event => patch({ systemPrompt: event.detail.value ?? '' })} /></IonItem>
+      <IonItem><IonTextarea label="提示词" labelPlacement="stacked" placeholder="你是一个专业的编程助手……" rows={6} value={value.systemPrompt} disabled={disabled} onIonInput={event => patch({ systemPrompt: event.detail.value ?? '' })} /></IonItem>
     </Group>
     <Group title="开场白" note="支持多个开场白；新建对话时显示角色的第一句话。">
       {value.openingMessages.map((message, index) => <IonItem key={index}>

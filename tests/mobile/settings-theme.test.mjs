@@ -14,7 +14,7 @@ let count = 0;
 scoped.walkRules(rule => {
   if (rule.parent.type === 'atrule' && /keyframes$/i.test(rule.parent.name)) return;
   for (const selector of rule.selectors) {
-    assert.ok(selector.startsWith('.ionic-settings-modal') || selector.startsWith(':where(.ionic-settings-modal) '), selector);
+    assert.ok(selector.startsWith('.ionic-settings-modal') || selector.startsWith(':where(.ionic-settings-modal) ') || selector.startsWith('ion-modal:where(.ionic-settings-modal)'), selector);
     count++;
   }
 });

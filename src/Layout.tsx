@@ -651,7 +651,7 @@ const Layout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-base-200 flex overflow-y-scroll overflow-x-hidden">
+    <div id="settings-presenting-page" className="min-h-screen bg-base-200 flex overflow-y-scroll overflow-x-hidden">
       {/* 侧边栏 */}
       <Sidebar
         sidebarRef={sidebarRef}
@@ -679,7 +679,6 @@ const Layout = () => {
 
       {/* 主内容区域 */}
       <div
-        id="settings-presenting-page"
         ref={mainViewRef}
         className={cn(
           "flex flex-col flex-1 min-h-screen h-screen bg-base-100 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",

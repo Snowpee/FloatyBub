@@ -179,12 +179,10 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ className }) => {
       <IonContent><div className="roles-settings-mobile">
         <p className="roles-intro">为每个角色赋予独特的性格与能力</p>
         <IonSearchbar value={query} onIonInput={event => setQuery(event.detail.value ?? '')} placeholder="搜索角色" aria-label="搜索角色" />
-        <div className="roles-card-grid">{visible.map(role => <IonCard key={role.id}>
-          <button type="button" className="role-card-open" onClick={() => handleEdit(role)} aria-label={`编辑角色 ${role.name}`}>
+        <div className="roles-card-grid">{visible.map(role => <IonCard key={role.id} button onClick={() => handleEdit(role)} aria-label={`编辑角色 ${role.name}`}>
             <IonCardHeader><div className="role-card-heading"><Avatar name={role.name} avatar={role.avatar} size="lg" /><div><IonCardTitle>{role.name}</IonCardTitle><IonCardSubtitle>{getRoleTypeLabel(role.id)}</IonCardSubtitle></div></div></IonCardHeader>
             <IonCardContent><p className="role-card-description">{role.description || '尚未添加描述，点击完善角色设定'}</p><div className="role-card-meta"><span>{role.replyMode === 'voice' ? '纯语音' : role.replyMode === 'voice-text' ? '语音与文字' : '文字对话'}</span><span>{role.skillIds?.length || 0} 项技能</span></div></IonCardContent>
-          </button>
-          <div className="role-card-footer"><span>创建于 {safeFormatDate(role.createdAt)}</span>{!defaultRoles.includes(role.id) && <IonButton fill="clear" color="danger" size="small" aria-label={`删除角色 ${role.name}`} onClick={() => handleDelete(role.id)}><Trash2 size={16} /></IonButton>}</div>
+
         </IonCard>)}</div>
         {!visible.length && <div className="role-editor-status"><p>{query ? '没有找到匹配的角色' : '还没有角色，创建你的第一个角色吧'}</p>{!query && <IonButton onClick={handleAdd}>创建角色</IonButton>}</div>}
       </div></IonContent>

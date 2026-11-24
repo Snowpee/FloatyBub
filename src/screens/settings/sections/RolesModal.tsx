@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { IonButton, IonButtons, IonContent, IonHeader, IonTitle, IonToolbar, useIonAlert } from '@ionic/react';
+import { IonButton, IonButtons, IonContent, IonHeader, IonTitle, IonToolbar, IonList, IonItemGroup, IonItem, IonLabel, useIonAlert } from '@ionic/react';
 import { SettingsNavigationContext } from '../SettingsNavigationContext';
 import {
   Plus,
@@ -38,6 +38,7 @@ export interface RoleFormData {
 interface RolesModalProps {
   isOpen: boolean;
   page?: boolean;
+  onDelete?: () => Promise<void>;
   onClose: () => void;
   onConfirm: (data: RoleFormData) => Promise<void>;
   initialRole: AIRole | null;
@@ -48,6 +49,7 @@ interface RolesModalProps {
 const RolesModal: React.FC<RolesModalProps> = ({
   isOpen,
   page = false,
+  onDelete,
   onClose,
   onConfirm,
   initialRole,
@@ -620,7 +622,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
       <IonTitle>{initialRole ? '编辑角色' : '创建角色'}</IonTitle>
       <IonButtons slot="end"><IonButton strong disabled={saving} onClick={handleSave}>{saving ? '保存中…' : '保存'}</IonButton></IonButtons>
     </IonToolbar></IonHeader>
-    <IonContent><RoleFormMobile value={formData} onChange={setFormData} knowledgeBases={knowledgeBases} disabled={saving} /></IonContent>
+    <IonContent><RoleFormMobile value={formData} onChange={setFormData} knowledgeBases={knowledgeBases} disabled={saving} />{onDelete && <IonList inset><IonItemGroup><IonItem button detail={false} disabled={saving} onClick={onDelete}><IonLabel color="danger">删除角色</IonLabel></IonItem></IonItemGroup></IonList>}</IonContent>
   </>;
 
   // 桌面端渲染

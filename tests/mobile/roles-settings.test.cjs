@@ -18,7 +18,7 @@ const { create, act } = dependencies('react-test-renderer');
       b.onResolve({ filter: /^react(\/.*)?$/ }, a => ({ path: dependencies.resolve(a.path), external: true }));
       b.onResolve({ filter: /^@ionic\/react$|^@\/store$|^@\/hooks\/useToast$|^@\/components\/InputProvider$|^@\/components\/BottomSheetModal$|RoleAvatarUpload$|^@\/utils\/avatarUtils$/ }, a => ({ path: a.path, namespace: 'stub' }));
       b.onLoad({ filter: /.*/, namespace: 'stub' }, a => ({ loader: 'tsx', contents:
-        a.path === '@ionic/react' ? `import React from 'react'; export const useIonAlert=()=>[async o=>{if(globalThis.__confirm)o.buttons[1].handler();o.onDidDismiss();}];` + ['Button','Buttons','Content','Header','Title','Toolbar','Input','Item','Label','List','ListHeader','Note','Select','SelectOption','Textarea'].map(n => `export const Ion${n}=p=>React.createElement('ion-${n.toLowerCase()}',p);`).join('\n') :
+        a.path === '@ionic/react' ? `import React from 'react'; export const useIonAlert=()=>[async o=>{if(globalThis.__confirm)o.buttons[1].handler();o.onDidDismiss();}];` + ['Button','Buttons','Content','Header','Title','Toolbar','Input','Item','Label','List','ListHeader','Note','Select','SelectOption','Textarea','ItemGroup','Reorder','ReorderGroup'].map(n => `export const Ion${n}=p=>React.createElement('ion-${n.toLowerCase()}',p);`).join('\n') :
         a.path === '@/store' ? 'export const useAppStore=()=>globalThis.__store;' :
         a.path.includes('useToast') ? 'export const toast={error:v=>globalThis.__error=v};' :
         a.path.includes('avatarUtils') ? "export const generateRandomLocalAvatar=()=>'/avatar.png';" :
@@ -40,7 +40,7 @@ const { create, act } = dependencies('react-test-renderer');
     assert.equal(saved.length, 0, 'typing does not persist');
     const selects = () => tree.root.findAllByType('ion-select');
     await act(async () => selects()[0].props.onIonChange({detail:{value:['p1','p2']}}));
-    await act(async () => tree.root.findAllByType('ion-button').find(n => n.props['aria-label'] === '上移附加提示词第2项').props.onClick());
+    await act(async () => tree.root.findAllByType('ion-reordergroup')[0].props.onIonItemReorder({detail:{from:1,to:0,complete(){}}}));
     await act(async () => selects()[1].props.onIonChange({detail:{value:['s1']}}));
     await act(async () => tree.root.findAllByType('ion-textarea')[0].props.onIonInput({detail:{value:'角色描述草稿'}}));
     await act(async () => selects().find(n => n.props.label === '默认回复方式').props.onIonChange({detail:{value:'voice'}}));

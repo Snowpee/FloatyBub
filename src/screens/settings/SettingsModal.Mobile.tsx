@@ -83,13 +83,16 @@ export default function SettingsModalMobile({ isOpen, onClose, defaultTab }: Set
     return () => { mounted.current = false; };
   }, []);
   const navRef = useRef<HTMLIonNavElement>(null);
+  const modalRef = useRef<HTMLIonModalElement>(null);
   const close = useCallback(async () => {
     if (closeRequested.current) return;
     if (backGuard.current && !await backGuard.current()) return;
     closeRequested.current = true;
     // Update the controlled owner directly. Do not rely on an imperative
     // overlay ref or a later didDismiss event to change isOpen/hash state.
-    onCloseRef.current();
+    const dismissed = await modalRef.current?.dismiss(undefined, 'close');
+    if (dismissed !== false) onCloseRef.current();
+    else closeRequested.current = false;
   }, []);
   const back = useCallback(() => { void navRef.current?.pop(); }, []);
   const select = useCallback((tabId: TabType) => {
@@ -132,6 +135,7 @@ export default function SettingsModalMobile({ isOpen, onClose, defaultTab }: Set
   // The keyed nav resets to the requested section when the modal is reopened.
   return (
     <IonModal
+      ref={modalRef}
       mode="ios"
       presentingElement={presentingElement}
       className={`ionic-settings-modal${dark ? ' ion-palette-dark' : ''}`}
@@ -144,12 +148,11 @@ export default function SettingsModalMobile({ isOpen, onClose, defaultTab }: Set
         if (openRef.current && !closeRequested.current) onCloseRef.current();
       }}
       onDidPresent={() => setPresented(true)}
-      // Section editors still portal outside Ionic; allow focus to reach them.
+      // Unmigrated section editors still portal outside this overlay.
       focusTrap={false}
     >
       <SettingsNavigationContext.Provider value={navigation}>
         <IonNav
-          key={isOpen ? 'open' : 'closed'}
           ref={navRef}
           root={root}
           swipeGesture={!backGuarded}

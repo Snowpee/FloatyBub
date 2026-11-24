@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { IonButton, IonButtons, IonContent, IonHeader, IonSpinner, IonTitle, IonToolbar } from '@ionic/react';
+import { IonButton, IonButtons, IonContent, IonHeader, IonSpinner, IonTitle, IonToolbar, useIonAlert } from '@ionic/react';
 import { useAppStore, type AIRole } from '@/store';
 import { KnowledgeService } from '@/services/knowledgeService';
 import type { KnowledgeBase } from '@/types/knowledge';
@@ -8,6 +8,7 @@ import { SettingsNavigationContext } from '../SettingsNavigationContext';
 import RolesModal, { type RoleFormData } from './RolesModal';
 
 export default function RoleEditorPage({ roleId }: { roleId?: string }) {
+  const [presentAlert] = useIonAlert();
   const navigation = useContext(SettingsNavigationContext);
   const role = useAppStore(state => state.aiRoles.find(item => item.id === roleId)) ?? null;
   const [data, setData] = useState<{ bases: KnowledgeBase[]; selected: string | null } | null>(null);
@@ -21,6 +22,20 @@ export default function RoleEditorPage({ roleId }: { roleId?: string }) {
       .catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
   }, [roleId, attempt]);
+  const canDelete = roleId && !['00000000-0000-4000-8000-000000000001', 'default-assistant', 'code-expert', 'creative-writer'].includes(roleId);
+  const remove = async () => {
+    let confirmed = false;
+    await new Promise<void>(resolve => { void presentAlert({ header: '删除角色？', message: '删除后无法恢复。', buttons: [
+      { text: '取消', role: 'cancel' }, { text: '删除', role: 'destructive', handler: () => { confirmed = true; } },
+    ], onDidDismiss: () => resolve() }); });
+    if (!confirmed || !roleId) return;
+    try {
+      await useAppStore.getState().deleteAIRole(roleId);
+      navigation?.setBackNavigationGuard?.(null);
+      navigation?.pop();
+      toast.success('角色已删除');
+    } catch { toast.error('删除失败，请重试'); }
+  };
   const save = async (form: RoleFormData) => {
     const { knowledgeBaseId, ...values } = form;
     const store = useAppStore.getState();
@@ -57,5 +72,5 @@ export default function RoleEditorPage({ roleId }: { roleId?: string }) {
     <IonHeader><IonToolbar><IonButtons slot="start"><IonButton onClick={() => navigation?.pop()}>返回</IonButton></IonButtons><IonTitle>{roleId ? '编辑角色' : '创建角色'}</IonTitle></IonToolbar></IonHeader>
     <IonContent><div className="role-editor-status">{roleId && !role ? '角色已不存在' : failed ? <><p>无法加载角色配置，请重试。</p><IonButton onClick={() => setAttempt(value => value + 1)}>重试</IonButton></> : <><IonSpinner /><p>正在加载角色配置…</p></>}</div></IonContent>
   </>;
-  return <RolesModal page isOpen onClose={() => navigation?.pop()} onConfirm={save} initialRole={role} initialKnowledgeBaseId={data.selected} knowledgeBases={data.bases} />;
+  return <RolesModal page isOpen onDelete={canDelete ? remove : undefined} onClose={() => navigation?.pop()} onConfirm={save} initialRole={role} initialKnowledgeBaseId={data.selected} knowledgeBases={data.bases} />;
 }
