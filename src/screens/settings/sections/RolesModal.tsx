@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { IonButton, IonButtons, IonContent, IonHeader, IonTitle, IonToolbar, useIonAlert } from '@ionic/react';
+import { SettingsNavigationContext } from '../SettingsNavigationContext';
 import {
   Plus,
   X,
@@ -34,6 +36,7 @@ export interface RoleFormData {
 
 interface RolesModalProps {
   isOpen: boolean;
+  page?: boolean;
   onClose: () => void;
   onConfirm: (data: RoleFormData) => Promise<void>;
   initialRole: AIRole | null;
@@ -43,12 +46,18 @@ interface RolesModalProps {
 
 const RolesModal: React.FC<RolesModalProps> = ({
   isOpen,
+  page = false,
   onClose,
   onConfirm,
   initialRole,
   initialKnowledgeBaseId,
   knowledgeBases
 }) => {
+  const navigation = useContext(SettingsNavigationContext);
+  const [presentAlert] = useIonAlert();
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const baseline = useRef<string | null>(null);
   const { globalPrompts, voiceSettings, agentSkills } = useAppStore();
   const [isEditLoading, setIsEditLoading] = useState(false);
   
@@ -84,9 +93,36 @@ const RolesModal: React.FC<RolesModalProps> = ({
     knowledgeBaseId: ''
   });
 
+  const dirtyRef = useRef(false);
+  const exitGuard = useRef<() => Promise<boolean>>(() => Promise.resolve(true));
+  useEffect(() => {
+    if (!isOpen) { baseline.current = null; return; }
+    // Initial values settle after the initialization effects below.
+    if (baseline.current === null) baseline.current = JSON.stringify(formData);
+    dirtyRef.current = baseline.current !== JSON.stringify(formData);
+  }, [formData, isOpen]);
+  useEffect(() => {
+    if (!page || !navigation?.setBackNavigationGuard) return;
+    const guard = () => {
+      if (savingRef.current) return Promise.resolve(false);
+      if (!dirtyRef.current) return Promise.resolve(true);
+      return new Promise<boolean>(resolve => {
+        let discard = false;
+        void presentAlert({ header: '放弃修改？', message: '未保存的角色修改将丢失。', buttons: [
+          { text: '继续编辑', role: 'cancel' },
+          { text: '放弃修改', role: 'destructive', handler: () => { discard = true; } },
+        ], onDidDismiss: () => resolve(discard) });
+      });
+    };
+    exitGuard.current = guard;
+    navigation.setBackNavigationGuard(guard);
+    return () => navigation.setBackNavigationGuard?.(null);
+  }, [page, navigation, presentAlert]);
+
   // 初始化表单数据
   useEffect(() => {
     if (isOpen) {
+      baseline.current = null;
       if (initialRole) {
         // 编辑模式
         const globalPromptIds = initialRole.globalPromptIds || (initialRole.globalPromptId ? [initialRole.globalPromptId] : []);
@@ -149,7 +185,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
       return;
     }
 
-    if (formData.replyDelayMinSeconds < 0 || formData.replyDelayMaxSeconds > 60 || formData.replyDelayMaxSeconds < formData.replyDelayMinSeconds) {
+    if (!Number.isFinite(formData.replyDelayMinSeconds) || !Number.isFinite(formData.replyDelayMaxSeconds) || formData.replyDelayMinSeconds < 0 || formData.replyDelayMaxSeconds > 60 || formData.replyDelayMaxSeconds < formData.replyDelayMinSeconds) {
       toast.error('回复延迟需为 0–60 秒，最大值不能小于最小值');
       return;
     }
@@ -169,7 +205,11 @@ const RolesModal: React.FC<RolesModalProps> = ({
       skillIds: formData.skillIds
     };
 
-    await onConfirm(roleData);
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try { await onConfirm(roleData); }
+    finally { savingRef.current = false; setSaving(false); }
   };
 
   // 开场白管理函数
@@ -572,6 +612,15 @@ const RolesModal: React.FC<RolesModalProps> = ({
   );
 
   if (!isOpen) return null;
+
+  if (page) return <>
+    <IonHeader><IonToolbar>
+      <IonButtons slot="start"><IonButton disabled={saving} onClick={async () => { if (await exitGuard.current()) navigation?.pop(); }}>返回</IonButton></IonButtons>
+      <IonTitle>{initialRole ? '编辑角色' : '创建角色'}</IonTitle>
+      <IonButtons slot="end"><IonButton strong disabled={saving} onClick={handleSave}>{saving ? '保存中…' : '保存'}</IonButton></IonButtons>
+    </IonToolbar></IonHeader>
+    <IonContent><div className="role-editor-page">{FormContent}</div></IonContent>
+  </>;
 
   // 桌面端渲染
   if (isDesktop) {

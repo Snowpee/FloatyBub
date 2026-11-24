@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
+import { IonButton, IonButtons, IonCard, IonCardContent, IonCardHeader, IonCardSubtitle, IonCardTitle, IonContent, IonHeader, IonSearchbar, IonTitle, IonToolbar, IonBackButton } from '@ionic/react';
+import { chevronBack } from 'ionicons/icons';
+import { SettingsNavigationContext } from '../SettingsNavigationContext';
+import RoleEditorPage from './RoleEditorPage';
+import './roles-settings-mobile.css';
 import { useAppStore, AIRole } from '@/store';
 import {
-  Settings,
   Plus,
   Edit,
   Trash2,
-  MoreVertical,
-  Search,
-  MessageSquare,
-  AlertCircle,
-  Copy,
   MoreHorizontal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,7 +25,9 @@ interface RolesSettingsProps {
   className?: string;
 }
 
-const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }) => {
+const RolesSettings: React.FC<RolesSettingsProps> = ({ className }) => {
+  const navigation = useContext(SettingsNavigationContext);
+  const [query, setQuery] = useState('');
   const {
     aiRoles,
     addAIRole,
@@ -67,6 +68,7 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
   }, []);
 
   const handleEdit = (role: AIRole) => {
+    if (navigation) { navigation.push(RoleEditorPage, { roleId: role.id }, { layout: 'ionic' }); return; }
     // 立即响应用户操作
     setEditingId(role.id);
     setIsEditing(true);
@@ -89,6 +91,7 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
   };
 
   const handleAdd = () => {
+    if (navigation) { navigation.push(RoleEditorPage, {}, { layout: 'ionic' }); return; }
     setEditingId(null);
     setEditingKnowledgeBaseId(null);
     setIsEditing(true);
@@ -164,6 +167,30 @@ const RolesSettings: React.FC<RolesSettingsProps> = ({ onCloseModal, className }
   };
 
   const editingRole = editingId ? aiRoles.find(r => r.id === editingId) || null : null;
+
+  if (navigation) {
+    const visible = aiRoles.filter(role => `${role.name} ${role.description || ''}`.toLowerCase().includes(query.trim().toLowerCase()));
+    return <>
+      <IonHeader><IonToolbar>
+        <IonButtons slot="start"><IonBackButton mode="ios" text="" icon={chevronBack} defaultHref="#setting" aria-label="返回设置" /></IonButtons>
+        <IonTitle>角色卡</IonTitle>
+        <IonButtons slot="end"><IonButton onClick={handleAdd} aria-label="创建角色"><Plus size={22} /></IonButton></IonButtons>
+      </IonToolbar></IonHeader>
+      <IonContent><div className="roles-settings-mobile">
+        <p className="roles-intro">为每个角色赋予独特的性格与能力</p>
+        <IonSearchbar value={query} onIonInput={event => setQuery(event.detail.value ?? '')} placeholder="搜索角色" aria-label="搜索角色" />
+        <div className="roles-card-grid">{visible.map(role => <IonCard key={role.id}>
+          <button type="button" className="role-card-open" onClick={() => handleEdit(role)} aria-label={`编辑角色 ${role.name}`}>
+            <IonCardHeader><div className="role-card-heading"><Avatar name={role.name} avatar={role.avatar} size="lg" /><div><IonCardTitle>{role.name}</IonCardTitle><IonCardSubtitle>{getRoleTypeLabel(role.id)}</IonCardSubtitle></div></div></IonCardHeader>
+            <IonCardContent><p className="role-card-description">{role.description || '尚未添加描述，点击完善角色设定'}</p><div className="role-card-meta"><span>{role.replyMode === 'voice' ? '纯语音' : role.replyMode === 'voice-text' ? '语音与文字' : '文字对话'}</span><span>{role.skillIds?.length || 0} 项技能</span></div></IonCardContent>
+          </button>
+          <div className="role-card-footer"><span>创建于 {safeFormatDate(role.createdAt)}</span>{!defaultRoles.includes(role.id) && <IonButton fill="clear" color="danger" size="small" aria-label={`删除角色 ${role.name}`} onClick={() => handleDelete(role.id)}><Trash2 size={16} /></IonButton>}</div>
+        </IonCard>)}</div>
+        {!visible.length && <div className="role-editor-status"><p>{query ? '没有找到匹配的角色' : '还没有角色，创建你的第一个角色吧'}</p>{!query && <IonButton onClick={handleAdd}>创建角色</IonButton>}</div>}
+      </div></IonContent>
+      <ConfirmDialog isOpen={confirmDialog.isOpen} onClose={() => setConfirmDialog({ isOpen: false, roleId: '', roleName: '' })} onConfirm={confirmDelete} title="删除角色" message={`确定要删除角色「${confirmDialog.roleName}」吗？此操作不可撤销。`} confirmText="删除" cancelText="取消" variant="danger" />
+    </>;
+  }
 
   return (
     <div className={cn("max-w-6xl mx-auto p-4 md:p-6 md:pt-0", className)}>

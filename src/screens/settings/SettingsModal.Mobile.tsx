@@ -24,7 +24,7 @@ function SettingsPage({ onClose, onSelect, tabId }: SettingsPageProps) {
   const Section = tab?.component;
 
   // Model settings owns its toolbar actions and content as one standard page.
-  if (tabId === 'config' && Section) return <Section />;
+  if ((tabId === 'config' || tabId === 'roles') && Section) return <Section />;
 
   return (
     <>

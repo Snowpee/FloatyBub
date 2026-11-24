@@ -84,7 +84,7 @@ const { create, act } = dependencies('react-test-renderer');
             import React from 'react';
             import {IonBackButton} from '@ionic/react';
             const ids=['global','config','roles','userRoles','globalPrompts','skills','knowledge','voice','search','data'];
-            export const tabs=ids.map(id=>({id,name:id,icon:()=>null,component:()=> id==='config' ? <><header><IonBackButton text="" aria-label="返回设置"/></header><section data-section={id}/></> : <section data-section={id}/> }));
+            export const tabs=ids.map(id=>({id,name:id,icon:()=>null,component:()=> (id==='config'||id==='roles') ? <><header><IonBackButton text="" aria-label="返回设置"/></header><section data-section={id}/></> : <section data-section={id}/> }));
           ` : args.path === '@/lib/utils' ? 'export const cn=(...v)=>v.filter(Boolean).join(" ");' : 'export default ()=>null;',
           loader: 'tsx',
         }));

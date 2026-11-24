@@ -51,3 +51,13 @@ The test preserves the desktop list/editor by SHA-256 baseline, exercises the ac
 components with a reactive isolated store, and verifies request construction for OpenAI-compatible,
 Claude and Gemini APIs. HTTP calls and deletion are simulated; it does not validate live API
 credentials, cloud sync or device keyboards/gestures.
+
+Role card editor draft and navigation checks:
+
+```sh
+SETTINGS_TEST_MODULES=/private/tmp/floaty-settings-tests node tests/mobile/roles-settings.test.cjs
+```
+
+Exercises the real editor with isolated Ionic controls: clean/dirty exits, cancel/discard,
+knowledge selection preservation, pending saves, duplicate taps, and required-name validation.
+Native layout/gestures and live backend persistence are not covered by this test.
