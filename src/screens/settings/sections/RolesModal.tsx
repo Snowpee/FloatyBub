@@ -15,6 +15,7 @@ import { toast } from '@/hooks/useToast';
 import BottomSheetModal from '@/components/BottomSheetModal';
 import RoleAvatarUpload from '@/screens/settings/components/RoleAvatarUpload';
 import { generateRandomLocalAvatar } from '@/utils/avatarUtils';
+import RoleFormMobile from './RoleForm.Mobile';
 import type { KnowledgeBase } from '@/types/knowledge';
 
 export interface RoleFormData {
@@ -619,7 +620,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
       <IonTitle>{initialRole ? '编辑角色' : '创建角色'}</IonTitle>
       <IonButtons slot="end"><IonButton strong disabled={saving} onClick={handleSave}>{saving ? '保存中…' : '保存'}</IonButton></IonButtons>
     </IonToolbar></IonHeader>
-    <IonContent><div className="role-editor-page">{FormContent}</div></IonContent>
+    <IonContent><RoleFormMobile value={formData} onChange={setFormData} knowledgeBases={knowledgeBases} disabled={saving} /></IonContent>
   </>;
 
   // 桌面端渲染

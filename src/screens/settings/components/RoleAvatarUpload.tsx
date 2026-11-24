@@ -1,3 +1,4 @@
+import { IonButton, IonNote } from '@ionic/react';
 import React, { useState, useRef } from 'react';
 import { Camera, Shuffle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -7,6 +8,7 @@ import { toast } from '@/hooks/useToast';
 import { createStorageService } from '@/services/storage/StorageService';
 
 interface RoleAvatarUploadProps {
+  ionic?: boolean;
   name: string;
   currentAvatar?: string;
   onAvatarChange: (avatar: string | undefined) => void;
@@ -19,6 +21,7 @@ const generateRandomAvatar = (): string => {
 };
 
 const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
+  ionic = false,
   name,
   currentAvatar,
   onAvatarChange,
@@ -63,10 +66,6 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
     }
   };
 
-  const handleRemoveAvatar = () => {
-    onAvatarChange(undefined);
-    toast.success('已移除自定义头像');
-  };
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -77,6 +76,14 @@ const RoleAvatarUpload: React.FC<RoleAvatarUploadProps> = ({
     onAvatarChange(randomAvatar);
     toast.success('已生成随机头像');
   };
+
+  if (ionic) return <div className="role-avatar-ionic">
+    <Avatar name={name} avatar={currentAvatar} size="xl" />
+    <div><IonButton size="small" fill="outline" disabled={isUploading} onClick={handleUploadClick}>{isUploading ? '上传中…' : '上传头像'}</IonButton>
+      <IonButton size="small" fill="clear" disabled={isUploading} onClick={handleRandomAvatar}>随机头像</IonButton>
+      <IonNote>支持图片文件，最大 5MB</IonNote></div>
+    <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleFileSelect} hidden />
+  </div>;
 
   return (
     <div className={cn('flex items-center gap-4', className)}>

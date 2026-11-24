@@ -66,6 +66,12 @@ function SettingsPage({ onClose, onSelect, tabId }: SettingsPageProps) {
 
 export default function SettingsModalMobile({ isOpen, onClose, defaultTab }: SettingsModalProps) {
   const dark = useAppStore(state => state.theme === 'dark');
+  const [presentingElement, setPresentingElement] = useState<HTMLElement | undefined>(() => document.getElementById('settings-presenting-page') ?? undefined);
+  useEffect(() => { setPresentingElement(document.getElementById('settings-presenting-page') ?? undefined); }, []);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const closeRequested = useRef(false);
+  useEffect(() => { if (isOpen) closeRequested.current = false; }, [isOpen]);
   const [backGuarded, setBackGuarded] = useState(false);
   const backGuard = useRef<(() => Promise<boolean>) | null>(null);
   const [presented, setPresented] = useState(false);
@@ -76,9 +82,15 @@ export default function SettingsModalMobile({ isOpen, onClose, defaultTab }: Set
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
-  const modalRef = useRef<HTMLIonModalElement>(null);
   const navRef = useRef<HTMLIonNavElement>(null);
-  const close = useCallback(() => { void modalRef.current?.dismiss(); }, []);
+  const close = useCallback(async () => {
+    if (closeRequested.current) return;
+    if (backGuard.current && !await backGuard.current()) return;
+    closeRequested.current = true;
+    // Update the controlled owner directly. Do not rely on an imperative
+    // overlay ref or a later didDismiss event to change isOpen/hash state.
+    onCloseRef.current();
+  }, []);
   const back = useCallback(() => { void navRef.current?.pop(); }, []);
   const select = useCallback((tabId: TabType) => {
     void navRef.current?.push(SettingsPage, { tabId, onClose: close, onSelect: select }, { skipIfBusy: true });
@@ -115,19 +127,21 @@ export default function SettingsModalMobile({ isOpen, onClose, defaultTab }: Set
     void navRef.current?.setPages(pages, { animated: false });
   }, [presented, isOpen, defaultTab, root, close, select]);
 
-  // Ionic owns dismissal animation; synchronize the hash/parent only afterwards.
+  // Ionic owns dismissal animation. Button close updates the controlled owner;
+  // gesture/backdrop dismissal synchronizes the owner in onDidDismiss.
   // The keyed nav resets to the requested section when the modal is reopened.
   return (
     <IonModal
-      ref={modalRef}
+      mode="ios"
+      presentingElement={presentingElement}
       className={`ionic-settings-modal${dark ? ' ion-palette-dark' : ''}`}
       aria-label="设置"
       isOpen={isOpen}
-      canDismiss={() => backGuard.current ? backGuard.current() : Promise.resolve(true)}
+      canDismiss={() => !closeRequested.current && backGuard.current ? backGuard.current() : Promise.resolve(true)}
       onDidDismiss={() => {
         if (!mounted.current) return;
         setPresented(false);
-        if (openRef.current) onClose();
+        if (openRef.current && !closeRequested.current) onCloseRef.current();
       }}
       onDidPresent={() => setPresented(true)}
       // Section editors still portal outside Ionic; allow focus to reach them.

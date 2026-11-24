@@ -14,3 +14,10 @@
 .ionic-settings-modal .role-editor-page { max-width: 760px; margin: auto; padding: 24px 16px calc(32px + env(safe-area-inset-bottom)); }
 .ionic-settings-modal .role-editor-page textarea { min-height: 100px; }
 .ionic-settings-modal .role-editor-status { padding: 48px 24px; text-align: center; color: var(--ion-color-medium); }
+
+.ionic-settings-modal .role-form-mobile { max-width: 760px; margin: auto; padding: 16px 0 calc(24px + env(safe-area-inset-bottom)); }
+.ionic-settings-modal .role-form-note { display: block; padding: 10px 16px; font-size: 12px; line-height: 1.5; }
+.ionic-settings-modal .role-form-avatar { padding: 8px 24px 16px; }
+.ionic-settings-modal .role-avatar-ionic { display: flex; align-items: center; gap: 16px; }
+.ionic-settings-modal .role-avatar-ionic ion-note { display: block; padding: 6px; font-size: 12px; }
+.ionic-settings-modal .role-form-mobile ion-textarea { --padding-top: 12px; --padding-bottom: 12px; }

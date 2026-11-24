@@ -58,6 +58,8 @@ Role card editor draft and navigation checks:
 SETTINGS_TEST_MODULES=/private/tmp/floaty-settings-tests node tests/mobile/roles-settings.test.cjs
 ```
 
-Exercises the real editor with isolated Ionic controls: clean/dirty exits, cancel/discard,
-knowledge selection preservation, pending saves, duplicate taps, and required-name validation.
+Exercises the real Ionic editor controls: clean/dirty exits, cancel/discard,
+knowledge selection preservation, prompt ordering and legacy prompt compatibility, skill selection,
+voice delay (including zero), pending saves, duplicate taps, and required-name validation.
+The lifecycle test also checks the card presenting element and button close without an imperative modal ref.
 Native layout/gestures and live backend persistence are not covered by this test.

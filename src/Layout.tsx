@@ -679,6 +679,7 @@ const Layout = () => {
 
       {/* 主内容区域 */}
       <div
+        id="settings-presenting-page"
         ref={mainViewRef}
         className={cn(
           "flex flex-col flex-1 min-h-screen h-screen bg-base-100 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",

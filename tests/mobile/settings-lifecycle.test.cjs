@@ -22,6 +22,8 @@ const { create, act } = dependencies('react-test-renderer');
       removeEventListener: (_type, fn) => mediaListeners.delete(fn),
     }),
   };
+  const presentingPage = {};
+  global.document = { getElementById: id => id === 'settings-presenting-page' ? presentingPage : null };
   const observers = new Set();
   let detail = false;
   let backClicks = 0;
@@ -101,6 +103,8 @@ const { create, act } = dependencies('react-test-renderer');
     await act(async () => { tree = create(React.createElement(Settings, props), { createNodeMock: () => contentNode }); });
     assert.equal(tree.root.findAllByType('ion-modal').length, 1, 'H5 must select Ionic on the first render');
     assert.equal(tree.root.findAllByType('dialog').length, 0);
+    assert.equal(global.__settingsModal.mode, 'ios');
+    assert.equal(global.__settingsModal.presentingElement, presentingPage, 'card modal has a presenting page');
     await act(async () => global.__settingsModal.onDidPresent());
     assert.equal(tree.root.findAllByType('ion-item').length, 10);
     for (const id of settingsTabIds) {
@@ -133,7 +137,9 @@ const { create, act } = dependencies('react-test-renderer');
     await act(async () => global.__settingsModal.onDidPresent());
     await act(async () => global.__settingsNativeBack());
     await act(async () => tree.root.findByProps({ 'aria-label': '关闭设置' }).props.onClick());
-    assert.equal(count.close, 1, 'user close should notify the parent once');
+    assert.equal(count.close, 1, 'close updates parent without waiting for overlay dismissal');
+    await act(async () => global.__settingsModal.onDidDismiss());
+    assert.equal(count.close, 1, 'dismiss after button close does not notify twice');
     await act(async () => tree.update(React.createElement(Settings, { ...props, isOpen: false })));
     await act(async () => global.__settingsModal.onDidDismiss());
     assert.equal(count.close, 1, 'parent-driven dismissal must not notify again');
@@ -158,6 +164,7 @@ const { create, act } = dependencies('react-test-renderer');
   } finally {
     if (tree) await act(async () => tree.unmount());
     fs.rmSync(folder, { recursive: true, force: true });
+    delete global.document;
     delete global.window;
     delete global.MutationObserver;
   }

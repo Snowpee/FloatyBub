@@ -10,8 +10,6 @@
   --ion-border-color: var(--color-base-300);
   --ion-color-primary: var(--color-primary);
   --ion-color-primary-contrast: var(--color-primary-content);
-  --height: 100%;
-  --width: 100%;
 
   /* Existing section editors portal to body at z-50. Keep them above this
      container until those editors also migrate to Ionic overlays. */
@@ -43,7 +41,7 @@
   background: var(--ion-background-color);
 }
 
-/* Ionic header/toolbar and fullscreen modal already own safe-area padding.
+/* Ionic card modal and toolbar already own safe-area padding.
    Do not add env(safe-area-inset-*) again on the header or content. */
 
 
