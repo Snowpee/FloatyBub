@@ -25,10 +25,10 @@ import { useUserData } from '@/hooks/useUserData';
 import { supabase } from '@/lib/supabase';
 import { avatarCache } from '@/utils/imageCache';
 import Sidebar from '@/components/layout/Sidebar';
+import { parseSettingsHash, type TabType } from '@/screens/settings/settingsRoutes';
 
 const console: Console = { ...globalThis.console, log: (..._args: any[]) => { } };
 
-type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'knowledge' | 'search';
 
 
 const Layout = () => {
@@ -68,7 +68,7 @@ const Layout = () => {
 
   // 设置弹窗状态
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsDefaultTab, setSettingsDefaultTab] = useState<TabType>('global');
+  const [settingsDefaultTab, setSettingsDefaultTab] = useState<TabType | undefined>();
 
   // 历史记录弹窗状态
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -293,26 +293,9 @@ const Layout = () => {
   // 监听 hash 变化来控制设置弹窗
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash;
-
-      if (hash.startsWith('#setting')) {
-        // 解析设置页面类型
-        const settingPath = hash.replace('#setting', '').replace('/', '');
-        const validTabs = ['global', 'config', 'roles', 'userRoles', 'globalPrompts', 'voice', 'data', 'knowledge', 'search'];
-
-        // 设置默认页面
-        if (settingPath && validTabs.includes(settingPath)) {
-          setSettingsDefaultTab(settingPath as TabType);
-        } else {
-          setSettingsDefaultTab('global');
-        }
-
-        // 打开设置弹窗
-        setIsSettingsOpen(true);
-      } else {
-        // 关闭设置弹窗
-        setIsSettingsOpen(false);
-      }
+      const route = parseSettingsHash(window.location.hash);
+      setSettingsDefaultTab(route.tab);
+      setIsSettingsOpen(route.isOpen);
     };
 
     // 初始检查

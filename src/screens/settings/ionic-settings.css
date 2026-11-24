@@ -1,0 +1,68 @@
+/* App themes supply colors only. Upstream iOS 27 owns control geometry. */
+.ionic-settings-modal,
+.ionic-settings-modal.ion-palette-dark.ios {
+  --ion-background-color: var(--color-base-200);
+  --ion-text-color: var(--color-base-content);
+  --ion-toolbar-background: var(--color-base-200);
+  --ion-toolbar-color: var(--color-base-content);
+  --ion-item-background: var(--color-base-100);
+  --ion-item-color: var(--color-base-content);
+  --ion-border-color: var(--color-base-300);
+  --ion-color-primary: var(--color-primary);
+  --ion-color-primary-contrast: var(--color-primary-content);
+  --height: 100%;
+  --width: 100%;
+
+  /* Existing section editors portal to body at z-50. Keep them above this
+     container until those editors also migrate to Ionic overlays. */
+  z-index: 40 !important;
+}
+
+.ionic-settings-modal ion-nav > .ion-page,
+.ionic-settings-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The iOS transition moves IonContent and toolbar parts, not the delegate
+   page/header wrappers. An opaque stationary wrapper covers the revealed page
+   until pop completes, producing a blank panel during the back animation. */
+.ionic-settings-modal ion-nav {
+  background: var(--ion-background-color);
+}
+
+.ionic-settings-modal ion-nav > .ion-page {
+  background: transparent;
+}
+
+/* Legacy details animate this inner wrapper as a whole. */
+.ionic-settings-page {
+  background: var(--ion-background-color);
+}
+
+/* Ionic header/toolbar and fullscreen modal already own safe-area padding.
+   Do not add env(safe-area-inset-*) again on the header or content. */
+
+
+.ionic-settings-list-icon {
+  display: inline-flex;
+  flex: 0 0 22px;
+  align-items: center;
+  justify-content: center;
+  margin-inline-end: 16px;
+}
+
+/* These nested detail views retain their own header and scroll container. */
+.ionic-settings-detail-page {
+  padding-top: var(--ion-safe-area-top, 0px);
+  padding-bottom: var(--ion-safe-area-bottom, 0px);
+}
+
+/* Standard Ionic detail pages own their top inset through IonHeader. Their
+   bottom inset belongs to this wrapper, not an additional IonContent padding. */
+.ionic-settings-standard-page {
+  padding-bottom: var(--ion-safe-area-bottom, 0px);
+}

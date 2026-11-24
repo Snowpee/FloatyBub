@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import SettingsModalDesktop from './SettingsModal.Desktop';
-import SettingsModalMobile from './SettingsModal.Mobile';
+const SettingsModalMobile = lazy(() => import('./SettingsModal.Mobile'));
 import { TabType } from './config';
 
 interface SettingsModalProps {
@@ -10,24 +10,19 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = (props) => {
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches);
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    // 初始检测
+    const query = window.matchMedia('(max-width: 767px)');
+    const checkMobile = () => setIsMobile(query.matches);
     checkMobile();
-
-    // 监听窗口大小变化
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    query.addEventListener('change', checkMobile);
+    return () => query.removeEventListener('change', checkMobile);
   }, []);
 
   // 根据设备类型分发渲染
   if (isMobile) {
-    return <SettingsModalMobile {...props} />;
+    return <Suspense fallback={null}><SettingsModalMobile {...props} /></Suspense>;
   }
 
   return <SettingsModalDesktop {...props} />;

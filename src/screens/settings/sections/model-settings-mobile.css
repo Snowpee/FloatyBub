@@ -1,0 +1,51 @@
+/* Geometry comes from the same upstream iOS 27 theme as global settings. */
+.ionic-settings-modal .model-settings-mobile {
+  --ion-color-primary: #007aff;
+  --ion-color-primary-rgb: 0, 122, 255;
+}
+.ionic-settings-modal .model-settings-mobile ion-list-header {
+  padding-inline-start: calc(var(--ion-safe-area-left, 0px) + 16px);
+  padding-inline-end: var(--ion-safe-area-right, 0px);
+}
+.ionic-settings-modal .model-settings-value {
+  max-width: 55%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+.ionic-settings-modal .model-settings-summary,
+.ionic-settings-modal .model-settings-summary p,
+.ionic-settings-modal .model-settings-mobile ion-radio::part(label),
+.ionic-settings-modal .model-settings-mobile ion-toggle::part(label) {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ionic-settings-modal .model-settings-mobile ion-radio::part(label),
+.ionic-settings-modal .model-settings-mobile ion-toggle::part(label) {
+  flex: 1 1 0;
+}
+.ionic-settings-modal .model-settings-empty {
+  padding: 48px 24px;
+  text-align: center;
+}
+.ionic-settings-modal .model-settings-empty h2 { font-size: 20px; font-weight: 600; }
+.ionic-settings-modal .model-settings-empty p { margin-block: 12px 24px; }
+.ionic-settings-modal .model-settings-error {
+  margin: 16px 32px;
+  color: var(--ion-color-danger);
+  overflow-wrap: anywhere;
+}
+
+/* Settings rows use an inline leading label and trailing editable value.
+   Ionic input uses scoped light-DOM styles; keep these overrides pilot-local. */
+.ionic-settings-modal .model-settings-input .native-input {
+  text-align: end;
+  min-width: 0;
+}
+.ionic-settings-modal .model-settings-input .label-text-wrapper {
+  max-width: 45%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+}

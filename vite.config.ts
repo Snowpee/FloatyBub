@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { settingsIosTheme } from './scripts/settingsIosTheme'
 import tsconfigPaths from "vite-tsconfig-paths";
 import { traeBadgePlugin } from 'vite-plugin-trae-solo-badge';
 
@@ -7,6 +8,7 @@ import { traeBadgePlugin } from 'vite-plugin-trae-solo-badge';
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
+    settingsIosTheme(),
     tsconfigPaths()
   ],
   server: {

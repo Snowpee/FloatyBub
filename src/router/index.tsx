@@ -14,6 +14,7 @@ import VoiceSettings from '@/screens/settings/sections/VoiceSettings';
 import DataSettings from '@/screens/settings/sections/DataSettings';
 import KnowledgeSettings from '@/screens/settings/sections/KnowledgeSettings';
 import SearchSettings from '@/screens/settings/sections/SearchSettings';
+import SkillsSettings from '@/screens/settings/sections/SkillsSettings';
 import VoiceTest from '@/screens/_debug/VoiceTest';
 import ToastTestPage from '@/screens/_debug/ToastTestPage';
 import DatabaseConnectionTestPage from '@/screens/_debug/DatabaseConnectionTestPage';
@@ -91,6 +92,10 @@ export const router = createBrowserRouter([
       {
         path: 'settings/knowledge',
         element: <KnowledgeSettings />
+      },
+      {
+        path: 'settings/skills',
+        element: <SkillsSettings />
       },
 
       {

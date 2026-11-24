@@ -10,9 +10,9 @@ import KnowledgeBulkImportModal from './KnowledgeBulkImportModal';
 import { KnowledgeEntryManager } from './KnowledgeEntryManager';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { KnowledgeBase, CreateKnowledgeBaseRequest, UpdateKnowledgeBaseRequest, KnowledgeEntry } from '@/types/knowledge';
-import { NavLink, BackButton } from '@/components/navigation/MobileNav';
+import { NavLink, BackButton } from '@/screens/settings/SettingsNavigation';
 import { cn } from '@/lib/utils';
-import { DragContext } from '@/screens/settings/SettingsContext';
+import { SettingsNavigationContext } from '@/screens/settings/SettingsNavigationContext';
 
 interface KnowledgeSettingsProps {
   onCloseModal?: () => void;
@@ -20,6 +20,7 @@ interface KnowledgeSettingsProps {
 }
 
 const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, className }) => {
+  const navigation = useContext(SettingsNavigationContext);
   const {
     knowledgeBases,
     loading,
@@ -225,7 +226,7 @@ const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, cla
                         <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
                           <li>
                             <div className="w-full">
-                              {typeof window !== 'undefined' && window.innerWidth < 768 ? (
+                              {navigation !== null ? (
                                 <NavLink
                                   component={KBEntryManagerPage as any}
                                   props={{ kb: knowledgeBase, onCloseModal }}
@@ -290,7 +291,7 @@ const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, cla
 
                       {/* 操作按钮 */}
                       <div className="card-actions justify-end mt-4">
-                        {typeof window !== 'undefined' && window.innerWidth < 768 ? (
+                        {navigation !== null ? (
                           <NavLink
                             component={KBEntryManagerPage as any}
                             props={{ kb: knowledgeBase, onCloseModal }}
@@ -365,16 +366,13 @@ const KnowledgeSettings: React.FC<KnowledgeSettingsProps> = ({ onCloseModal, cla
 
 // 移动端：知识库条目详情页包装（二级页面）
 const KBEntryManagerPage: React.FC<{ kb: KnowledgeBase; onCloseModal?: () => void }> = ({ kb, onCloseModal }) => {
-  const { bind } = useContext(DragContext);
   
   return (
     <div className="flex flex-col overflow-hidden h-full bg-base-200 p-4 md:p-6 md:pt-0">
       <div 
-        {...bind()}
         className={cn(
           "px-2 flex items-start gap-3 h-[var(--height-header-m)] shrink-0",
-          "cursor-move select-none",
-          "md:touch-auto touch-none"
+          "select-none"
         )}
       >
         <div className="flex w-10 h-10 items-center justify-center">
@@ -386,8 +384,8 @@ const KBEntryManagerPage: React.FC<{ kb: KnowledgeBase; onCloseModal?: () => voi
         <div className="flex w-10 h-10 items-center justify-center">
         </div>
       </div>
-      <div className="flex-1 overflow-y-scroll overscroll-contain">
-        <div className='h-[calc(100vh-var(--height-header-m)-env(safe-area-inset-top)-env(safe-area-inset-bottom)+1px)]'>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <div className="min-h-full">
           <KnowledgeEntryManager knowledgeBase={kb} onClose={onCloseModal || (() => {})} />
         </div>
       </div>

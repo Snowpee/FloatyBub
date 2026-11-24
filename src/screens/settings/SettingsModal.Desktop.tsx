@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ConfigSettings from './sections/ConfigSettings';
@@ -11,91 +11,30 @@ const SettingsModalDesktop: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
   const [isDetailView, setIsDetailView] = useState(false);
   const [detailTitle, setDetailTitle] = useState('');
 
-  // 当 defaultTab 改变时更新 activeTab
+  const contentRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    setActiveTab(defaultTab);
-  }, [defaultTab]);
+    if (isOpen) setActiveTab(defaultTab);
+  }, [defaultTab, isOpen]);
 
-  // 标签切换处理函数
-  const handleTabClick = (tabId: TabType) => {
-    setActiveTab(tabId);
-    
-    // 强制更新状态检测，确保视图切换时状态正确
-    const forceUpdateState = () => {
-      const activeTabElement = document.querySelector(`[data-${tabId}-page]`);
-      if (activeTabElement) {
-        const isDetail = activeTabElement.getAttribute('data-is-detail-view') === 'true';
-        const title = activeTabElement.getAttribute('data-detail-title') || '';
-        setIsDetailView(isDetail);
-        setDetailTitle(title);
-      } else {
-        setIsDetailView(false);
-        setDetailTitle('');
-      }
-    };
-    
-    // 多次检测确保状态正确更新
-    setTimeout(forceUpdateState, 10);
-    setTimeout(forceUpdateState, 50);
-    setTimeout(forceUpdateState, 100);
-  };
+  const handleTabClick = (tabId: TabType) => setActiveTab(tabId);
 
-  // 检测二级页面状态
+  // Observe only this dialog's section, not hidden Ionic pages or other modals.
   useEffect(() => {
-    if (!isOpen) return;
-
+    const content = contentRef.current;
+    if (!isOpen || !content) return;
     const detectDetailView = () => {
-      const activeTabElement = document.querySelector(`[data-${activeTab}-page]`);
-      
-      if (activeTabElement) {
-        const isDetail = activeTabElement.getAttribute('data-is-detail-view') === 'true';
-        const title = activeTabElement.getAttribute('data-detail-title') || '';
-        
-        setIsDetailView(isDetail);
-        setDetailTitle(title);
-      } else {
-        setIsDetailView(false);
-        setDetailTitle('');
-      }
+      const section = content.querySelector(`[data-${activeTab}-page]`);
+      setIsDetailView(section?.getAttribute('data-is-detail-view') === 'true');
+      setDetailTitle(section?.getAttribute('data-detail-title') || '');
     };
-
-    // 多次检测确保状态正确
-    const detectWithRetry = () => {
-      detectDetailView();
-      setTimeout(detectDetailView, 50);
-      setTimeout(detectDetailView, 100);
-    };
-
-    const timer = setTimeout(detectWithRetry, 10);
-    
-    // 监听DOM属性变化
-    const observer = new MutationObserver(() => {
-      setTimeout(detectDetailView, 10);
+    detectDetailView();
+    const observer = new MutationObserver(detectDetailView);
+    observer.observe(content, {
+      childList: true, subtree: true, attributes: true,
+      attributeFilter: ['data-is-detail-view', 'data-detail-title'],
     });
-    
-    const startObserving = () => {
-      const activeTabElement = document.querySelector(`[data-${activeTab}-page]`);
-      if (activeTabElement) {
-        observer.observe(activeTabElement, {
-          attributes: true,
-          attributeFilter: ['data-is-detail-view', 'data-detail-title']
-        });
-        observer.observe(activeTabElement, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          attributeFilter: ['data-is-detail-view', 'data-detail-title']
-        });
-      }
-    };
-    
-    const observerTimer = setTimeout(startObserving, 50);
-    
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(observerTimer);
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, [activeTab, isOpen]);
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ConfigSettings;
@@ -144,42 +83,20 @@ const SettingsModalDesktop: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
         </div>
 
         {/* 右侧内容区域 */}
-        <div className="flex flex-1 flex-col min-h-0">
+        <div className="flex flex-1 flex-col min-h-0 min-w-0">
           {/* 标题栏 */}
           <div className="flex items-center justify-between pl-6 pr-4 flex-shrink-0 bg-base-200 h-[var(--height-header)]">
             <div className="flex items-center gap-3">
               {isDetailView && detailTitle ? (
                 <div className="flex items-center gap-3">
                   <button
+                    aria-label="返回设置列表"
                     onClick={() => {
-                      // 模拟返回操作
-                      const knowledgeEntryBackButton = document.querySelector('.knowledge-entry-manager [data-back-button]') as HTMLButtonElement;
-                      if (knowledgeEntryBackButton) {
-                        knowledgeEntryBackButton.click();
-                      } else {
-                        const backButton = document.querySelector('[data-back-button]') as HTMLButtonElement;
-                        if (backButton) {
-                          backButton.click();
-                        }
-                      }
-                      
-                      // 强制更新状态
-                      const forceUpdateState = () => {
-                        const activeTabElement = document.querySelector(`[data-${activeTab}-page]`);
-                        if (activeTabElement) {
-                          const isDetail = activeTabElement.getAttribute('data-is-detail-view') === 'true';
-                          const title = activeTabElement.getAttribute('data-detail-title') || '';
-                          setIsDetailView(isDetail);
-                          setDetailTitle(title);
-                        } else {
-                          setIsDetailView(false);
-                          setDetailTitle('');
-                        }
-                      };
-                      
-                      setTimeout(forceUpdateState, 10);
-                      setTimeout(forceUpdateState, 50);
-                      setTimeout(forceUpdateState, 100);
+                      const content = contentRef.current;
+                      const backButton = content?.querySelector<HTMLButtonElement>(
+                        '.knowledge-entry-manager [data-back-button]'
+                      ) || content?.querySelector<HTMLButtonElement>('[data-back-button]');
+                      backButton?.click();
                     }}
                     className="btn btn-ghost btn-sm btn-circle"
                   >
@@ -195,6 +112,7 @@ const SettingsModalDesktop: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
             </div>
             <button
               onClick={onClose}
+              aria-label="关闭设置"
               className="btn btn-ghost btn-sm btn-circle"
             >
               <X className="h-4 w-4" />
@@ -202,9 +120,9 @@ const SettingsModalDesktop: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
           </div>
           
           {/* 内容 */}
-          <div className="flex-1 overflow-y-auto min-h-0 bg-base-200">
+          <div ref={contentRef} className="flex-1 overflow-y-auto min-h-0 bg-base-200">
             <ActiveComponent 
-              {...({ className: 'h-fit-content' } as any)}
+              className="h-fit-content"
               onCloseModal={onClose} 
             />
           </div>

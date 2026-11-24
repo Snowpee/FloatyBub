@@ -1,0 +1,66 @@
+/* No bare selectors or generic .label/.toggle/.radio classes: desktop and the
+   legacy DaisyUI forms must keep their existing styling. Ionic owns controls. */
+.ionic-settings-modal .global-settings-mobile {
+
+  --ion-color-primary: #007aff;
+  --ion-color-primary-rgb: 0, 122, 255;
+  --ion-color-primary-contrast: #fff;
+  --ion-color-primary-shade: #006ce0;
+  --ion-color-primary-tint: #1a87ff;
+}
+.ionic-settings-modal .global-settings-current-value {
+  max-width: 52%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: end;
+  font-size: 16px;
+  color: color-mix(in srgb, var(--color-base-content) 60%, transparent);
+}
+/* Ionic already sizes the host and adds label margins inside its shadow root.
+   Extra host padding inflates every row; only relax label text constraints. */
+.ionic-settings-modal .global-settings-mobile ion-radio::part(label),
+.ionic-settings-modal .global-settings-mobile ion-toggle::part(label) {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: normal;
+}
+.ionic-settings-modal .global-settings-choice-label {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 12px;
+}
+.ionic-settings-modal .global-settings-choice-text {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ionic-settings-modal .global-settings-choice-title {
+  line-height: 1.4;
+}
+.ionic-settings-modal .global-settings-choice-text ion-note {
+  display: block;
+  margin-top: 3px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--color-base-content) 65%, transparent);
+}
+.ionic-settings-modal .global-settings-theme-swatch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+
+}
+/* Tailwind's document-wide `* { padding: 0 }` wins over Shadow DOM :host
+   defaults. Restore Ionic's own list-header inset, rather than invent spacing. */
+.ionic-settings-modal .global-settings-mobile ion-list-header {
+  padding-inline-start: calc(var(--ion-safe-area-left, 0px) + 16px);
+  padding-inline-end: var(--ion-safe-area-right, 0px);
+}

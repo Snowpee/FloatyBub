@@ -14,8 +14,8 @@ import { safeFormatDate } from '@/utils/dateUtils';
 import EmptyState from '@/components/EmptyState';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import SkillDetailView, { SkillFormData } from './SkillDetailView';
-import { NavLink, BackButton } from '@/components/navigation/MobileNav';
-import { DragContext } from '@/screens/settings/SettingsContext';
+import { NavLink, BackButton } from '@/screens/settings/SettingsNavigation';
+import { SettingsNavigationContext } from '@/screens/settings/SettingsNavigationContext';
 
 interface SkillsSettingsProps {
   onCloseModal?: () => void;
@@ -23,6 +23,7 @@ interface SkillsSettingsProps {
 }
 
 const SkillsSettings: React.FC<SkillsSettingsProps> = ({ onCloseModal, className }) => {
+  const navigation = useContext(SettingsNavigationContext);
   const {
     agentSkills,
     addAgentSkill,
@@ -139,7 +140,7 @@ const SkillsSettings: React.FC<SkillsSettingsProps> = ({ onCloseModal, className
             </div>
             
             {/* 添加按钮：Mobile使用NavLink，Desktop使用onClick */}
-            {typeof window !== 'undefined' && window.innerWidth < 768 ? (
+            {navigation !== null ? (
                 <NavLink
                     component={SkillDetailMobilePage as any}
                     props={{ initialSkill: null }}
@@ -193,7 +194,7 @@ const SkillsSettings: React.FC<SkillsSettingsProps> = ({ onCloseModal, className
                         </label>
                         <ul tabIndex={0} className="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-44">
                           <li>
-                             {typeof window !== 'undefined' && window.innerWidth < 768 ? (
+                             {navigation !== null ? (
                                 <NavLink
                                     component={SkillDetailMobilePage as any}
                                     props={{ initialSkill: skill }}
@@ -228,7 +229,7 @@ const SkillsSettings: React.FC<SkillsSettingsProps> = ({ onCloseModal, className
                     )}
 
                     <div className="card-actions justify-end mt-4">
-                       {typeof window !== 'undefined' && window.innerWidth < 768 ? (
+                       {navigation !== null ? (
                             <NavLink
                                 component={SkillDetailMobilePage as any}
                                 props={{ initialSkill: skill }}
@@ -271,8 +272,8 @@ const SkillsSettings: React.FC<SkillsSettingsProps> = ({ onCloseModal, className
 
 // 移动端详情页包装组件
 const SkillDetailMobilePage: React.FC<{ initialSkill: AgentSkill | null }> = ({ initialSkill }) => {
-  const { bind } = useContext(DragContext);
   const { addAgentSkill, updateAgentSkill } = useAppStore();
+  const navigation = useContext(SettingsNavigationContext);
 
   // 由于 MobilePage 是独立组件，我们需要自己处理保存逻辑
   // 这里逻辑与 PC 端类似，但没有 setShowDetailView
@@ -287,8 +288,7 @@ const SkillDetailMobilePage: React.FC<{ initialSkill: AgentSkill | null }> = ({ 
           enabled: true
         } as any);
         toast.success('技能已添加');
-        // 保存后留在当前页，或者如果能返回更好。但 NavLink 没有提供 pop 方法。
-        // 用户可以点击左上角返回。
+        navigation?.pop();
       }
     } catch (error) {
       console.error('保存技能失败:', error);
@@ -299,11 +299,9 @@ const SkillDetailMobilePage: React.FC<{ initialSkill: AgentSkill | null }> = ({ 
   return (
     <div className="flex flex-col overflow-hidden h-full bg-base-200 p-4 md:p-6 md:pt-0">
       <div 
-        {...bind()}
         className={cn(
           "px-2 flex items-start gap-3 h-[var(--height-header-m)] shrink-0",
-          "cursor-move select-none",
-          "md:touch-auto touch-none"
+          "select-none"
         )}
       >
         <div className="flex w-10 h-10 items-center justify-center">
@@ -317,12 +315,12 @@ const SkillDetailMobilePage: React.FC<{ initialSkill: AgentSkill | null }> = ({ 
         <div className="flex w-10 h-10 items-center justify-center">
         </div>
       </div>
-      <div className="flex-1 overflow-y-scroll overscroll-contain">
-        <div className='h-[calc(100vh-var(--height-header-m)-env(safe-area-inset-top)-env(safe-area-inset-bottom)+1px)]'>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <div className="min-h-full">
             <SkillDetailView
                 initialSkill={initialSkill}
                 onSave={handleSaveSkill}
-                onClose={() => {}} // Mobile 端由 BackButton 控制，这里为空
+                onClose={() => navigation?.pop()}
                 className="h-full"
             />
         </div>

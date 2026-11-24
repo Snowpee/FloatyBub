@@ -170,8 +170,8 @@ export const GlobalPromptsModal: React.FC<GlobalPromptsModalProps> = ({
     );
   }
 
-  // 移动端渲染
-  return (
+  // Portal outside IonContent so the editor is not clipped by its scroll host.
+  return createPortal(
     <BottomSheetModal
       isOpen={isOpen}
       onOpenChange={(open) => {
@@ -208,7 +208,8 @@ export const GlobalPromptsModal: React.FC<GlobalPromptsModalProps> = ({
           {FormContent}
         </div>
       </div>
-    </BottomSheetModal>
+    </BottomSheetModal>,
+    document.body
   );
 };
 

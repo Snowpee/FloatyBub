@@ -10,7 +10,8 @@ import KnowledgeSettings from './sections/KnowledgeSettings';
 import SearchSettings from './sections/SearchSettings';
 import SkillsSettings from './sections/SkillsSettings';
 
-export type TabType = 'global' | 'config' | 'roles' | 'userRoles' | 'globalPrompts' | 'voice' | 'data' | 'knowledge' | 'search' | 'skills';
+import type { TabType } from './settingsRoutes';
+export type { TabType } from './settingsRoutes';
 
 export interface SettingsModalProps {
   isOpen: boolean;

@@ -201,10 +201,10 @@ const DataSettings: React.FC<DataSettingsProps> = ({ onCloseModal, className }) 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <p className="text-sm text-base-content">存储位置</p>
-            <p className="text-base-content">浏览器本地存储 (localStorage)</p>
+            <p className="text-base-content">浏览器本地数据库 (IndexedDB)</p>
           </div>
           <div>
-            <p className="text-sm text-base-content">数据大小</p>
+            <p className="text-sm text-base-content">备份数据大小（估算）</p>
             <p className="text-base-content">{getStorageSize()}</p>
           </div>
         </div>
