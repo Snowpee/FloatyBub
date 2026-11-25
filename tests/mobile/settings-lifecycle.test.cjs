@@ -75,6 +75,7 @@ const { create, act } = dependencies('react-test-renderer');
             export const IonItem=p=><ion-item {...p}/>;
             export const IonButtons=p=><div {...p}/>;
             export const IonContent=p=><main {...p}/>;
+            export const IonIcon=p=><i {...p}/>;
             export const IonHeader=p=><header {...p}/>;
             export const IonLabel=p=><label {...p}/>;
             export const IonList=p=><ul {...p}/>;

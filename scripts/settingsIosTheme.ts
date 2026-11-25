@@ -24,8 +24,8 @@ export function settingsIosTheme(): Plugin {
           if (selector.startsWith('.ion-palette-dark')) {
             return selector.replace('.ion-palette-dark', '.ionic-settings-modal.ion-palette-dark');
           }
-          return selector.startsWith('ion-modal')
-            ? selector.replace(/^ion-modal/, 'ion-modal:where(.ionic-settings-modal)')
+          return /^ion-(modal|popover)/.test(selector)
+            ? selector.replace(/^(ion-(?:modal|popover))/, '$1:where(.ionic-settings-modal)')
             : `:where(.ionic-settings-modal) ${selector}`;
         });
       });

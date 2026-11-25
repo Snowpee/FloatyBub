@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {} from '@ionic/core';
 import {
-  IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonItem, IonLabel,
+  IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonItem, IonLabel,
   IonItemGroup, IonList, IonModal, IonNav, IonTitle, IonToolbar,
 } from '@ionic/react';
 import { useAppStore } from '@/store';
-import { chevronBack } from 'ionicons/icons';
-import { X } from 'lucide-react';
+import { chevronBack, closeOutline } from 'ionicons/icons';
 import { tabs, type SettingsModalProps, type TabType } from './config';
 import './ionicSetup';
 import './ionic-settings.css';
@@ -35,7 +34,7 @@ function SettingsPage({ onClose, onSelect, tabId }: SettingsPageProps) {
               <IonBackButton defaultHref="#setting" mode="ios" text="" icon={chevronBack} aria-label="返回设置" />
             ) : (
               <IonButton onClick={onClose} aria-label="关闭设置">
-                <X aria-hidden="true" size={22} />
+                <IonIcon slot="icon-only" icon={closeOutline} />
               </IonButton>
             )}
           </IonButtons>
@@ -88,11 +87,15 @@ export default function SettingsModalMobile({ isOpen, onClose, defaultTab }: Set
     if (closeRequested.current) return;
     if (backGuard.current && !await backGuard.current()) return;
     closeRequested.current = true;
-    // Update the controlled owner directly. Do not rely on an imperative
-    // overlay ref or a later didDismiss event to change isOpen/hash state.
-    const dismissed = await modalRef.current?.dismiss(undefined, 'close');
-    if (dismissed !== false) onCloseRef.current();
-    else closeRequested.current = false;
+    // Dismiss the overlay, then synchronize the controlled owner.
+    try {
+      const dismissed = await modalRef.current?.dismiss(undefined, 'close');
+      if (dismissed !== false) onCloseRef.current();
+      else closeRequested.current = false;
+    } catch (error) {
+      closeRequested.current = false;
+      console.error('关闭设置失败，可再次尝试:', error);
+    }
   }, []);
   const back = useCallback(() => { void navRef.current?.pop(); }, []);
   const select = useCallback((tabId: TabType) => {
@@ -132,7 +135,7 @@ export default function SettingsModalMobile({ isOpen, onClose, defaultTab }: Set
 
   // Ionic owns dismissal animation. Button close updates the controlled owner;
   // gesture/backdrop dismissal synchronizes the owner in onDidDismiss.
-  // The keyed nav resets to the requested section when the modal is reopened.
+  // Reopening resets the navigation stack in the presentation effect.
   return (
     <IonModal
       ref={modalRef}

@@ -27,3 +27,15 @@
 
 类型、生产构建、相关 ESLint、角色草稿/排序/保存、设置生命周期和主题声明测试。
 原生 Chrome AX 可读取原页面；后续重载出现空白，原生工具随后返回 noWindowsAvailable，浏览器 connector 不可用，不能据此宣称关闭/缩放的视觉验收通过。
+
+## 增删列表与选择器（后续整改）
+
+依据 Apple HIG Lists and tables 与 Ionic Select 文档：
+
+- 附加提示词/技能采用添加行 + 显式编辑状态；编辑状态显示移除和排序手柄。
+- IonReorderGroup 完成时使用 complete(false)，让 React 唯一负责数组对应的 DOM 顺序。
+- 添加选项排除已选项；移除只解除当前角色关联，不删除提示词/技能资源。
+- 知识库、回复方式、语音模型均使用 IonSelect interface=popover。
+- popover 通过 cssClass 应用同一 iOS 27 主题，并补全主题适配器对 popover host 的匹配。
+- 工具栏关闭图标使用标准 IonIcon icon-only slot；关闭抛错时解除请求锁以允许重试。
+- 未能确认实际点击遮挡来源：本轮原生连接启动失败、浏览器访问主机不可用。不得把组件测试作为命中测试通过的依据。
