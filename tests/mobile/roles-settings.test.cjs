@@ -18,7 +18,7 @@ const { create, act } = dependencies('react-test-renderer');
       b.onResolve({ filter: /^react(\/.*)?$/ }, a => ({ path: dependencies.resolve(a.path), external: true }));
       b.onResolve({ filter: /^@ionic\/react$|^@\/store$|^@\/hooks\/useToast$|^@\/components\/InputProvider$|^@\/components\/BottomSheetModal$|RoleAvatarUpload$|^@\/utils\/avatarUtils$/ }, a => ({ path: a.path, namespace: 'stub' }));
       b.onLoad({ filter: /.*/, namespace: 'stub' }, a => ({ loader: 'tsx', contents:
-        a.path === '@ionic/react' ? `import React from 'react'; export const useIonAlert=()=>[async o=>{if(globalThis.__confirm)o.buttons[1].handler();o.onDidDismiss();}];` + ['Button','Buttons','Content','Header','Title','Toolbar','Input','Item','Label','List','ListHeader','Note','Select','SelectOption','Textarea','ItemGroup','Reorder','ReorderGroup','Icon'].map(n => `export const Ion${n}=p=>React.createElement('ion-${n.toLowerCase()}',p);`).join('\n') :
+        a.path === '@ionic/react' ? `import React from 'react'; export const IonSelect=React.forwardRef((p,ref)=>{React.useImperativeHandle(ref,()=>({open:async()=>{globalThis.__addOpened=true;}}));return React.createElement('ion-select',p);}); export const IonItemSliding=React.forwardRef((p,ref)=>{React.useImperativeHandle(ref,()=>({open:async side=>{globalThis.__openedSide=side;},close:async()=>{}}));return React.createElement('ion-itemsliding',p);}); export const useIonAlert=()=>[async o=>{if(globalThis.__confirm)o.buttons[1].handler();o.onDidDismiss();}];` + ['Button','Buttons','Content','Header','Title','Toolbar','Input','Item','Label','List','ListHeader','Note','SelectOption','Textarea','ItemGroup','Reorder','ReorderGroup','Icon','ItemOptions','ItemOption'].map(n => `export const Ion${n}=p=>React.createElement('ion-${n.toLowerCase()}',p);`).join('\n') :
         a.path === '@/store' ? 'export const useAppStore=()=>globalThis.__store;' :
         a.path.includes('useToast') ? 'export const toast={error:v=>globalThis.__error=v};' :
         a.path.includes('avatarUtils') ? "export const generateRandomLocalAvatar=()=>'/avatar.png';" :
@@ -38,6 +38,17 @@ const { create, act } = dependencies('react-test-renderer');
     assert.ok(tree.root.findAllByType('ion-select').length >= 5);
     for (const select of tree.root.findAllByType('ion-select')) assert.equal(select.props.interface, 'popover');
     assert.equal(tree.root.findAllByType('ion-reordergroup')[0].props.disabled, true, 'sorting requires edit mode');
+    for (const label of ['添加开场白', '添加提示词', '添加技能']) {
+      const row = tree.root.findAllByType('ion-item').find(n => n.props['aria-label'] === label);
+      assert.ok(row, label + ' has its own item');
+      assert.equal(row.findAllByType('ion-icon').length, 0, 'add rows have no leading icon');
+      let parent = row.parent;
+      while (parent) { assert.notEqual(parent.type, 'ion-reordergroup', 'add row is outside reorder group'); parent = parent.parent; }
+      let group = row.parent;
+      while (group && group.type !== 'ion-itemgroup') group = group.parent;
+      assert.equal(group.props.className, 'role-form-add-group', 'add row has a separate item group');
+    }
+
     await act(async () => name().props.onIonInput({detail:{value:'草稿'}}));
     assert.equal(saved.length, 0, 'typing does not persist');
     const selects = () => tree.root.findAllByType('ion-select');
@@ -51,7 +62,10 @@ const { create, act } = dependencies('react-test-renderer');
     await act(async () => tree.root.findAllByType('ion-input').find(n => n.props.label === '最短回复延迟（秒）').props.onIonInput({detail:{value:'0'}}));
 
     await act(async () => tree.root.findAllByType('ion-button').find(n => n.props['aria-label'] === '移除附加提示词 提示词一').props.onClick());
-    assert.equal(selects()[0].props.children.length, 1, 'removed item becomes available to add again');
+    assert.equal(global.__openedSide, 'end', 'minus opens the trailing delete action');
+    assert.equal(selects()[0].props.children.length, 0, 'minus does not remove the association');
+    await act(async () => tree.root.findAllByType('ion-itemoption').find(n => n.props['aria-label'] === '删除附加提示词 提示词一').props.onClick());
+    assert.equal(selects()[0].props.children.length, 1, 'delete makes item available to add again');
     await act(async () => selects()[0].props.onIonChange({detail:{value:'p1'}}));
     assert.equal(await guard(), false, 'cancel discard keeps draft');
     await act(async () => button('返回').props.onClick());

@@ -14,3 +14,4 @@
 .ionic-settings-modal .role-form-avatar { padding: 24px 16px 8px; }
 .ionic-settings-modal .role-avatar-ionic { display: flex; align-items: center; gap: 16px; }
 .ionic-settings-modal .role-avatar-ionic ion-note { display: block; padding: 6px; font-size: 12px; }
+.ionic-settings-modal .role-form-add-group { margin-top: 8px; }
