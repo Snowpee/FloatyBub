@@ -71,3 +71,11 @@
   --ion-safe-area-left: env(safe-area-inset-left, 0px);
   --ion-safe-area-right: env(safe-area-inset-right, 0px);
 }
+
+/* Tailwind Preflight's document-level `* { padding: 0 }` overrides the
+   shadow :host padding supplied by Ionic. Without the native 90px inset,
+   ion-title's pointer-enabled text box spans the toolbar and intercepts
+   the middle of both start/end buttons. Restore Ionic iOS title geometry. */
+.ionic-settings-modal ion-title.ios.title-default {
+  padding-inline: 90px;
+}

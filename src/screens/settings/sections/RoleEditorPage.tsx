@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from 'react';
-import { IonButton, IonButtons, IonContent, IonHeader, IonSpinner, IonTitle, IonToolbar, useIonAlert } from '@ionic/react';
+import { IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonSpinner, IonTitle, IonToolbar, useIonAlert } from '@ionic/react';
+import { chevronBack } from 'ionicons/icons';
 import { useAppStore, type AIRole } from '@/store';
 import { KnowledgeService } from '@/services/knowledgeService';
 import type { KnowledgeBase } from '@/types/knowledge';
@@ -69,7 +70,7 @@ export default function RoleEditorPage({ roleId }: { roleId?: string }) {
     }
   };
   if (!data || (roleId && !role)) return <>
-    <IonHeader><IonToolbar><IonButtons slot="start"><IonButton onClick={() => navigation?.pop()}>返回</IonButton></IonButtons><IonTitle>{roleId ? '编辑角色' : '创建角色'}</IonTitle></IonToolbar></IonHeader>
+    <IonHeader><IonToolbar><IonButtons slot="start"><IonButton aria-label="返回角色卡" onClick={() => navigation?.pop()}><IonIcon slot="icon-only" icon={chevronBack} /></IonButton></IonButtons><IonTitle>{roleId ? '编辑角色' : '创建角色'}</IonTitle></IonToolbar></IonHeader>
     <IonContent><div className="role-editor-status">{roleId && !role ? '角色已不存在' : failed ? <><p>无法加载角色配置，请重试。</p><IonButton onClick={() => setAttempt(value => value + 1)}>重试</IonButton></> : <><IonSpinner /><p>正在加载角色配置…</p></>}</div></IonContent>
   </>;
   return <RolesModal page isOpen onDelete={canDelete ? remove : undefined} onClose={() => navigation?.pop()} onConfirm={save} initialRole={role} initialKnowledgeBaseId={data.selected} knowledgeBases={data.bases} />;

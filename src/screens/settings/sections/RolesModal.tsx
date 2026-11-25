@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { IonButton, IonButtons, IonContent, IonHeader, IonTitle, IonToolbar, IonList, IonItemGroup, IonItem, IonLabel, useIonAlert } from '@ionic/react';
+import { IonButton, IonButtons, IonContent, IonHeader, IonIcon, IonTitle, IonToolbar, IonList, IonItemGroup, IonItem, IonLabel, useIonAlert } from '@ionic/react';
+import { chevronBack } from 'ionicons/icons';
 import { SettingsNavigationContext } from '../SettingsNavigationContext';
 import {
   Plus,
@@ -618,7 +619,7 @@ const RolesModal: React.FC<RolesModalProps> = ({
 
   if (page) return <>
     <IonHeader><IonToolbar>
-      <IonButtons slot="start"><IonButton disabled={saving} onClick={async () => { if (await exitGuard.current()) navigation?.pop(); }}>返回</IonButton></IonButtons>
+      <IonButtons slot="start"><IonButton aria-label="返回角色卡" disabled={saving} onClick={async () => { if (await exitGuard.current()) navigation?.pop(); }}><IonIcon slot="icon-only" icon={chevronBack} /></IonButton></IonButtons>
       <IonTitle>{initialRole ? '编辑角色' : '创建角色'}</IonTitle>
       <IonButtons slot="end"><IonButton strong disabled={saving} onClick={handleSave}>{saving ? '保存中…' : '保存'}</IonButton></IonButtons>
     </IonToolbar></IonHeader>

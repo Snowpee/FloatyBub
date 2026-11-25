@@ -63,3 +63,14 @@ knowledge selection preservation, prompt ordering and legacy prompt compatibilit
 voice delay (including zero), pending saves, duplicate taps, and required-name validation.
 The lifecycle test also checks the card presenting element and button close without an imperative modal ref.
 Native layout/gestures and live backend persistence are not covered by this test.
+
+Real Chrome toolbar hit-target regression (requires a running Vite server):
+
+```sh
+SETTINGS_TEST_URL=http://127.0.0.1:5173 node tests/mobile/settings-hit-targets.test.cjs
+```
+
+Uses an isolated headless Chrome profile (override `CHROME_PATH` if needed).
+Reproduces the Tailwind title-padding regression with actual center/edge clicks,
+then checks close and editor back at three vertical positions each.
+The role is temporary test data and the knowledge backend is isolated.
